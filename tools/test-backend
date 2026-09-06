@@ -807,7 +807,7 @@ esac
 		if h then h:read("*a"); h:close() end
 		local deadline = os.time() + 2
 		while not slurp(click_dir .. "/steam-done") and os.time() < deadline do
-			os.execute("sleep 0.01")
+			real_execute("sleep 0.01")
 		end
 		return slurp(click_dir .. "/notify-args"), slurp(click_dir .. "/steam-count"),
 			slurp(click_dir .. "/steam-args"), slurp(click_dir .. "/steam-native-notify/.click")
