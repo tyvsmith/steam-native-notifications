@@ -200,6 +200,20 @@ test('several running games use the positively focused overlay', async () => {
 	expect(events).toEqual(['overlay:570:https://steamcommunity.com/example']);
 });
 
+test("Steam's hardware update fallback opens System settings in-game", async () => {
+	sc.Overlay.GetOverlayBrowserInfo = async () => [{ appID: 570 }];
+	focusChanged(570);
+	await dispatchClick(envelope('steam://settings/controller'));
+	expect(events).toEqual(['overlay:570:settings']);
+});
+
+test('an unverified settings route is refused in-game', async () => {
+	sc.Overlay.GetOverlayBrowserInfo = async () => [{ appID: 570 }];
+	focusChanged(570);
+	await dispatchClick(envelope('steam://settings/account'));
+	expect(events).toEqual([]);
+});
+
 test('the general fallback opens Steam while a game is focused', async () => {
 	sc.Overlay.GetOverlayBrowserInfo = async () => [{ appID: 570 }];
 	focusChanged(570);

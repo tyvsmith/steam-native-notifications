@@ -165,6 +165,12 @@ function isDesktopOnlyRoute(route: string): boolean {
 	return route === DEFAULT_STEAM_ROUTE || route.startsWith('steam://millennium/');
 }
 
+const OVERLAY_SETTINGS_ROUTES = new Set([
+	'steam://settings/system',
+	// Steam's HardwareUpdate toast opens Controller on desktop, System in-game.
+	'steam://settings/controller',
+]);
+
 async function dispatchFallback(runningAppId: number | null, focusedAppId: number, route: string): Promise<boolean> {
 	// Older envelopes can still carry this session-dependent action. Refuse
 	// before creating or raising a window; only their captured callback is safe.
@@ -193,7 +199,7 @@ async function dispatchFallback(runningAppId: number | null, focusedAppId: numbe
 	let opened: boolean;
 	if (route.startsWith(OPENURL_PREFIX)) {
 		opened = await openInOverlay(focusedAppId, route.slice(OPENURL_PREFIX.length));
-	} else if (route.startsWith('steam://settings/')) {
+	} else if (OVERLAY_SETTINGS_ROUTES.has(route)) {
 		opened = await openDialogInOverlay(focusedAppId, 'settings');
 	} else if (route.startsWith('steam://nav/')) {
 		dlog(`click-bridge: inert in-game, mirrors Steam: ${route}`);
