@@ -126,12 +126,13 @@ in the notification URL, so an OS-retained actionable notification can route
 without persisting a closure or a plugin route file.
 
 On Linux, a live FreeDesktop default action makes the detached helper run
-`steam <canonical-url>` with the URL as one argv element. The helper requests a
-30-second timeout. When the daemon identifies itself as Quickshell, the helper
-also sends `omarchy-exec-argv` containing the fixed `steam`, URL pair; Quattro
-can store that vector in its history. Arbitrary FreeDesktop daemons standardize
-the action identifier returned to the sender, not a persistent executable
-command, so reboot-durable history clicks are daemon-specific. The new Linux
+`steam <canonical-url>` with the URL as one argv element. The notification
+daemon controls the popup lifetime. When the daemon identifies itself as
+Quickshell, the helper also sends `omarchy-exec-argv` containing the fixed
+`steam`, URL pair; Quattro can store that vector in its history. Arbitrary
+FreeDesktop daemons standardize the action identifier returned to the sender,
+not a persistent executable command, so reboot-durable history clicks are
+daemon-specific. The new Linux
 path has offline coverage and runtime evidence for stored-argv replay and
 Achievement fallback after Steam restart/cold start. Quattro history UI clicks
 worked with Steam running and fully stopped; live-banner clicks, explicit
@@ -224,10 +225,10 @@ action.
   in-process image-data that history rows lose. Every delivery also names
   `steam.desktop` in a `desktop-entry` hint for app identity (name, logo
   badge, per-app grouping on daemons that read it).
-- FreeDesktop body actions must be named `default`. The Linux helper requests a
-  30-second timeout and launches the canonical URL only after `notify-send`
-  returns that action. Quickshell additionally receives Quattro's fixed argv
-  history hint. Expiry does not synthesize an action.
+- FreeDesktop body actions must be named `default`. The Linux helper leaves the
+  popup lifetime to the daemon and launches the canonical URL only after
+  `notify-send` returns that action. Quickshell additionally receives Quattro's
+  fixed argv history hint. Expiry does not synthesize an action.
 - Frontend-backend RPC rides Millennium's `ffi` bridge with positional
   arguments (`Notify(title, body, image, route, ingame)`); the retired
   `callable` transport could not order a multi-key object. A Lua string return

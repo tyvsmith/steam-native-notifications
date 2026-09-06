@@ -154,9 +154,9 @@ The pre-unification click-file path was regression-tested on native Linux,
 The current helper converts a validated `click:<base64url-envelope>` route to
 `steam://steam-native-notify/notification/<base64url-envelope>`. A live
 `notify-send` default action launches `steam` with that URL as one argv element;
-no Linux notification click writes `.click`. The helper requests a 30-second
-timeout and stays detached. Live-action survival across a Steam restart remains
-untested.
+no Linux notification click writes `.click`. The notification daemon controls
+the popup lifetime, and the helper stays detached. Live-action survival across
+a Steam restart remains untested.
 
 When `GetServerInformation` names Quickshell, the helper adds
 `omarchy-exec-argv:["steam","<canonical-url>"]`. Quattro stores that fixed argv

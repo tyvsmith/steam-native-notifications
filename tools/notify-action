@@ -96,10 +96,6 @@ fi
 # not draw.
 ACTION="default"
 
-# Bound the live popup to 30 seconds. Quickshell persists the canonical Steam
-# argv separately, so its notification-centre row remains actionable later.
-EXPIRE=30000
-
 title=${1:-Steam}
 body=${2:-}
 image=${3:-}
@@ -286,7 +282,6 @@ send_notification() {
 	if [ -n "$activation_url" ] && daemon_is_quickshell; then
 		set -- "$@" -h "string:omarchy-exec-argv:[\"steam\",\"$activation_url\"]"
 	fi
-	set -- "$@" -t "$EXPIRE"
 	if [ -n "$activation_url" ]; then
 		set -- "$@" -A "$ACTION=Open"
 	fi

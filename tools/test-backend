@@ -753,8 +753,8 @@ end
 
 -- A valid click envelope becomes one durable Steam URL argument. The action
 -- is attached only for a valid route, and no delivery writes the legacy click
--- file. Quickshell also receives Omarchy's persistent argv hint and a 30s
--- timeout; other daemons keep the standard default action without that hint.
+-- file. Quickshell also receives Omarchy's persistent argv hint; every daemon
+-- controls its own popup lifetime.
 local click_h = io.popen("mktemp -d")
 local click_dir = click_h:read("*l")
 click_h:close()
@@ -823,8 +823,8 @@ esac
 	check("valid activation: Quickshell receives persistent argv hint",
 		notify_args and notify_args:find('-h\nstring:omarchy-exec-argv:["steam","'
 			.. activation_url .. '"]\n', 1, true) ~= nil, tostring(notify_args))
-	check("valid activation: notification expires after 30 seconds",
-		notify_args and notify_args:find("-t\n30000\n", 1, true) ~= nil, tostring(notify_args))
+	check("valid activation: notification lifetime is daemon-controlled",
+		notify_args and notify_args:find("-t\n", 1, true) == nil, tostring(notify_args))
 	check("valid activation: no legacy click file is written", click_file == nil, tostring(click_file))
 
 	-- A live action cannot dispatch without the Steam executable. Keep the
