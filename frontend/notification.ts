@@ -1,4 +1,5 @@
 import { firstFiber } from './fiber';
+import { validSteamFallback } from './click';
 import { fieldsForType } from './generated/notifications';
 import {
 	DEFAULT_STEAM_ROUTE,
@@ -21,26 +22,61 @@ export type DecodedNotification =
 	| {
 			source: 'millennium';
 			type: number;
-			kind: 'MillenniumUpdate' | 'MillenniumUnknown';
+			kind: 'MillenniumUpdate' | 'MillenniumAction' | 'MillenniumUnknown';
 			fallback: string;
 		};
 
 /** eSource on Steam's notification object: which of the two systems produced it. */
 const SOURCE_SERVER = 2;
 
-function millenniumFallback(data: unknown): { kind: 'MillenniumUpdate' | 'MillenniumUnknown'; route: string } {
+// Current update titles from Millennium's 20 registered locales at commit
+// 5cbebb86628767f365de987c451a2839afe153bc. They classify routing only; the
+// native notification always displays Steam's already-localized DOM text.
+const MILLENNIUM_UPDATE_TITLES = new Set([
+	'Aggiornamenti disponibili!',
+	'Aggiornamento di Millennium disponibile',
+	'Atualizações disponíveis!',
+	'Có cập nhật mới!',
+	'Disponible actualización de Millennium',
+	'Dostępne aktualizacje!',
+	'Frissítések érhetők el!',
+	'Güncellemeler Mevcut!',
+	'Millennium Update Available',
+	'Millennium-Update verfügbar',
+	'Mises à jour disponibles !',
+	'Pembaruan tersedia!',
+	'Tillgängliga uppdateringar!',
+	'Updates Available!',
+	'Updates beschikbaar!',
+	'Updates verfügbar!',
+	'¡Actualizaciones Disponibles!',
+	'¡Actualizaciones disponibles!',
+	'Доступно обновление Millennium',
+	'Доступны обновления!',
+	'Доступні оновлення!',
+	'アップデートが利用可能です！',
+	'更新可用！',
+	'有可用更新！',
+	'업데이트 가능!',
+]);
+
+type MillenniumKind = 'MillenniumUpdate' | 'MillenniumAction' | 'MillenniumUnknown';
+
+function millenniumFallback(data: unknown): { kind: MillenniumKind; route: string } {
 	try {
-		const toast = data as { title?: unknown; body?: unknown; onClick?: unknown } | null;
+		const toast = data as { title?: unknown; onClick?: unknown; activationUrl?: unknown } | null;
+		const activationUrl = validSteamFallback(toast?.activationUrl) ? toast.activationUrl : null;
+		if (activationUrl) {
+			return {
+				kind: activationUrl === MILLENNIUM_UPDATES_ROUTE ? 'MillenniumUpdate' : 'MillenniumAction',
+				route: activationUrl,
+			};
+		}
 		const onClick = toast?.onClick;
 		if (typeof onClick === 'function') {
 			const callbackSource = Function.prototype.toString.call(onClick);
 			const title = typeof toast?.title === 'string' ? toast.title : '';
-			const body = typeof toast?.body === 'string' ? toast.body : '';
-			const updateCopy =
-				(title === 'Updates Available!' && /^Millennium found \d+ available updates?$/.test(body)) ||
-				(title === 'Millennium Update Available' &&
-					body === 'A new version of Millennium is available! Click here to update.');
-			if (callbackSource.includes('/millennium/settings/updates') || updateCopy) {
+			if (callbackSource.includes('/millennium/settings/updates') || MILLENNIUM_UPDATE_TITLES.has(title)) {
 				return { kind: 'MillenniumUpdate', route: MILLENNIUM_UPDATES_ROUTE };
 			}
 		}

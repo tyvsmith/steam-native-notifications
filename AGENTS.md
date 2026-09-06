@@ -191,6 +191,7 @@ regexes silently dropped edits and deleted a live declaration twice.
 millennium.toml           plugin manifest; starlight packs everything below
 frontend/index.tsx        popup lifecycle: hook, wait, deliver   (Steam's CEF)
 frontend/notification.ts  React tree -> typed notification (feeds the log)
+frontend/toasttext.ts      preserve rendered localized copy; split title/body
 frontend/click.ts         validate/encode the durable click envelope
 frontend/replay.ts        stash Steam's handler by random token; invoke it
 frontend/routes.ts        verified durable fallback catalog

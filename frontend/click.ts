@@ -17,12 +17,37 @@ export interface ClickEnvelope {
 const TOKEN = /^[a-f0-9]{32}$/;
 const ENCODED = /^[A-Za-z0-9_-]+$/;
 const ACTION = /^action:(?:media|requestplaytime|screenshot:[A-Za-z0-9_.-]+|clip:[A-Za-z0-9_.-]+|chatroom:[A-Za-z0-9_.-]+:[A-Za-z0-9_.-]+)$/;
+const MAX_ENCODED_ENVELOPE = 8192;
+const UNSAFE_ROUTE_CHARACTER = /[\p{White_Space}\p{Cc}\p{Cf}]/u;
+
+function fitsClickEnvelope(fallback: string): boolean {
+	return (
+		encodeClickEnvelope({
+			v: 1,
+			token: '0'.repeat(32),
+			captureAppId: 0xffffffff,
+			fallback,
+			focus: 'chat',
+		}).length <= MAX_ENCODED_ENVELOPE
+	);
+}
+
+export function validSteamFallback(value: unknown): value is string {
+	return (
+		typeof value === 'string' &&
+		value.length > 0 &&
+		value.length <= 4096 &&
+		/^steam:\/\/[A-Za-z0-9]/.test(value) &&
+		!UNSAFE_ROUTE_CHARACTER.test(value) &&
+		fitsClickEnvelope(value)
+	);
+}
 
 function validFallback(value: unknown): value is string | null {
 	if (value === null) return true;
-	if (typeof value !== 'string' || value.length === 0 || value.length > 4096) return false;
-	if (ACTION.test(value)) return true;
-	return /^steam:\/\/[A-Za-z0-9][^\u0000-\u0020]{0,4095}$/.test(value);
+	if (typeof value !== 'string') return false;
+	if (ACTION.test(value)) return fitsClickEnvelope(value);
+	return validSteamFallback(value);
 }
 
 function validEnvelope(value: unknown): value is ClickEnvelope {
@@ -64,13 +89,18 @@ export function encodeClickEnvelope(value: unknown): string {
 }
 
 export function steamNotificationUrl(encoded: string): string {
-	if (!ENCODED.test(encoded) || encoded.length > 8192) return '';
+	if (!ENCODED.test(encoded) || encoded.length > MAX_ENCODED_ENVELOPE) return '';
 	return `steam://${STEAM_URL_SECTION}/${STEAM_URL_RESOURCE}/${encoded}`;
 }
 
 export function decodeClickEnvelope(encoded: string): ClickEnvelope | null {
 	try {
-		if (typeof encoded !== 'string' || encoded.length === 0 || encoded.length > 8192 || !ENCODED.test(encoded)) {
+		if (
+			typeof encoded !== 'string' ||
+			encoded.length === 0 ||
+			encoded.length > MAX_ENCODED_ENVELOPE ||
+			!ENCODED.test(encoded)
+		) {
 			return null;
 		}
 		const parsed: unknown = JSON.parse(new TextDecoder().decode(base64ToBytes(encoded)));

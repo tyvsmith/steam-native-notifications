@@ -13,6 +13,7 @@ import { registerSteamUrlClicks } from './steamurl';
 import { SettingsPanel } from './Settings';
 import { loadSettings, parseCallableJson, settings } from './settings';
 import { loadUrlTemplates } from './urlstore';
+import { splitToastText } from './toasttext';
 
 /**
  * Steam draws every notification as its own CEF popup window, named
@@ -89,22 +90,6 @@ function toastName(popup: SteamPopup): string | null {
 }
 
 /**
- * Steam's toasts put the actor or heading on the first line and the message
- * under it. A single-line toast has no heading, so the app name stands in --
- * better than a notification whose title is its own body.
- */
-function split(text: string): { title: string; body: string } {
-	const lines = text
-		.split('\n')
-		.map((l) => l.trim())
-		.filter(Boolean);
-
-	if (lines.length === 0) return { title: 'Steam', body: '' };
-	if (lines.length === 1) return { title: 'Steam', body: lines[0] };
-	return { title: lines[0], body: lines.slice(1).join(' — ') };
-}
-
-/**
  * The capsule or avatar the toast is showing. Game art comes from Steam's own
  * virtual host and a friend's avatar from the public CDN; the helper knows how
  * to resolve either, so the raw reference is passed through untouched.
@@ -155,7 +140,7 @@ function deliverToast(win: Window, name: string, text: string): void {
 	if (delivered.has(name)) return;
 	delivered.add(name);
 
-	const { title, body } = split(text);
+	const { title, body } = splitToastText(text);
 	const image = toastImage(win);
 	const fromToast = notificationFromToast(win);
 	// Steam renders each toast in the surface the user is on: overlay-context

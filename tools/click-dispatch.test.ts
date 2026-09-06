@@ -214,6 +214,13 @@ test('the Millennium updates fallback opens on desktop while a game is focused',
 	expect(events).toEqual(['url:steam://millennium/settings/updates', 'focus:main']);
 });
 
+test('an explicit Millennium activation opens on desktop while a game is focused', async () => {
+	sc.Overlay.GetOverlayBrowserInfo = async () => [{ appID: 570 }];
+	focusChanged(570);
+	await dispatchClick(envelope('steam://millennium/sidebar'));
+	expect(events).toEqual(['url:steam://millennium/sidebar', 'focus:main']);
+});
+
 for (const discovery of ['throws', 'missing', 'malformed', 'empty', 'other-game']) {
 	test(`unknown surface refuses desktop replay and fallback when discovery is ${discovery}`, async () => {
 		const click = envelope('steam://nav/games/details/570');

@@ -2,7 +2,7 @@ import { ffi } from 'millennium';
 import { decodeClickPayload, deliveryMode, surfaceMatches, type ClickEnvelope, type FocusKind } from './click';
 import { dlog } from './log';
 import { invokeReplayHandler } from './replay';
-import { DEFAULT_STEAM_ROUTE, MILLENNIUM_UPDATES_ROUTE } from './routes';
+import { DEFAULT_STEAM_ROUTE } from './routes';
 import {
 	openChatInOverlay,
 	openChatOnDesktop,
@@ -161,6 +161,10 @@ function desktopClick(route: string): Promise<boolean> {
 	});
 }
 
+function isDesktopOnlyRoute(route: string): boolean {
+	return route === DEFAULT_STEAM_ROUTE || route.startsWith('steam://millennium/');
+}
+
 async function dispatchFallback(runningAppId: number | null, focusedAppId: number, route: string): Promise<boolean> {
 	// Older envelopes can still carry this session-dependent action. Refuse
 	// before creating or raising a window; only their captured callback is safe.
@@ -168,7 +172,7 @@ async function dispatchFallback(runningAppId: number | null, focusedAppId: numbe
 		dlog('click-bridge: group chat has no durable fallback');
 		return false;
 	}
-	if (route === DEFAULT_STEAM_ROUTE || route === MILLENNIUM_UPDATES_ROUTE) return desktopClick(route);
+	if (isDesktopOnlyRoute(route)) return desktopClick(route);
 	const focused = focusedAppId > 0;
 	if (route.startsWith('steam://friends/message/')) {
 		const sid = route.slice('steam://friends/message/'.length);
@@ -226,9 +230,7 @@ export async function dispatchClick(envelope: ClickEnvelope): Promise<void> {
 		dlog(`click-bridge: fallback ${envelope.fallback}`);
 		if (
 			(await dispatchFallback(runningAppId, focusedAppId, envelope.fallback)) &&
-			(focusedAppId === 0 ||
-				envelope.fallback === DEFAULT_STEAM_ROUTE ||
-				envelope.fallback === MILLENNIUM_UPDATES_ROUTE)
+			(focusedAppId === 0 || isDesktopOnlyRoute(envelope.fallback))
 		) {
 			requestFocus(envelope.focus);
 		}

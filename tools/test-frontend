@@ -140,6 +140,8 @@ if (click) {
 		click.encodeClickEnvelope({ ...envelope, token: 'notificationtoasts_10000_desktop' }),
 		click.encodeClickEnvelope({ ...envelope, captureAppId: -1 }),
 		click.encodeClickEnvelope({ ...envelope, fallback: 'file:///etc/passwd' }),
+		click.encodeClickEnvelope({ ...envelope, fallback: 'steam://millennium/settings/\u00a0updates' }),
+		click.encodeClickEnvelope({ ...envelope, fallback: `steam://millennium/${'😀'.repeat(1990)}` }),
 		click.encodeClickEnvelope({ ...envelope, focus: 'other' }),
 	]) {
 		is(`malformed click envelope is refused: ${JSON.stringify(bad).slice(0, 50)}`, click.decodeClickEnvelope(bad), null);
@@ -233,6 +235,133 @@ check('Millennium self-update toast carries its durable route',
 		millenniumSelfUpdate.fallback === 'steam://millennium/settings/updates',
 	JSON.stringify(millenniumSelfUpdate));
 
+const millenniumUpdateTitles = [
+	'Aggiornamenti disponibili!',
+	'Aggiornamento di Millennium disponibile',
+	'Atualizações disponíveis!',
+	'Có cập nhật mới!',
+	'Disponible actualización de Millennium',
+	'Dostępne aktualizacje!',
+	'Frissítések érhetők el!',
+	'Güncellemeler Mevcut!',
+	'Millennium Update Available',
+	'Millennium-Update verfügbar',
+	'Mises à jour disponibles !',
+	'Pembaruan tersedia!',
+	'Tillgängliga uppdateringar!',
+	'Updates Available!',
+	'Updates beschikbaar!',
+	'Updates verfügbar!',
+	'¡Actualizaciones Disponibles!',
+	'¡Actualizaciones disponibles!',
+	'Доступно обновление Millennium',
+	'Доступны обновления!',
+	'Доступні оновлення!',
+	'アップデートが利用可能です！',
+	'更新可用！',
+	'有可用更新！',
+	'업데이트 가능!',
+];
+for (const title of millenniumUpdateTitles) {
+	const localized = notification.notificationFromToast(
+		toastWindow(fiberChain({
+			eType: 12,
+			eSource: 1,
+			millennium: true,
+			data: { title, body: 'localized body', onClick() {} },
+		}, 0)),
+	);
+	check(`localized Millennium update routes durably: ${title}`,
+		localized?.source === 'millennium' &&
+			localized.kind === 'MillenniumUpdate' &&
+			localized.fallback === 'steam://millennium/settings/updates',
+		JSON.stringify(localized));
+}
+
+const millenniumActivation = notification.notificationFromToast(
+	toastWindow(fiberChain({
+		eType: 12,
+		eSource: 1,
+		millennium: true,
+		data: {
+			title: 'Plugin action',
+			body: 'Open the sidebar',
+			onClick() {},
+			activationUrl: 'steam://millennium/sidebar',
+		},
+	}, 0)),
+);
+check('an explicit Millennium activation URL becomes the durable route',
+	millenniumActivation?.source === 'millennium' &&
+		millenniumActivation.kind === 'MillenniumAction' &&
+		millenniumActivation.fallback === 'steam://millennium/sidebar',
+	JSON.stringify(millenniumActivation));
+
+const millenniumActivationWithoutCallback = notification.notificationFromToast(
+	toastWindow(fiberChain({
+		eType: 12,
+		eSource: 1,
+		millennium: true,
+		data: {
+			title: 'Plugin action',
+			body: 'Open the sidebar',
+			activationUrl: 'steam://millennium/sidebar',
+		},
+	}, 0)),
+);
+check('an explicit Millennium activation URL does not require a live callback',
+	millenniumActivationWithoutCallback?.source === 'millennium' &&
+		millenniumActivationWithoutCallback.kind === 'MillenniumAction' &&
+		millenniumActivationWithoutCallback.fallback === 'steam://millennium/sidebar',
+	JSON.stringify(millenniumActivationWithoutCallback));
+
+const unsafeMillenniumActivation = notification.notificationFromToast(
+	toastWindow(fiberChain({
+		eType: 12,
+		eSource: 1,
+		millennium: true,
+		data: { title: 'Plugin action', body: 'Open a page', onClick() {}, activationUrl: 'https://example.com' },
+	}, 0)),
+);
+check('a non-Steam Millennium activation URL uses only the neutral fallback',
+	unsafeMillenniumActivation?.source === 'millennium' &&
+		unsafeMillenniumActivation.kind === 'MillenniumUnknown' &&
+		unsafeMillenniumActivation.fallback === 'steam://open/main',
+	JSON.stringify(unsafeMillenniumActivation));
+
+for (const activationUrl of [
+	'steam://millennium/settings/\u00a0updates',
+	`steam://millennium/${'😀'.repeat(1990)}`,
+]) {
+	const invalidActivation = notification.notificationFromToast(
+		toastWindow(fiberChain({
+			eType: 12,
+			eSource: 1,
+			millennium: true,
+			data: { title: 'Plugin action', body: 'Open a page', activationUrl },
+		}, 0)),
+	);
+	check('an unsafe or oversized Millennium activation URL uses the neutral fallback',
+		invalidActivation?.source === 'millennium' &&
+			invalidActivation.kind === 'MillenniumUnknown' &&
+			invalidActivation.fallback === 'steam://open/main',
+		JSON.stringify(invalidActivation));
+}
+
+const localizedWithoutCallback = notification.notificationFromToast(
+	toastWindow(fiberChain({
+		eType: 12,
+		eSource: 1,
+		millennium: true,
+		data: { title: '更新可用！', body: 'localized body' },
+	}, 0)),
+);
+check('a localized Millennium update title without a callback remains unknown',
+	localizedWithoutCallback?.source === 'millennium' &&
+		localizedWithoutCallback.kind === 'MillenniumUnknown' &&
+		localizedWithoutCallback.fallback === 'steam://open/main',
+	JSON.stringify(localizedWithoutCallback));
+
 const millenniumUnknown = notification.notificationFromToast(
 	toastWindow(fiberChain({ eType: 12, eSource: 1, millennium: true, data: { onClick() {} } }, 0)),
 );
@@ -242,6 +371,11 @@ check('unknown Millennium toast carries only the general Steam fallback',
 	JSON.stringify(millenniumUnknown));
 
 is('a window with no fiber yields null', notification.notificationFromToast(toastWindow(null)), null);
+
+const { toasttext } = loadFrontendModules(['toasttext']);
+const localizedText = toasttext.splitToastText('更新可用！\nMillennium 找到了 1 个可用的插件');
+check('rendered localized toast text is reused without translation',
+	localizedText.title === '更新可用！' && localizedText.body === 'Millennium 找到了 1 个可用的插件');
 
 // --- chooseHandler ---------------------------------------------------------
 

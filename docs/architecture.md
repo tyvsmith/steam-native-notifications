@@ -94,11 +94,14 @@ inert. A type absent from the catalog gets the neutral `steam://open/main`
 fallback while its exact callback remains preferred.
 
 Millennium marks its synthetic notification object with `millennium: true`.
-Its built-in English update copy and callback map to
-`steam://millennium/settings/updates`; other Millennium toasts get only the
-neutral fallback. A different locale also degrades to the neutral route because
-Millennium exposes no semantic toast ID or activation URL. This avoids treating
-Millennium's placeholder type 12 as Steam's unrelated
+An explicit, valid `data.activationUrl` is used when a future emitter supplies
+one. Valid routes are bounded, whitespace/control-free lowercase `steam://`
+URLs that fit the canonical click envelope. For current Millennium versions,
+its registered route or any update title from its 20 active locales maps to
+`steam://millennium/settings/updates`;
+other Millennium toasts get only the neutral fallback. The localized display
+copy always comes from Steam's painted DOM, never from this routing table. This
+also avoids treating Millennium's placeholder type 12 as Steam's unrelated
 `FamilySharingStopPlaying` notification.
 
 `frontend/steamurl.ts` registers the `steam-native-notify` URL section for the

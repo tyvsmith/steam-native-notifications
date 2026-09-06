@@ -100,9 +100,12 @@ notifications with `millennium: true`. Its
 sends both built-in update toasts to `/millennium/settings/updates`, and its
 [URL handler](https://github.com/SteamClientHomebrew/Millennium/blob/5cbebb86628767f365de987c451a2839afe153bc/src/typescript/frontend/utils/url-scheme-handler.ts#L91-L104)
 registers the corresponding Steam URL. The plugin recognizes that literal in
-an unwrapped callback or the exact built-in English update copy. Millennium's
-runtime wraps the current callback and exposes no semantic toast ID or activation
-URL, so a different locale or opaque callback falls back only to
+an unwrapped callback or the update titles shipped for Millennium's 20 active
+locales. That table classifies the route only: the displayed title and body are
+copied from the painted toast. A bounded, whitespace/control-free lowercase
+`steam://` `data.activationUrl` that fits the canonical envelope takes
+precedence for forward compatibility. Millennium's current runtime supplies no
+semantic toast ID or activation URL, so an otherwise unknown callback falls back only to
 `steam://open/main`.
 
 Unknown notifications are the deliberate exception to exact mirroring: their
