@@ -200,7 +200,7 @@ frontend/fiber.ts         the __reactFiber discovery both walkers share
 frontend/log.ts           dlog/safeJson; prefixes are capture's contract
 frontend/clickbridge.ts   replay on matching surface; live-focus fallback otherwise
 frontend/devfire.ts       tools/fire door, gated by a setting
-frontend/Settings.tsx     settings panel; settings.ts, per-key config store
+frontend/SettingsPanel.tsx settings panel; settings.ts, per-key config store
 backend/main.lua          marshaller + per-OS spawn seam (Millennium Lua host)
 tools/notify-action       POSIX delivery; live action launches canonical URL,
                           Quickshell gets Quattro's fixed argv history hint

@@ -10,7 +10,7 @@ import { clientOverlayAction, clientRoute, DEFAULT_STEAM_ROUTE, serverRoute } fr
 import { startDevFirePoll } from './devfire';
 import { stashToastHandler } from './replay';
 import { registerSteamUrlClicks } from './steamurl';
-import { SettingsPanel } from './Settings';
+import { SettingsPanel } from './SettingsPanel';
 import { loadSettings, parseCallableJson, settings } from './settings';
 import { loadUrlTemplates } from './urlstore';
 import { splitToastText } from './toasttext';

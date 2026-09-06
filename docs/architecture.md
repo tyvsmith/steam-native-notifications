@@ -41,7 +41,7 @@ Steam renders a toast (its own CEF popup window)
 
 `frontend/fiber.ts` owns the `__reactFiber` discovery both walkers share;
 `frontend/log.ts` owns `dlog`/`safeJson`, whose prefixes are `tools/capture`'s
-grep contract; `frontend/settings.ts` + `Settings.tsx` hold the two
+grep contract; `frontend/settings.ts` + `SettingsPanel.tsx` hold the two
 user-facing toggles (desktop notifications outside / inside games) and the
 developer toggles behind `devMode`; `frontend/devfire.ts` is the `tools/fire`
 door, gated on the `devFire` developer toggle.
