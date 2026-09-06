@@ -1,6 +1,11 @@
 import { firstFiber } from './fiber';
 import { fieldsForType } from './generated/notifications';
-import type { PbValue, ServerNotification } from './routes';
+import {
+	DEFAULT_STEAM_ROUTE,
+	MILLENNIUM_UPDATES_ROUTE,
+	type PbValue,
+	type ServerNotification,
+} from './routes';
 
 /**
  * "React tree -> typed notification", in one place.
@@ -12,10 +17,38 @@ import type { PbValue, ServerNotification } from './routes';
  */
 export type DecodedNotification =
 	| { source: 'client'; type: number; fields: Record<string, PbValue> }
-	| { source: 'server'; type: number; server: ServerNotification };
+	| { source: 'server'; type: number; server: ServerNotification }
+	| {
+			source: 'millennium';
+			type: number;
+			kind: 'MillenniumUpdate' | 'MillenniumUnknown';
+			fallback: string;
+		};
 
 /** eSource on Steam's notification object: which of the two systems produced it. */
 const SOURCE_SERVER = 2;
+
+function millenniumFallback(data: unknown): { kind: 'MillenniumUpdate' | 'MillenniumUnknown'; route: string } {
+	try {
+		const toast = data as { title?: unknown; body?: unknown; onClick?: unknown } | null;
+		const onClick = toast?.onClick;
+		if (typeof onClick === 'function') {
+			const callbackSource = Function.prototype.toString.call(onClick);
+			const title = typeof toast?.title === 'string' ? toast.title : '';
+			const body = typeof toast?.body === 'string' ? toast.body : '';
+			const updateCopy =
+				(title === 'Updates Available!' && /^Millennium found \d+ available updates?$/.test(body)) ||
+				(title === 'Millennium Update Available' &&
+					body === 'A new version of Millennium is available! Click here to update.');
+			if (callbackSource.includes('/millennium/settings/updates') || updateCopy) {
+				return { kind: 'MillenniumUpdate', route: MILLENNIUM_UPDATES_ROUTE };
+			}
+		}
+	} catch {
+		/* an opaque callback remains clickable by exact replay */
+	}
+	return { kind: 'MillenniumUnknown', route: DEFAULT_STEAM_ROUTE };
+}
 
 /**
  * The notification Steam attached to the toast, read out of the React tree.
@@ -43,7 +76,15 @@ export function notificationFromToast(win: Window): DecodedNotification | null {
 				const source = Number((notification as any).eSource);
 				const data = (notification as any).data;
 
-				if (source === SOURCE_SERVER) {
+				if ((notification as any).millennium === true) {
+					const fallback = millenniumFallback(data);
+					decoded = {
+						source: 'millennium',
+						type,
+						kind: fallback.kind,
+						fallback: fallback.route,
+					};
+				} else if (source === SOURCE_SERVER) {
 					let body: Record<string, unknown> | null = null;
 					try {
 						const raw = data?.item?.body_data;

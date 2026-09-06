@@ -91,6 +91,24 @@ plugin substitutes it that way.
 | `steam://settings/<token>` | desktop protocol entry `["settings","open/settings"]` → token map `Ga` (line ~505025: `system: "System"`, `controller: "Controller"`, …) → same settings opener the components call | |
 | `steam://openurl/<https url>` | protocol entry `["openurl", ...]` → `SteamWeb` | literally the code `SteamWeb` itself emits for non-steam URLs |
 | `steam://url/<Name>/<params>` | protocol entry `["url", ...]` → `ResolveURL` + `SteamWeb` | the components' `bG(name, ...params)` helper is `SteamWeb(ResolveURL(name, ...params))` (module 18057 `m`/`b`) |
+| `steam://millennium/settings/updates` | Millennium's registered URL handler | same destination as Millennium's built-in update-toast callbacks |
+| `steam://open/main` | Steam's internal main-window opener | neutral fallback only for notification types absent from the catalog; it does not guess a notification destination |
+
+Millennium commit `5cbebb86628767f365de987c451a2839afe153bc` marks synthetic
+notifications with `millennium: true`. Its
+[update service](https://github.com/SteamClientHomebrew/Millennium/blob/5cbebb86628767f365de987c451a2839afe153bc/src/typescript/frontend/utils/update-notification-service.tsx#L39-L63)
+sends both built-in update toasts to `/millennium/settings/updates`, and its
+[URL handler](https://github.com/SteamClientHomebrew/Millennium/blob/5cbebb86628767f365de987c451a2839afe153bc/src/typescript/frontend/utils/url-scheme-handler.ts#L91-L104)
+registers the corresponding Steam URL. The plugin recognizes that literal in
+an unwrapped callback or the exact built-in English update copy. Millennium's
+runtime wraps the current callback and exposes no semantic toast ID or activation
+URL, so a different locale or opaque callback falls back only to
+`steam://open/main`.
+
+Unknown notifications are the deliberate exception to exact mirroring: their
+captured callback still wins in the same session, but after its loss the plugin
+opens Steam generally. Known Steam notifications whose observed click is inert
+remain inert.
 
 ## Focus
 

@@ -6,7 +6,7 @@ import { notificationFromToast, type DecodedNotification } from './notification'
 import { dlog, safeJson } from './log';
 import { startClickBridge } from './clickbridge';
 import { trackOverlayFocus } from './overlay';
-import { clientOverlayAction, clientRoute, serverRoute } from './routes';
+import { clientOverlayAction, clientRoute, DEFAULT_STEAM_ROUTE, serverRoute } from './routes';
 import { startDevFirePoll } from './devfire';
 import { stashToastHandler } from './replay';
 import { registerSteamUrlClicks } from './steamurl';
@@ -72,6 +72,7 @@ const delivered = new Set<string>();
 const registrations: Registration[] = [];
 
 function routeFor(notification: DecodedNotification): string | null {
+	if (notification.source === 'millennium') return notification.fallback;
 	return notification.source === 'client'
 		? clientRoute(notification.type, notification.fields)
 		: serverRoute(notification.server);
@@ -160,7 +161,8 @@ function deliverToast(win: Window, name: string, text: string): void {
 	// Steam renders each toast in the surface the user is on: overlay-context
 	// names (notificationtoasts_uid<appid>-...) mean the game was focused,
 	// _desktop names mean it was not -- even with a game running.
-	const overlayCtx = name.startsWith('notificationtoasts_uid');
+	const captureAppId = captureAppIdFromToastName(name);
+	const overlayCtx = captureAppId !== null && captureAppId > 0;
 
 	let type: number | undefined;
 	let kind: string | undefined;
@@ -169,14 +171,20 @@ function deliverToast(win: Window, name: string, text: string): void {
 	try {
 		if (fromToast) {
 			type = fromToast.type;
-			kind = typeName(type);
+			kind = fromToast.source === 'millennium' ? fromToast.kind : typeName(type);
 			catalogRoute = routeFor(fromToast);
 			if (fromToast.source === 'client') overlayAction = clientOverlayAction(type, fromToast.fields);
 			const detail =
 				fromToast.source === 'server'
 					? `server type=${fromToast.server.type} url=${fromToast.server.url ?? ''} body=${safeJson(fromToast.server.body)}`
-					: `fields=${safeJson(fromToast.fields)}`;
+					: fromToast.source === 'millennium'
+						? `millennium fallback=${fromToast.fallback}`
+						: `fields=${safeJson(fromToast.fields)}`;
 			dlog(`from-toast ${name} type=${type} (${kind}) source=${fromToast.source} ${detail}`.slice(0, 700));
+		} else {
+			kind = 'Unknown';
+			catalogRoute = DEFAULT_STEAM_ROUTE;
+			dlog(`from-toast ${name} unknown: no attached notification`);
 		}
 	} catch (e) {
 		dlog(`from-toast ${name} failed: ${(e as Error)?.message ?? e}`);
@@ -193,7 +201,6 @@ function deliverToast(win: Window, name: string, text: string): void {
 		try {
 			const token = newClickToken();
 			replayable = stashToastHandler(win, name, token);
-			const captureAppId = captureAppIdFromToastName(name);
 			if (captureAppId !== null && (replayable || fallback)) {
 				clickPayload =
 					CLICK_PAYLOAD_PREFIX +

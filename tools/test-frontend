@@ -85,20 +85,24 @@ if (click) {
 		click.clickEnvelopeFromSteamUrl(`steam://snn/click/${encoded}`), null);
 
 	is('desktop toast captures appid 0', click.captureAppIdFromToastName('notificationtoasts_10000_desktop'), 0);
+	is('Millennium desktop toast captures appid 0',
+		click.captureAppIdFromToastName('notificationtoasts_undefined_desktop'), 0);
+	is('future desktop toast identities do not block replay',
+		click.captureAppIdFromToastName('notificationtoasts_future-format_desktop'), 0);
 	is('overlay toast captures its appid', click.captureAppIdFromToastName('notificationtoasts_uid570-10001'), 570);
 	is('another real overlay toast form captures its appid',
 		click.captureAppIdFromToastName('notificationtoasts_uid553850-10002'), 553850);
+	is('future overlay toast identities do not block replay',
+		click.captureAppIdFromToastName('notificationtoasts_uid570-future-format'), 570);
 	for (const name of [
 		'notificationtoasts_',
 		'notificationtoasts_vr',
 		'notificationtoasts_10000',
-		'notificationtoasts_bogus_desktop',
 		'notificationtoasts_10000_desktop_extra',
 		'notificationtoasts_10000_desktop\n',
 		'notificationtoasts_uidbogus-10001',
 		'notificationtoasts_uid570-',
-		'notificationtoasts_uid570-bogus',
-		'notificationtoasts_uid570-10001_extra',
+		'notificationtoasts_uid570-42_desktop',
 		'notificationtoasts_uid570-10001\n',
 		'notificationtoasts_uid0-10001',
 		'notificationtoasts_uid-570-10001',
@@ -194,6 +198,48 @@ const deep = notification.notificationFromToast(
 );
 check('notification found up the fiber.return chain',
 	deep?.source === 'client' && deep.fields.appid === 570, JSON.stringify(deep));
+
+const millenniumUpdate = notification.notificationFromToast(
+	toastWindow(fiberChain({
+		eType: 12,
+		eSource: 1,
+		millennium: true,
+		data: {
+			title: 'Updates Available!',
+			body: 'Millennium found 1 available update',
+			onClick: function wrappedAction() {},
+		},
+	}, 0)),
+);
+check('Millennium update toast carries its durable route',
+	millenniumUpdate?.source === 'millennium' &&
+		millenniumUpdate.fallback === 'steam://millennium/settings/updates',
+	JSON.stringify(millenniumUpdate));
+
+const millenniumSelfUpdate = notification.notificationFromToast(
+	toastWindow(fiberChain({
+		eType: 12,
+		eSource: 1,
+		millennium: true,
+		data: {
+			title: 'Millennium Update Available',
+			body: 'A new version of Millennium is available! Click here to update.',
+			onClick: function wrappedAction() {},
+		},
+	}, 0)),
+);
+check('Millennium self-update toast carries its durable route',
+	millenniumSelfUpdate?.source === 'millennium' &&
+		millenniumSelfUpdate.fallback === 'steam://millennium/settings/updates',
+	JSON.stringify(millenniumSelfUpdate));
+
+const millenniumUnknown = notification.notificationFromToast(
+	toastWindow(fiberChain({ eType: 12, eSource: 1, millennium: true, data: { onClick() {} } }, 0)),
+);
+check('unknown Millennium toast carries only the general Steam fallback',
+	millenniumUnknown?.source === 'millennium' &&
+		millenniumUnknown.fallback === 'steam://open/main',
+	JSON.stringify(millenniumUnknown));
 
 is('a window with no fiber yields null', notification.notificationFromToast(toastWindow(null)), null);
 

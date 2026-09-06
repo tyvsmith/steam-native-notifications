@@ -57,7 +57,7 @@ is('clientRoute 10 opens the pending invites page',
 	routes.clientRoute(10, {}),
 	'steam://openurl/https://steamcommunity.com/profiles/76561197960287930/friends/pending');
 is('clientRoute 9 (group chat) routes nothing', routes.clientRoute(9, {}), null);
-is('clientRoute unknown type routes nothing', routes.clientRoute(999, {}), null);
+is('clientRoute unknown type opens Steam generally', routes.clientRoute(999, {}), 'steam://open/main');
 
 // Null discipline: a rule missing its identity, template, or a well-formed
 // field must drop the route, never emit a broken URL.
@@ -127,6 +127,7 @@ is('serverRoute 29 TradeReversal opens my trade history',
 	server(29), 'steam://openurl/https://steamcommunity.com/my/tradehistory');
 is('serverRoute 22 RequestedGameAdded routes nothing', server(22), null);
 is('serverRoute 24 ClipDownloaded routes nothing', server(24), null);
+is('serverRoute unknown type opens Steam generally', server(999), 'steam://open/main');
 
 // --- urlstore --------------------------------------------------------------
 

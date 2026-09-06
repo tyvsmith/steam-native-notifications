@@ -13,6 +13,8 @@ with valid sample payloads; missing required data can still prevent a fallback.
 - **22** types are inert in Steam itself: a click only dismisses
 - Exact replay is independent of this catalog: a proved callback can run on its
   captured surface during the same Steam session even when this table says none
+- A client type absent from this generated catalog falls back only to
+  `steam://open/main`; known inert types remain inert
 - Group chat has no durable fallback; its room dispatcher needs session-only
   toast context, so a missing callback or changed surface leaves the click inert
 - "server" types arrive from the web notification system; their payload is

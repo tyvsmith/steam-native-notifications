@@ -51,6 +51,9 @@ door, gated on the `devFire` developer toggle.
 Steam draws every toast as its own CEF popup named
 `notificationtoasts_<N>_desktop` (no game focused) or
 `notificationtoasts_uid<appid>-...` (rendered in a game's overlay context).
+The identity portion is opaque: Steam uses a counter and Millennium synthetic
+toasts currently use `undefined`. Only the `_desktop` marker or a bounded,
+positive overlay appid determines the captured surface.
 The window title is all the compositor sees; the text exists only in the
 popup's DOM, which is why the reader runs inside Steam's own JS context.
 `g_PopupManager` is not public API — it is what the shipping
@@ -84,9 +87,19 @@ A clickable notification crosses the five-position RPC as
 `click:<base64url JSON>`. The helpers expose the same envelope to the OS as
 `steam://steam-native-notify/notification/<base64url-envelope>`. The version-1
 envelope contains a cryptographically random 128-bit replay token, capture
-surface appid (`0` for desktop), verified catalog fallback or `null`, and the
-Windows focus target (`main` or `chat`). It contains no notification text or
-artwork.
+surface appid (`0` for desktop), durable fallback or `null`, and the Windows
+focus target (`main` or `chat`). It contains no notification text or artwork.
+Known Steam types use only observed catalog routes; known inert types remain
+inert. A type absent from the catalog gets the neutral `steam://open/main`
+fallback while its exact callback remains preferred.
+
+Millennium marks its synthetic notification object with `millennium: true`.
+Its built-in English update copy and callback map to
+`steam://millennium/settings/updates`; other Millennium toasts get only the
+neutral fallback. A different locale also degrades to the neutral route because
+Millennium exposes no semantic toast ID or activation URL. This avoids treating
+Millennium's placeholder type 12 as Steam's unrelated
+`FamilySharingStopPlaying` notification.
 
 `frontend/steamurl.ts` registers the `steam-native-notify` URL section for the
 whole Steam session and rejects malformed paths and envelopes. On a matching
@@ -94,14 +107,14 @@ live surface the dispatcher tries exact replay first. The stash binds the
 capture surface to its closure, so changing the envelope cannot authorize a
 different surface. Missing, malformed, or contradictory overlay discovery
 refuses dispatch. On a surface mismatch, missing stash entry, replay throw,
-or post-restart activation, it uses the
-catalog fallback. A toast with neither a proved handler nor a verified fallback
-is inert. Group chat has exact replay only: its room dispatcher requires a
-toast's session-only browser context, with no verified replacement after a
-restart. Desktop fallback awaits window creation and Steam's dispatch result
-before requesting Windows focus; a failed dispatch or window timeout does not
-request focus. The session-long click-file poll remains only as a legacy/test
-input; its 30-second age check does not limit URL activation.
+or post-restart activation, it uses the durable fallback. A toast with neither
+a proved handler nor a fallback is inert. Group chat has exact replay only: its
+room dispatcher requires a toast's session-only browser context, with no
+verified replacement after a restart. Desktop fallback awaits window creation
+and Steam's dispatch result before requesting Windows focus; a failed dispatch
+or window timeout does not request focus. The session-long click-file poll
+remains only as a legacy/test input; its 30-second age check does not limit URL
+activation.
 
 The replay stash holds the latest 256 chosen closures for the Steam session;
 it has no time expiry. The cap is a memory bound, not a click-lifetime policy.
@@ -132,7 +145,8 @@ appends there too when it refuses a platform:
 
 | line | meaning |
 |---|---|
-| `from-toast <name> type=N (Name) source=...` | extraction worked; client payloads include schema-decoded named fields |
+| `from-toast <name> type=N (Name) source=...` | extraction worked; client payloads include schema-decoded named fields; unknown and Millennium sources are named explicitly |
+| `from-toast <name> unknown: no attached notification` | decoding could not identify the toast; exact replay plus `steam://open/main` remain available |
 | `toast <name> -> {...}` | delivered; reports replayability, fallback, and whether a click envelope was attached |
 | `toast <name> -> {...} (suppressed: ... notifications off)` | the surface toggle left this toast to Steam |
 | `replay: candidates <name> n=K stashed=onClick@D (twin\|sole)` | the walk found and proved a handler |
@@ -141,7 +155,7 @@ appends there too when it refuses a platform:
 | `replay: candidates ... stashed=none (ambiguous)` | no handler is provable; only a verified catalog fallback can act |
 | `replay: candidate <name> #i ...` | per-candidate detail, logged only on anomaly and capped |
 | `click-bridge: replay token=<prefix>` | matching-surface exact replay ran |
-| `click-bridge: fallback <route>` | live-focus catalog dispatch was attempted; later door/window failures can refuse it |
+| `click-bridge: fallback <route>` | durable dispatch was attempted; later door/window failures can refuse it |
 | `click-bridge: no verified fallback token=<prefix>` | replay was unavailable and no safe route exists |
 | `steam-url: registered steam://steam-native-notify/notification/<payload>` | the canonical activation handler attached |
 | `steam-url: click token=<prefix>` | the OS activation URL decoded and entered dispatch |
@@ -161,8 +175,9 @@ action.
 
 - Exact handlers are frozen to their capture surface. The bridge checks before
   invoking and uses the durable catalog against current focus when it differs.
-  Types without a verified catalog route still fail closed after a surface
-  change or Steam restart.
+  Known notifications without a verified route still fail closed after a
+  surface change or Steam restart. Types absent from the catalog open Steam
+  generally instead.
 - Windows focus is a reversible topmost pulse after a dispatched desktop click.
   The canonical URL VM pass verified history storage, exact replay, and
   Achievement restart/cold-start fallback through active-session protocol

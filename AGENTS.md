@@ -178,8 +178,9 @@ incoming voice chat produces no feed event at all.
 
 **Durable routing depends on the generated decode.** Client payload fields are
 decoded from their positional `data.array` using the vendored protobuf schema.
-The named fields feed `routes.ts`; an unknown/malformed payload gets exact
-replay only and otherwise fails closed. Regenerate through `bun run build`.
+The named fields feed `routes.ts`; a known malformed payload gets exact replay
+only and otherwise fails closed. A type absent from the catalog opens Steam
+generally after replay is lost. Regenerate through `bun run build`.
 
 **Edit files directly, and verify the edit landed.** Positional splices and loose
 regexes silently dropped edits and deleted a live declaration twice.

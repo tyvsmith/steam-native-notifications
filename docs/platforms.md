@@ -500,13 +500,15 @@ coverage keeps the platform experimental.
         to frontend/steamurl.ts
       clickbridge.ts validates and routes:
         matching surface + live stash -> exact handler replay
-        mismatch/restart/failure       -> verified catalog fallback
+        mismatch/restart/failure       -> durable fallback
       after successful desktop dispatch:
         backend starts notify-action.ps1 -FocusKind main|chat
       helper pulses the selected window topmost, restores z-order, exits
 
-The envelope contains a random replay token, capture appid, verified fallback,
-and focus kind. It contains no notification content. The exact handler stash is
+The envelope contains a random replay token, capture appid, durable fallback,
+and focus kind. Known notifications use observed routes, Millennium updates use
+Millennium's registered updates URL, and unknown types only open Steam. It
+contains no notification content. The exact handler stash is
 RAM-only, capped at 256, has no time expiry, and disappears with Steam. The
 WinRT XML stores the complete fallback data in the protocol URL. Prior VM runs
 showed that Windows retained the old protocol target in notification history;

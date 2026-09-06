@@ -7,9 +7,11 @@ Main untouched.
 
 The later Windows durability work changed the cost/benefit decision: the
 hybrid is now implemented. Every click stores a random replay token, capture
-surface, verified catalog fallback, and focus target in a versioned envelope.
-The bridge replays on the same surface and dispatches the catalog against live
-focus otherwise. Missing stashes after a Steam restart take the same fallback.
+surface, durable fallback, and focus target in a versioned envelope. The bridge
+replays on the same surface and dispatches the fallback against live focus
+otherwise. Known types use observed routes, Millennium updates use Millennium's
+registered URL, and unknown types only open Steam generally. Missing stashes
+after a Steam restart take the same fallback.
 
 Current Linux and Windows delivery encode that envelope in
 `steam://steam-native-notify/notification/<base64url-envelope>`. Linux launches

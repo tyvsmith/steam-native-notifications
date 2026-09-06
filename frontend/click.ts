@@ -93,11 +93,18 @@ export function clickEnvelopeFromSteamUrl(url: string): ClickEnvelope | null {
 }
 
 export function captureAppIdFromToastName(name: string): number | null {
-	// Steam's toast component formats only these desktop and overlay names.
-	const match = /^notificationtoasts_(?:\d+_desktop|uid(\d+)-\d+)$/.exec(name);
-	if (!match || match[0] !== name) return null;
-	if (match[1] === undefined) return 0;
-	const appid = Number(match[1]);
+	// The identity after the surface marker is deliberately opaque. Steam uses
+	// counters; Millennium currently uses "undefined". Neither is part of the
+	// safety decision -- only the desktop suffix or validated overlay appid is.
+	if (name.length > 512 || /[\u0000-\u0020]/.test(name)) return null;
+	const desktop =
+		name.startsWith('notificationtoasts_') &&
+		name.endsWith('_desktop') &&
+		name.length > 'notificationtoasts__desktop'.length;
+	const overlay = /^notificationtoasts_uid(\d+)-[^\u0000-\u0020]+$/.exec(name);
+	if (desktop === Boolean(overlay)) return null;
+	if (desktop) return 0;
+	const appid = Number(overlay?.[1]);
 	return Number.isInteger(appid) && appid > 0 && appid <= 0xffffffff ? appid : null;
 }
 

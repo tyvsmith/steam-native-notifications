@@ -84,7 +84,11 @@ beforeEach(() => {
 
 afterEach(() => { clock.mockRestore(); });
 
-for (const name of ['notificationtoasts_uidbogus-10001', 'notificationtoasts_vr', 'notificationtoasts_uid570-bogus']) {
+for (const name of [
+	'notificationtoasts_uidbogus-10001',
+	'notificationtoasts_uid570-42_desktop',
+	'notificationtoasts_vr',
+]) {
 	test(`an unconfirmed toast surface cannot be stashed or replayed: ${name}`, async () => {
 		const click = envelope();
 		expect(stashToastHandler(toastWindow(), name, click.token)).toBe(false);
@@ -93,6 +97,13 @@ for (const name of ['notificationtoasts_uidbogus-10001', 'notificationtoasts_vr'
 		expect(events).toEqual([]);
 	});
 }
+
+test('a Millennium desktop toast can be stashed and replayed', async () => {
+	const click = envelope();
+	capture(click, 'notificationtoasts_undefined_desktop');
+	await dispatchClick(click);
+	expect(events).toEqual(['replay', 'focus:main']);
+});
 
 for (const value of [null, undefined, false, true, '', ' ', 'bogus', '0', '570', -1, 0.5, NaN, Infinity, 4294967296, Number.MAX_SAFE_INTEGER + 1]) {
 	test(`an invalid raw focus callback refuses dispatch: ${String(value)}`, async () => {
@@ -187,6 +198,20 @@ test('several running games use the positively focused overlay', async () => {
 	focusChanged(570);
 	await dispatchClick(envelope('steam://openurl/https://steamcommunity.com/example'));
 	expect(events).toEqual(['overlay:570:https://steamcommunity.com/example']);
+});
+
+test('the general fallback opens Steam while a game is focused', async () => {
+	sc.Overlay.GetOverlayBrowserInfo = async () => [{ appID: 570 }];
+	focusChanged(570);
+	await dispatchClick(envelope('steam://open/main'));
+	expect(events).toEqual(['url:steam://open/main', 'focus:main']);
+});
+
+test('the Millennium updates fallback opens on desktop while a game is focused', async () => {
+	sc.Overlay.GetOverlayBrowserInfo = async () => [{ appID: 570 }];
+	focusChanged(570);
+	await dispatchClick(envelope('steam://millennium/settings/updates'));
+	expect(events).toEqual(['url:steam://millennium/settings/updates', 'focus:main']);
 });
 
 for (const discovery of ['throws', 'missing', 'malformed', 'empty', 'other-game']) {

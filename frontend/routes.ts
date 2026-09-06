@@ -1,5 +1,9 @@
 import { resolveUrl } from './urlstore';
 import { myProfilePath } from './identity';
+import { NOTIFICATION_TYPE_NAMES } from './generated/notifications';
+
+export const DEFAULT_STEAM_ROUTE = 'steam://open/main';
+export const MILLENNIUM_UPDATES_ROUTE = 'steam://millennium/settings/updates';
 
 /**
  * The steam:// route a notification's click should follow, or null when Steam's
@@ -154,10 +158,11 @@ export function clientRoute(type: number, fields: Record<string, PbValue>): stri
 			return openInClient(pendingInvitesUrl());
 
 		// Everything else is a dismiss-only toast, an explicit no-op, or a
-		// modal this plugin cannot reproduce. The full inventory is the
-		// client-sourced catalog in docs/steam-routing.md.
+		// modal this plugin cannot reproduce. A type absent from the generated
+		// schema is newer than the catalog; opening Steam is the only destination
+		// that does not guess what that notification meant.
 		default:
-			return null;
+			return NOTIFICATION_TYPE_NAMES[type] ? null : DEFAULT_STEAM_ROUTE;
 	}
 }
 
@@ -266,7 +271,13 @@ export function serverRoute(n: ServerNotification): string | null {
 
 		// RequestedGameAdded needs Steam's package->app lookup and
 		// ClipDownloaded opens a Media dialog no URL reaches: nothing.
-		default:
+		case 22:
+		case 24:
 			return null;
+
+		// A server type absent from the verified catalog gets only the neutral
+		// Steam destination. Exact callback replay still runs first.
+		default:
+			return DEFAULT_STEAM_ROUTE;
 	}
 }
