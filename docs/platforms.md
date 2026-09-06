@@ -8,8 +8,8 @@ and a status: **verified** against a primary source (its own docs or code),
 or **unverified**. Earlier Linux and Windows activation paths ran natively and
 in a Windows 11 VM. The unified URL path ran on native Linux and in the Windows
 VM; Quattro history clicks worked with Linux Steam running and fully stopped.
-Windows UI clicks, visual focus, and a clean guest reboot remain untested, and
-macOS has not run.
+Windows UI clicks and visual focus ran on a native Windows 11 workstation
+(below); a clean guest reboot remains untested, and macOS has not run.
 
 ## Matrix
 
@@ -18,7 +18,7 @@ macOS has not run.
 | Linux, native Steam | **shipped**; Quattro history clicks observed with Steam running and fully stopped; live-banner and in-game clicks untested | `notify-send` to the FreeDesktop daemon | live `default` action launches the canonical Steam URL; Quickshell persists the fixed argv for exact replay or durable fallback |
 | Linux, Flatpak Steam | paths ready; the host is unsupported by Millennium | same helper; inside the sandbox libnotify routes through the notification portal (plan) | canonical URL; portal action semantics unverified |
 | macOS | backend paths ready; delivery refused, loudly | terminal-notifier `-execute` (plan) | `-execute` writes `.click` (plan) |
-| Windows | **shipped**, EXPERIMENTAL; canonical history, FriendOnline/Achievement exact replay, and Achievement restart/cold-start fallback observed; UI clicks and visual focus untested | WinRT toast via notify-action.ps1 (Windows PowerShell 5.1, no vendored binary): branding, artwork, re-encode | canonical notification URL; exact replay or durable live-focus fallback, then one-shot route-aware focus |
+| Windows | **shipped**, EXPERIMENTAL; canonical history, FriendOnline/Achievement exact replay, and Achievement restart/cold-start fallback observed in a VM; banner and Notification Center UI clicks with exact replay and visual focus measured on native hardware | WinRT toast via notify-action.ps1 (Windows PowerShell 5.1, no vendored binary): branding, artwork, re-encode | canonical notification URL; exact replay or durable live-focus fallback, then one-shot route-aware focus |
 
 Refused (macOS today) means: the backend loads, logs `desktop delivery is
 not implemented on <platform>` at load and `unsupported platform: <platform>
@@ -472,15 +472,17 @@ Three to four days with a Mac. Without one, only the first row.
 - Does `-execute` fire for a body click on a banner, or only from
   Notification Center? (The README says "when the notification is clicked".)
 
-## Windows: shipped, unified activation VM-validated
+## Windows: shipped, unified activation validated in a VM and on native hardware
 
 The delivery, replay, fallback, history, cold-start, and focus mechanisms ran
 in one dockur/windows Win11 Pro VM with Millennium 3.5.0-beta.2 and Steam before
 the URL namespace changed. The current artifact registered and stored the
 canonical URL in that VM. Programmatic active-session invocations verified
 FriendOnline and Achievement exact replay plus Achievement fallback after an
-unexpected VM/container power cycle and a full Steam stop. The narrow hardware
-coverage keeps the platform experimental.
+unexpected VM/container power cycle and a full Steam stop. The same artifact
+then ran on a native 64-bit Windows 11 workstation, where the UI clicks and
+the visual focus result were measured (the native results below). The narrow
+hardware coverage keeps the platform experimental.
 
 ### Shape
 
@@ -598,6 +600,42 @@ unverified. Direct `SetForegroundWindow`, delayed retries,
 in the VM. See Microsoft's
 [SetForegroundWindow restrictions](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setforegroundwindow).
 
+### Native hardware validation results
+
+The current artifact, built on the machine itself, on a 64-bit Windows 11
+Pro workstation (build 26200, 100% display scaling) running the 64-bit Steam
+client with Millennium 3.5.0-beta.2. Every check below is a real UI click on
+the painted surface, delivered synthetically at the surface's centre, with
+the plugin log, Steam's own `webhelper.txt`, the notification platform's
+database and a foreground-window probe as the records.
+
+- the artifact builds and installs from a clean checkout on Windows
+  (`bun run build`)
+- delivery: `TestDownloadComplete` produced a branded toast with the library
+  art, the em dash in its body intact, and Windows stored `activationType=
+  "protocol"` with the canonical
+  `steam://steam-native-notify/notification/<envelope>` launch URL; the
+  envelope decoded to `v=1`, a 32-hex token, `captureAppId=0`, the durable
+  `steam://nav/games/details/<appid>` fallback and `focus=main`
+- banner click: `steam-url: click token=` for that envelope, `replay: invoke
+  ... -> returned without throwing`, `click-bridge: replay token=`, and
+  Steam's library page for the game
+- Notification Center click, on the persisted card after the banner had
+  expired: the same chain, exact replay 22 s after capture; a card from an
+  earlier chat toast replayed too (age 308 s) and selected that friend's
+  chat window
+- visual focus: the foreground probe saw the shell's notification window
+  take the foreground on the click and Steam's main window (`steamwebhelper`,
+  title `Steam`) hold it 155 ms later, before the focus helper ran. The
+  helper's own `focus:` line then reported `before=` and `after=` both
+  already Steam's window. On this hardware the activation chain (Windows,
+  the forwarding `steam.exe`, the resident client) raises Steam by itself;
+  the pulse found nothing left to do. The VM finding above stands for the
+  VM
+- the live harness that produced these records, and the Do Not Disturb,
+  real-event and in-game observations from the previous transport, are the
+  subject of a separate contribution
+
 ### Why Steam's URI scheme
 
 Protocol activation is the documented path for unpackaged toast senders and
@@ -620,4 +658,5 @@ The private scheme and JScript handler were removed.
 - `fire.ps1` / `capture.ps1` tester tooling
 - `scenario="urgent"` opt-in for Focus Assist bypass
 - `-Teardown` validation
-- wider Windows, Steam, and Millennium coverage
+- wider Windows, Steam, and Millennium coverage (one VM and one native
+  workstation so far)
