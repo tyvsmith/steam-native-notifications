@@ -1,7 +1,7 @@
 import { ffi } from 'millennium';
 import { decodeClickPayload, deliveryMode, surfaceMatches, type ClickEnvelope, type FocusKind } from './click';
 import { dlog } from './log';
-import { invokeReplayHandler } from './replay';
+import { canReplayHandler, invokeReplayHandler } from './replay';
 import { DEFAULT_STEAM_ROUTE } from './routes';
 import {
 	openChatInOverlay,
@@ -171,7 +171,7 @@ const OVERLAY_SETTINGS_ROUTES = new Set([
 	'steam://settings/controller',
 ]);
 
-async function dispatchFallback(runningAppId: number | null, focusedAppId: number, route: string): Promise<boolean> {
+async function dispatchFallback(focusedAppId: number, route: string): Promise<boolean> {
 	// Older envelopes can still carry this session-dependent action. Refuse
 	// before creating or raising a window; only their captured callback is safe.
 	if (route.startsWith('action:chatroom:')) {
@@ -184,10 +184,9 @@ async function dispatchFallback(runningAppId: number | null, focusedAppId: numbe
 		const sid = route.slice('steam://friends/message/'.length);
 		if (focused) {
 			return openChatInOverlay(focusedAppId, sid);
-		} else if (runningAppId !== null) {
-			return afterMainWindow(() => openChatOnDesktop(sid));
 		} else {
-			return desktopClick(route);
+			// Chat owns its window and focus; preparing main opens an extra window.
+			return openChatOnDesktop(sid);
 		}
 	}
 	if (!focused) {
@@ -220,6 +219,13 @@ export async function dispatchClick(envelope: ClickEnvelope): Promise<void> {
 			return;
 		}
 		const { runningAppId, focusedAppId } = surface;
+		dlog(`click-bridge: surface capture=${envelope.captureAppId} current=${focusedAppId} running=${runningAppId}`);
+		// Choose the destination before raising Steam can change the focus signal.
+		if (
+			focusedAppId === 0 && envelope.captureAppId === 0 && envelope.focus !== 'chat' &&
+			canReplayHandler(envelope.token, focusedAppId) &&
+			!(await afterMainWindow(() => true))
+		) return;
 		const replayed = surfaceMatches(envelope.captureAppId, focusedAppId)
 			? invokeReplayHandler(envelope.token, focusedAppId)
 			: false;
@@ -235,7 +241,7 @@ export async function dispatchClick(envelope: ClickEnvelope): Promise<void> {
 		}
 		dlog(`click-bridge: fallback ${envelope.fallback}`);
 		if (
-			(await dispatchFallback(runningAppId, focusedAppId, envelope.fallback)) &&
+			(await dispatchFallback(focusedAppId, envelope.fallback)) &&
 			(focusedAppId === 0 || isDesktopOnlyRoute(envelope.fallback))
 		) {
 			requestFocus(envelope.focus);

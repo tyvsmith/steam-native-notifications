@@ -15,7 +15,7 @@
     "gen:table": "bun tools/gen-types-table.mjs",
     "typecheck": "tsc --noEmit",
     "prepare": "starlight lsp",
-    "test": "tools/test-backend && bun tools/test-routes && bun tools/test-frontend && bun test tools/click-dispatch.test.ts"
+    "test": "tools/test-backend && bun tools/test-routes && bun tools/test-frontend && bun test tools/click-dispatch.test.ts && python3 tools/game-focus.test.py"
   },
   "devDependencies": {
     "@steambrew/starlight": "^1.1.4",

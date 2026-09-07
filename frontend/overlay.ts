@@ -1,4 +1,4 @@
-import { findModuleExport } from 'millennium';
+import { ffi, findModuleExport } from 'millennium';
 import { dlog, safeJson } from './log';
 
 /**
@@ -17,6 +17,7 @@ import { dlog, safeJson } from './log';
  * steam://openexternalforpid parser builds.
  */
 let overlayStore: any;
+const gameHostFocus = ffi<[number], string>('GameHostFocus');
 
 /**
  * Live game-focus state, from the client's own signal. Steam places toasts by
@@ -26,18 +27,51 @@ let overlayStore: any;
  */
 /** undefined precedes the first focus event; null marks an invalid event. */
 let focusedOverlayAppId: number | null | undefined;
+let generalFocus: unknown;
+let overlayFocus: unknown;
+
+export function logFocusState(reason: string): void {
+	try {
+		const store: any = Reflect.get(globalThis, 'FocusedAppWindowStore');
+		dlog(`focus-state: ${reason} ${safeJson({
+			general: generalFocus,
+			overlay: overlayFocus,
+			selectedOverlayAppId: focusedOverlayAppId,
+			storeGeneral: store?.GetFocusedAppID?.(),
+			storeOverlay: store?.GetFocusedOverlayAppID?.(),
+		})}`);
+	} catch (e) {
+		dlog(`focus-state: snapshot failed: ${(e as Error)?.message ?? e}`);
+	}
+}
 
 export function trackOverlayFocus(): void {
 	focusedOverlayAppId = undefined;
+	generalFocus = undefined;
+	overlayFocus = undefined;
 	try {
 		const sc: any = Reflect.get(globalThis, 'SteamClient');
-		sc?.System?.UI?.RegisterForOverlayGameWindowFocusChanged?.((appid: unknown) => {
+		sc?.System?.UI?.RegisterForOverlayGameWindowFocusChanged?.((appid: unknown, pid: unknown) => {
 			// Steam app IDs are uint32; coercion could turn a failed signal into desktop.
 			focusedOverlayAppId = typeof appid === 'number' && Number.isInteger(appid) && appid >= 0 && appid <= 0xffffffff
 				? appid : null;
+			overlayFocus = { appid, pid, at: Date.now() };
+			logFocusState('overlay-event');
 		});
 	} catch (e) {
 		dlog(`overlay focus tracking failed: ${(e as Error)?.message ?? e}`);
+	}
+	try {
+		const sc: any = Reflect.get(globalThis, 'SteamClient');
+		sc?.System?.UI?.RegisterForFocusChangeEvents?.((event: any) => {
+			try {
+				generalFocus = { appid: event?.focusedApp?.appid, pid: event?.focusedApp?.pid,
+					windowid: event?.focusedApp?.windowid, at: Date.now() };
+				logFocusState('general-event');
+			} catch { /* Diagnostics must not interfere with Steam's focus handling. */ }
+		});
+	} catch (e) {
+		dlog(`focus-state: general tracking failed: ${(e as Error)?.message ?? e}`);
 	}
 }
 
@@ -66,6 +100,7 @@ export function findOverlayStore(): any {
  * An empty instance list confirms desktop even before the first focus event.
  */
 export async function currentClickSurface(): Promise<{ runningAppId: number | null; focusedAppId: number } | null> {
+	logFocusState('click');
 	try {
 		const sc: any = Reflect.get(globalThis, 'SteamClient');
 		const info = await sc?.Overlay?.GetOverlayBrowserInfo?.();
@@ -75,7 +110,17 @@ export async function currentClickSurface(): Promise<{ runningAppId: number | nu
 		const focused = focusedOverlayAppId;
 		if (focused === null) return null;
 		if (focused !== undefined && focused > 0) {
-			return appids.includes(focused) ? { runningAppId: focused, focusedAppId: focused } : null;
+			if (!appids.includes(focused)) return null;
+			// Nested Gamescope can retain inner game focus after its host loses
+			// focus. Only a positively identified host may override Steam.
+			try {
+				const host = await gameHostFocus(focused);
+				dlog(`focus-host: appid=${focused} result=${host}`);
+				if (host === 'desktop' || host === '"desktop"') {
+					return { runningAppId: focused, focusedAppId: 0 };
+				}
+			} catch { /* An unavailable host probe leaves Steam's selection intact. */ }
+			return { runningAppId: focused, focusedAppId: focused };
 		}
 		if (appids.length === 0) return { runningAppId: null, focusedAppId: 0 };
 		return focused === 0 ? { runningAppId: appids[0], focusedAppId: 0 } : null;

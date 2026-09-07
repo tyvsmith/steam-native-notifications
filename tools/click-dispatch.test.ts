@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, mock, spyOn, test } from 'bun:test';
 // Keep replay, surface discovery, and dispatch real; replace only the host APIs.
 const events: string[] = [];
 let navigator: any;
+let hostFocus = 'unknown';
 const overlayStore = {
 	OnGameOverlayActivateRequested(request: any) { events.push(`overlay:${request.appid}:${request.strDialog}`); },
 	OnSteamURLOpenExternalForPID() {},
@@ -11,6 +12,7 @@ const overlayStore = {
 mock.module('millennium', () => ({
 	ffi: (name: string) => async (value: string) => {
 		if (name === 'FocusSteam') events.push(`focus:${value}`);
+		if (name === 'GameHostFocus') return hostFocus;
 		return '';
 	},
 	findModuleExport: (predicate: (value: unknown) => boolean) => predicate(overlayStore) ? overlayStore : undefined,
@@ -62,6 +64,7 @@ async function advance(ms: number) {
 
 beforeEach(() => {
 	events.length = 0;
+	hostFocus = 'unknown';
 	intervals = new Map();
 	now = 100000;
 	clock = spyOn(Date, 'now').mockImplementation(() => now);
@@ -83,6 +86,46 @@ beforeEach(() => {
 });
 
 afterEach(() => { clock.mockRestore(); });
+
+test('desktop chat replay does not open the main window from tray', async () => {
+	Reflect.set(globalThis, 'g_PopupManager', { m_mapPopups: new Map() });
+	const click = { ...envelope(), focus: 'chat' as const };
+	capture(click);
+	void dispatchClick(click);
+	await flush();
+	expect(events).toEqual(['replay', 'focus:chat']);
+});
+
+for (const running of [false, true]) {
+	test(`desktop chat fallback does not open main window (game running=${running})`, async () => {
+		Reflect.set(globalThis, 'g_PopupManager', { m_mapPopups: new Map() });
+		sc.Overlay.GetOverlayBrowserInfo = async () => running ? [{ appID: 570 }] : [];
+		const click = { ...envelope('steam://friends/message/76561197982882208'), focus: 'chat' as const };
+		void dispatchClick(click);
+		await flush();
+		expect(events).toEqual(['overlay:0:chat', 'focus:chat']);
+	});
+}
+
+test('a backgrounded Gamescope host overrides stale Steam focus before replay', async () => {
+	sc.Overlay.GetOverlayBrowserInfo = async () => [{ appID: 570 }];
+	focusChanged(570);
+	hostFocus = 'desktop';
+	const click = envelope('steam://friends/message/76561198018634384', 570);
+	capture(click, 'notificationtoasts_uid570-10000');
+	await dispatchClick(click);
+	expect(events).toEqual(['overlay:0:chat', 'focus:main']);
+});
+
+test('a focused Gamescope host preserves overlay replay', async () => {
+	sc.Overlay.GetOverlayBrowserInfo = async () => [{ appID: 570 }];
+	focusChanged(570);
+	hostFocus = 'game';
+	const click = envelope(null, 570);
+	capture(click, 'notificationtoasts_uid570-10000');
+	await dispatchClick(click);
+	expect(events).toEqual(['replay']);
+});
 
 for (const name of [
 	'notificationtoasts_uidbogus-10001',
@@ -158,6 +201,57 @@ test('a matching game callback still replays', async () => {
 	focusChanged(570);
 	await dispatchClick(click);
 	expect(events).toEqual(['replay']);
+});
+
+test('desktop replay raises its window first while a game runs in the background', async () => {
+	const click = envelope();
+	capture(click);
+	sc.Overlay.GetOverlayBrowserInfo = async () => [{ appID: 570 }];
+	Reflect.get(globalThis, 'g_PopupManager').m_mapPopups.get('main').window.SteamClient.Window.BringToFront = () => {
+		events.push('raise');
+		// Raising Steam can itself generate a focus event; selection is already made.
+		focusChanged(570);
+	};
+	await dispatchClick(click);
+	expect(events).toEqual(['raise', 'replay', 'focus:main']);
+});
+
+test('desktop replay waits for a window closed to the tray', async () => {
+	const click = envelope();
+	capture(click);
+	Reflect.set(globalThis, 'g_PopupManager', { m_mapPopups: new Map() });
+	const activation = dispatchClick(click);
+	await flush();
+	expect(events).toEqual(['url:steam://open/main']);
+	mainWindow();
+	await advance(250);
+	await activation;
+	expect(events).toEqual(['url:steam://open/main', 'replay', 'focus:main']);
+});
+
+test('desktop replay does not run when window creation times out', async () => {
+	const click = envelope();
+	capture(click);
+	Reflect.set(globalThis, 'g_PopupManager', { m_mapPopups: new Map() });
+	const activation = dispatchClick(click);
+	await flush();
+	await advance(6250);
+	await activation;
+	expect(events).toEqual(['url:steam://open/main']);
+});
+
+test('an absent replay without fallback does not open a window', async () => {
+	Reflect.set(globalThis, 'g_PopupManager', { m_mapPopups: new Map() });
+	await dispatchClick(envelope());
+	expect(events).toEqual([]);
+});
+
+test('an overlay capture clicked with its game backgrounded uses desktop chat', async () => {
+	const click = envelope('steam://friends/message/76561198000000000', 570);
+	capture(click, 'notificationtoasts_uid570-10001');
+	sc.Overlay.GetOverlayBrowserInfo = async () => [{ appID: 570 }];
+	await dispatchClick(click);
+	expect(events).toEqual(['overlay:0:chat', 'focus:main']);
 });
 
 test('a tampered envelope cannot move a game callback onto desktop', async () => {

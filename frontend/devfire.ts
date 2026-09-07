@@ -2,7 +2,7 @@ import { ffi, findModuleExport } from 'millennium';
 import { dlog, safeJson } from './log';
 import { parseCallableJson, settings } from './settings';
 import { inspectReplayStash, invokeReplayHandler } from './replay';
-import { currentClickSurface } from './overlay';
+import { currentClickSurface, logFocusState } from './overlay';
 
 /**
  * The tools/fire door: dev machinery, fenced off from the capture path.
@@ -98,6 +98,7 @@ async function runOverlayProbe(probe: { call?: string }): Promise<void> {
 		}
 		const sc: any = Reflect.get(globalThis, 'SteamClient');
 		const info = await sc?.Overlay?.GetOverlayBrowserInfo?.();
+		logFocusState('probe');
 		dlog(`overlay-info: ${safeJson(info)}`.slice(0, 1500));
 	} catch (e) {
 		// Fired with `void` from the poll: a rejection here would otherwise

@@ -208,6 +208,12 @@ export function inspectReplayStash(): void {
 	}
 }
 
+/** Check before preparing a window; invalid clicks must not raise Steam. */
+export function canReplayHandler(token: string, focusedAppId: number): boolean {
+	const entry = stash.get(token);
+	return !!entry?.fn && !!entry.chosen && entry.captureAppId === focusedAppId;
+}
+
 /**
  * Invoke a stashed handler with a stub event. No identifier targets the most
  * recent entry for the tools/fire probe. Every caller supplies a confirmed
