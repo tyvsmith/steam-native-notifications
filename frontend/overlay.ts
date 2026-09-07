@@ -27,51 +27,18 @@ const gameHostFocus = ffi<[number], string>('GameHostFocus');
  */
 /** undefined precedes the first focus event; null marks an invalid event. */
 let focusedOverlayAppId: number | null | undefined;
-let generalFocus: unknown;
-let overlayFocus: unknown;
-
-export function logFocusState(reason: string): void {
-	try {
-		const store: any = Reflect.get(globalThis, 'FocusedAppWindowStore');
-		dlog(`focus-state: ${reason} ${safeJson({
-			general: generalFocus,
-			overlay: overlayFocus,
-			selectedOverlayAppId: focusedOverlayAppId,
-			storeGeneral: store?.GetFocusedAppID?.(),
-			storeOverlay: store?.GetFocusedOverlayAppID?.(),
-		})}`);
-	} catch (e) {
-		dlog(`focus-state: snapshot failed: ${(e as Error)?.message ?? e}`);
-	}
-}
 
 export function trackOverlayFocus(): void {
 	focusedOverlayAppId = undefined;
-	generalFocus = undefined;
-	overlayFocus = undefined;
 	try {
 		const sc: any = Reflect.get(globalThis, 'SteamClient');
-		sc?.System?.UI?.RegisterForOverlayGameWindowFocusChanged?.((appid: unknown, pid: unknown) => {
+		sc?.System?.UI?.RegisterForOverlayGameWindowFocusChanged?.((appid: unknown) => {
 			// Steam app IDs are uint32; coercion could turn a failed signal into desktop.
 			focusedOverlayAppId = typeof appid === 'number' && Number.isInteger(appid) && appid >= 0 && appid <= 0xffffffff
 				? appid : null;
-			overlayFocus = { appid, pid, at: Date.now() };
-			logFocusState('overlay-event');
 		});
 	} catch (e) {
 		dlog(`overlay focus tracking failed: ${(e as Error)?.message ?? e}`);
-	}
-	try {
-		const sc: any = Reflect.get(globalThis, 'SteamClient');
-		sc?.System?.UI?.RegisterForFocusChangeEvents?.((event: any) => {
-			try {
-				generalFocus = { appid: event?.focusedApp?.appid, pid: event?.focusedApp?.pid,
-					windowid: event?.focusedApp?.windowid, at: Date.now() };
-				logFocusState('general-event');
-			} catch { /* Diagnostics must not interfere with Steam's focus handling. */ }
-		});
-	} catch (e) {
-		dlog(`focus-state: general tracking failed: ${(e as Error)?.message ?? e}`);
 	}
 }
 
@@ -100,7 +67,6 @@ export function findOverlayStore(): any {
  * An empty instance list confirms desktop even before the first focus event.
  */
 export async function currentClickSurface(): Promise<{ runningAppId: number | null; focusedAppId: number } | null> {
-	logFocusState('click');
 	try {
 		const sc: any = Reflect.get(globalThis, 'SteamClient');
 		const info = await sc?.Overlay?.GetOverlayBrowserInfo?.();
