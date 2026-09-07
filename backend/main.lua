@@ -505,11 +505,8 @@ end
 ---@param appid number
 ---@return string
 function GameHostFocus(appid)
-    if PLATFORM ~= "linux" or type(appid) ~= "number" or appid <= 0
-        or appid > 4294967295 or appid ~= math.floor(appid) then return "unknown" end
     local ok, result = pcall(function()
-        local value = require('game_focus').query(appid)
-        return (value == "desktop" or value == "game") and value or "unknown"
+        return require('game_focus').query(appid, PLATFORM)
     end)
     return ok and result or "unknown"
 end

@@ -87,8 +87,9 @@ A clickable notification crosses the five-position RPC as
 `click:<base64url JSON>`. The helpers expose the same envelope to the OS as
 `steam://steam-native-notify/notification/<base64url-envelope>`. The version-1
 envelope contains a cryptographically random 128-bit replay token, capture
-surface appid (`0` for desktop), durable fallback or `null`, and the Windows
-focus target (`main` or `chat`). It contains no notification text or artwork.
+surface appid (`0` for desktop), durable fallback or `null`, and the desktop
+window family (`main` or `chat`) used for replay preparation and platform focus.
+It contains no notification text or artwork.
 Known Steam types use only observed catalog routes; known inert types remain
 inert. A type absent from the catalog gets the neutral `steam://open/main`
 fallback while its exact callback remains preferred.
@@ -128,8 +129,12 @@ without persisting a closure or a plugin route file.
 ### Host focus correction
 
 - Query `GameHostFocus(appid)` at click time when Steam selects a running game
-- On Linux, use the packed `backend/game_focus.lua` module through Millennium's
-  embedded LuaJIT and system `libwayland-client.so.0`; no Python or helper process
+- Keep the `game` / `desktop` / `unknown` contract, input validation, and platform
+  selection in `backend/game_focus.lua`; unsupported platforms load no Linux code
+- Isolate Linux Gamescope ownership and surface selection in
+  `backend/focus/gamescope.lua`
+- Read window state in `backend/focus/wayland.lua` through Millennium's embedded
+  LuaJIT and system `libwayland-client.so.0`; no game policy, Python, or helper process
 - Bind version 1 of `zwlr_foreign_toplevel_manager_v1` on a separate connection
   with a 500ms event deadline; never activate a window through Wayland
 - Override Steam with desktop only when one Gamescope process belongs to the
@@ -138,6 +143,11 @@ without persisting a closure or a plugin route file.
   compositors, or ambiguous ownership; retain Steam's selection
 - Keep this correction scoped to nested Gamescope on compatible Wayland
   compositors; it does not add Windows, X11, GNOME, or KDE focus providers
+
+Future providers implement `query(appid)` and are selected by `game_focus.lua`.
+Only the Wayland reader exposes window snapshots; native window identities and
+protocol details do not cross the frontend RPC. Add another provider when its
+platform behavior is verified, not an empty implementation or provider registry.
 
 Desktop chat dispatch targets app ID 0 directly without opening the main Steam
 window. Non-chat desktop replay prepares the main window only after checking

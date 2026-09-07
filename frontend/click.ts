@@ -11,6 +11,7 @@ export interface ClickEnvelope {
 	captureAppId: number;
 	/** A catalog route or action token; null means exact replay only. */
 	fallback: string | null;
+	/** Desktop window family: controls replay preparation and platform focus. */
 	focus: FocusKind;
 }
 

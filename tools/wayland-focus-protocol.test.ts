@@ -53,7 +53,7 @@ async function probe(mode: 'active' | 'background' | 'unsupported' | 'disconnect
   });
   await new Promise<void>(resolve => server.listen(path, resolve));
   try {
-    const child = Bun.spawn(['luajit', '-e', `package.path='./backend/?.lua;'..package.path; local f=require('game_focus'); local w=f.snapshot(); print(f.select(553850,w,{553850}))`], {
+    const child = Bun.spawn(['luajit', '-e', `package.path='./backend/?.lua;'..package.path; local w=require('focus.wayland').snapshot(); print(require('focus.gamescope').select(553850,w,{553850}))`], {
       env: {...process.env, WAYLAND_DISPLAY: path, XDG_RUNTIME_DIR: dir}, stdout: 'pipe', stderr: 'pipe',
     });
     const output = await new Response(child.stdout).text();

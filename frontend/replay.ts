@@ -208,10 +208,13 @@ export function inspectReplayStash(): void {
 	}
 }
 
-/** Check before preparing a window; invalid clicks must not raise Steam. */
-export function canReplayHandler(token: string, focusedAppId: number): boolean {
-	const entry = stash.get(token);
+function replayEligible(entry: StashEntry | undefined, focusedAppId: number): boolean {
 	return !!entry?.fn && !!entry.chosen && entry.captureAppId === focusedAppId;
+}
+
+/** Check before preparing a window; invocation rechecks after that async step. */
+export function canReplayHandler(token: string, focusedAppId: number): boolean {
+	return replayEligible(stash.get(token), focusedAppId);
 }
 
 /**
@@ -238,15 +241,15 @@ export function invokeReplayHandler(identifier: string | undefined, focusedAppId
 	}
 	// The URL's appid is untrusted; only the capture stored with this closure
 	// may authorize replay on the current surface.
-	if (entry.captureAppId !== focusedAppId) {
-		dlog(`replay: invoke ${entry.name} -> surface mismatch capture=${entry.captureAppId} current=${focusedAppId}`);
+	if (!replayEligible(entry, focusedAppId)) {
+		if (entry.captureAppId !== focusedAppId) {
+			dlog(`replay: invoke ${entry.name} -> surface mismatch capture=${entry.captureAppId} current=${focusedAppId}`);
+		} else {
+			dlog(`replay: invoke ${entry.name} -> entry has no handler`);
+		}
 		return false;
 	}
 	const age = Math.round((Date.now() - entry.stashedAt) / 1000);
-	if (!entry.fn || !entry.chosen) {
-		dlog(`replay: invoke ${entry.name} -> entry has no handler`);
-		return false;
-	}
 	dlog(`replay: invoke ${entry.name} ${entry.chosen.prop}@${entry.chosen.depth} age=${age}s`);
 	const stubEvent = {
 		preventDefault() {},

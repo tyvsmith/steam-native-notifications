@@ -134,15 +134,16 @@ end
 check("helper installed at load", sawHelper)
 
 local focus_appid
-package.loaded.game_focus = {query = function(appid) focus_appid = appid; return "desktop" end}
+package.loaded.game_focus = dofile(root .. '/backend/game_focus.lua')
+package.loaded['focus.gamescope'] = {query = function(appid) focus_appid = appid; return "desktop" end}
 check("host focus returns a confirmed desktop result", GameHostFocus(553850) == "desktop")
 check("host focus uses the packed module", focus_appid == 553850)
 focus_appid = nil
 check("host focus rejects string appids", GameHostFocus("553850;bad") == "unknown" and focus_appid == nil)
 check("host focus rejects fractional appids", GameHostFocus(1.5) == "unknown" and focus_appid == nil)
-package.loaded.game_focus.query = function() error("ffi unavailable") end
+package.loaded['focus.gamescope'].query = function() error("ffi unavailable") end
 check("host focus survives native failure", GameHostFocus(553850) == "unknown")
-package.loaded.game_focus.query = function() return "garbage" end
+package.loaded['focus.gamescope'].query = function() return "garbage" end
 check("host focus rejects unexpected helper output", GameHostFocus(553850) == "unknown")
 
 -- The materialized helper must be byte-identical to the packed asset (here:
