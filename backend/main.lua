@@ -34,6 +34,12 @@ local function detect_macos()
 end
 local IS_MACOS = detect_macos()
 local PLATFORM = IS_WINDOWS and "windows" or (IS_MACOS and "macos" or "linux")
+
+---@ffi
+---@return string
+function Platform()
+    return PLATFORM
+end
 -- Set by flatpak inside an app's sandbox (Steam's is com.valvesoftware.Steam).
 -- Millennium does not run there today; logged so a run that does is
 -- recognisable, and every $HOME-relative path below already resolves inside
@@ -221,7 +227,7 @@ end
 
 local notify_seq = 0
 
---- Hand the five delivery slots to the platform's helper, detached, and say
+--- Hand the delivery slots to the platform's helper, detached, and say
 --- whether anything was spawned. The one seam that knows how a process
 --- starts on each OS; Notify above it is OS-blind.
 ---
@@ -230,7 +236,7 @@ local notify_seq = 0
 --- backend's single event loop must keep answering the frontend's polls.
 ---
 --- Windows (EXPERIMENTAL; docs/platforms.md lists the hardware checks): the
---- five slots travel as a <id>.notify JSON file --
+--- six slots travel as a <id>.notify JSON file --
 --- a file, not a command line, so quoting stays out of the contract -- and
 --- notify-action.ps1 is started through CreateProcessW above and exits after
 --- Show(). A click returns through Steam's own steam:// URL handling; only
@@ -243,7 +249,7 @@ local notify_seq = 0
 ---
 --- Until macOS lands this logs and returns false there, so an install on
 --- that platform fails in the log rather than in silence.
-local function spawn_helper(title, body, raw_image, route, ingame)
+local function spawn_helper(title, body, raw_image, route, ingame, suppress_popup)
     if IS_MACOS then
         log_line("error", "unsupported platform: macos"
             .. " delivery is not implemented, notification dropped")
@@ -264,7 +270,7 @@ local function spawn_helper(title, body, raw_image, route, ingame)
         -- on "ok").
         local written = handle:write(json.encode({
             title = title, body = body, image = raw_image,
-            route = route, ingame = ingame,
+            route = route, ingame = ingame, suppressPopup = suppress_popup,
         }))
         local closed = handle:close()
         if not written or not closed then
@@ -289,8 +295,9 @@ local function spawn_helper(title, body, raw_image, route, ingame)
     return true
 end
 
---- Positional over the ffi bridge: title, body, image, route, ingame -- the
---- same five slots handed on to tools/notify-action. (The old callable
+--- Positional over the ffi bridge: title, body, image, route, ingame,
+--- suppressPopup. The first five slots stay identical to tools/notify-action.
+--- (The old callable
 --- transport could not order multiple arguments, so everything once arrived
 --- as one JSON string.)
 ---
@@ -303,21 +310,23 @@ end
 ---@param image any
 ---@param route any
 ---@param ingame any
+---@param suppressPopup any
 ---@return string
-function Notify(title, body, image, route, ingame)
+function Notify(title, body, image, route, ingame, suppressPopup)
     title = (title ~= nil and title ~= "") and tostring(title) or APP_NAME
     body = body ~= nil and tostring(body) or ""
     local raw_image = image ~= nil and tostring(image) or ""
     route = route ~= nil and tostring(route) or ""
     ingame = ingame ~= nil and tostring(ingame) or ""
+    local suppress_popup = suppressPopup == "true"
 
     -- This end is a marshaller: quote and hand over. Everything the daemon
     -- needs done to the values (markup escaping, icon resolution, the click)
     -- happens in the helper, next to the notify-send that renders them. The
-    -- five positional arguments are a contract shared with tools/notify-action
+    -- first five positional arguments are a contract shared with tools/notify-action
     -- and tools/test-backend. A missing helper was already reported loudly at
     -- load; delivering without it would mean a second, untested notify-send.
-    if not spawn_helper(title, body, raw_image, route, ingame) then
+    if not spawn_helper(title, body, raw_image, route, ingame, suppress_popup) then
         return "unsupported"
     end
     return "ok"
@@ -338,35 +347,6 @@ function FocusSteam(kind)
         return "unsupported"
     end
     return "ok"
-end
-
---- Settings live per-key in Millennium's config store: the panel writes them
---- through usePluginConfig, the frontend snapshot subscribes to pushes, and
---- this end never learns a setting name. Earlier builds stored the whole
---- object as ONE JSON document under "settings" (and before that a bare
---- hideSteamToast key, which already matches the per-key name); this one-time
---- move runs before millennium.ready() so the frontend only ever sees
---- per-key values. Existing per-key values always win over the document.
-local function migrate_legacy_settings()
-    local doc = millennium.config.get("settings")
-    if type(doc) ~= "string" or doc == "" then return end
-    local ok, data = pcall(json.decode, doc)
-    if ok and type(data) == "table" then
-        for key, value in pairs(data) do
-            if key == "nativeToastInGame" then
-                -- Retired key: nativeToastInGame=true meant "no desktop
-                -- delivery while a game has focus" -- notifyInGame=false.
-                if millennium.config.get("notifyInGame") == nil then
-                    millennium.config.set("notifyInGame", value ~= true)
-                end
-            elseif millennium.config.get(key) == nil then
-                millennium.config.set(key, value)
-            end
-        end
-    else
-        log_line("error", "legacy settings document undecodable, dropped: " .. doc)
-    end
-    millennium.config.delete("settings")
 end
 
 ---@ffi
@@ -523,7 +503,6 @@ local function on_load()
         .. (FLATPAK_ID and (" flatpak: " .. FLATPAK_ID) or "")
         .. " runtime: " .. RUNTIME_DIR)
 
-    migrate_legacy_settings()
     publish_steam_dir()
 
     -- Each platform materializes what it runs: the sh helper on Linux and the

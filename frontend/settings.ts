@@ -1,22 +1,7 @@
 import { pluginConfig, subscribePluginConfig } from 'millennium';
+import { PRESENTATION_DEFAULTS, type PresentationSettings } from './presentation';
 
-export interface Settings {
-	/**
-	 * Send desktop notifications for toasts Steam renders on the desktop
-	 * surface (no game focused). One of the two user-facing toggles.
-	 */
-	notifyOutsideGame: boolean;
-	/**
-	 * Send desktop notifications for toasts Steam renders in a game's
-	 * overlay (game focused). The other user-facing toggle; off means
-	 * in-game notifications stay Steam's alone.
-	 */
-	notifyInGame: boolean;
-	/**
-	 * Dev: close Steam's own toast once its text has been read. Ships ON --
-	 * the native notification replaces Steam's rather than duplicating it.
-	 */
-	hideSteamToast: boolean;
+export interface Settings extends PresentationSettings {
 	/**
 	 * Dev: accept commands from tools/fire (devfire.ts). A name-and-args door
 	 * into Steam's notification stores for anything that can write the command
@@ -33,9 +18,7 @@ export interface Settings {
 }
 
 export const DEFAULTS: Settings = {
-	notifyOutsideGame: true,
-	notifyInGame: true,
-	hideSteamToast: true,
+	...PRESENTATION_DEFAULTS,
 	devFire: false,
 	devMode: false,
 };
@@ -53,10 +36,10 @@ export function settings(): Settings {
 	return current;
 }
 
-/** Fold one store value into the snapshot; unknown keys and types stay out. */
+/** Keep removal and malformed-value behavior aligned with the panel defaults. */
 function absorb(key: string, value: unknown): void {
-	if (key in DEFAULTS && typeof value === typeof DEFAULTS[key as keyof Settings]) {
-		current = { ...current, [key]: value };
+	if (Object.prototype.hasOwnProperty.call(DEFAULTS, key)) {
+		current = { ...current, [key]: typeof value === 'boolean' ? value : DEFAULTS[key as keyof Settings] };
 	}
 }
 
@@ -81,9 +64,7 @@ let subscribed = false;
 /**
  * pluginConfig talks to Millennium's own config store, not this plugin's
  * backend, so the backend race the old document load retried around cannot
- * happen; the short retry covers only the first frames of a cold start. The
- * backend migrates any legacy stored document to per-key values before
- * millennium.ready(), so this only ever sees the per-key form.
+ * happen; the short retry covers only the first frames of a cold start.
  */
 export async function loadSettings(): Promise<Settings> {
 	if (!subscribed) {

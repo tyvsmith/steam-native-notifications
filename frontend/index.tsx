@@ -14,6 +14,8 @@ import { SettingsPanel } from './SettingsPanel';
 import { loadSettings, parseCallableJson, settings } from './settings';
 import { loadUrlTemplates } from './urlstore';
 import { splitToastText } from './toasttext';
+import { presentationFor } from './presentation';
+import { loadPlatform } from './platform';
 
 /**
  * Steam draws every notification as its own CEF popup window, named
@@ -48,13 +50,13 @@ interface SteamPopupManager {
 const TOAST_PREFIX = 'notificationtoasts_';
 
 /**
- * Positional over the ffi bridge: title, body, image, route, ingame -- the
- * same five slots backend/main.lua hands to tools/notify-action. (The old
+ * Positional over the ffi bridge: title, body, image, route, ingame, suppressPopup.
+ * The final flag requests Windows history-only delivery. (The old
  * callable transport mapped a multi-key argument object onto Lua parameters
  * in no defined order -- summary and body once arrived swapped -- which is
  * why everything used to travel as one JSON string.)
  */
-const notify = ffi<[string, string, string, string, string], string>('Notify');
+const notify = ffi<[string, string, string, string, string, string], string>('Notify');
 const identity = ffi<[], string>('Identity');
 
 /**
@@ -127,7 +129,8 @@ function readWhenPainted(win: Window, name: string, attempt: number = 0): void {
 		return;
 	}
 
-	deliverToast(win, name, text);
+	void deliverToast(win, name, text).catch((e: unknown) =>
+		dlog(`toast ${name} left open: notify failed: ${(e as Error)?.message ?? e}`));
 }
 
 /**
@@ -136,16 +139,15 @@ function readWhenPainted(win: Window, name: string, attempt: number = 0): void {
  * a toast this function could not read stays on screen rather than being
  * silently swallowed.
  */
-function deliverToast(win: Window, name: string, text: string): void {
+async function deliverToast(win: Window, name: string, text: string): Promise<void> {
 	if (delivered.has(name)) return;
 	delivered.add(name);
+	const snapshot = settings();
 
 	const { title, body } = splitToastText(text);
 	const image = toastImage(win);
 	const fromToast = notificationFromToast(win);
-	// Steam renders each toast in the surface the user is on: overlay-context
-	// names (notificationtoasts_uid<appid>-...) mean the game was focused,
-	// _desktop names mean it was not -- even with a game running.
+	// Steam's render surface can remain the overlay after alt-tab.
 	const captureAppId = captureAppIdFromToastName(name);
 	const overlayCtx = captureAppId !== null && captureAppId > 0;
 
@@ -176,9 +178,8 @@ function deliverToast(win: Window, name: string, text: string): void {
 		catalogRoute = null;
 		overlayAction = null;
 	}
-	// A suppressed toast is left entirely to Steam: nothing sent, popup not
-	// closed (hideSteamToast included). Capture and the logs above still run.
-	const suppressed = overlayCtx ? !settings().notifyInGame : !settings().notifyOutsideGame;
+	let policy = presentationFor(snapshot, captureAppId, 'unknown');
+	const suppressed = !policy.sendNative;
 	let clickPayload = '';
 	let replayable = false;
 	const fallback = catalogRoute ?? (overlayAction ? `action:${overlayAction}` : null);
@@ -201,38 +202,26 @@ function deliverToast(win: Window, name: string, text: string): void {
 			dlog(`click envelope failed for ${name}: ${(e as Error)?.message ?? e}`);
 		}
 	}
+	// Capture the handler before any await: Steam may unmount this popup while
+	// the backend is answering. Normal delivery never waits for a platform probe.
+	if (policy.sendNative && (overlayCtx ? snapshot.notificationCenterOnlyInGame : snapshot.notificationCenterOnlyOutsideGame)) {
+		policy = presentationFor(snapshot, captureAppId, await loadPlatform());
+	}
 	dlog(
-		`toast ${name} -> ${safeJson({ title, body, image, type, kind, replayable, fallback, click: Boolean(clickPayload) })}` +
-			(suppressed ? ` (suppressed: ${overlayCtx ? 'in-game' : 'desktop'} notifications off)` : ''),
+		`toast ${name} -> ${safeJson({ title, body, image, type, kind, replayable, fallback, click: Boolean(clickPayload), ...policy })}` +
+			(suppressed ? ` (suppressed: ${captureAppId === null ? 'unknown surface' : `${overlayCtx ? 'in-game' : 'desktop'} notifications off`})` : ''),
 	);
-	// The backend/notify-action contract is unchanged (five positional args);
-	// the click envelope travels in the route slot and returns through the
-	// platform's action transport.
-	const notifyResult: Promise<string> | null = suppressed
-		? null
-		: notify(title, body, image ?? '', clickPayload, '');
-
-	// Closing Steam's own popup is what stops a notification being reported
-	// twice. Done here rather than with a compositor rule because the plugin
-	// knows the read succeeded, and because it works on any window manager.
-	// Gated on the backend answering "ok": a platform whose delivery is not
-	// implemented, or a failed spawn, must leave Steam's own toast alone or
-	// the notification vanishes entirely. The answer can arrive raw or
-	// JSON-quoted depending on the transport.
-	if (settings().hideSteamToast && notifyResult) {
-		void notifyResult
-			.then((result: string) => {
-				if (result !== 'ok' && result !== '"ok"') {
-					dlog(`toast ${name} left open: backend answered ${String(result).slice(0, 60)}`);
-					return;
-				}
-				try {
-					win.close();
-				} catch (e) {
-					dlog(`could not close ${name}: ${(e as Error)?.message ?? e}`);
-				}
-			})
-			.catch((e: unknown) => dlog(`toast ${name} left open: notify failed: ${(e as Error)?.message ?? e}`));
+	if (policy.sendNative) {
+		const result = await notify(title, body, image ?? '', clickPayload, '', String(policy.suppressPopup));
+		// The acknowledgement confirms helper launch, not actual banner display.
+		if (result !== 'ok' && result !== '"ok"') {
+			dlog(`toast ${name} left open: backend answered ${String(result).slice(0, 60)}`);
+			return;
+		}
+	}
+	if (!policy.showSteam) {
+		try { win.close(); }
+		catch (e) { dlog(`could not close ${name}: ${(e as Error)?.message ?? e}`); }
 	}
 }
 
@@ -304,6 +293,7 @@ function pluginIcon(): any {
 
 export default definePlugin(() => {
 	void loadSettings();
+	void loadPlatform();
 	void loadIdentity();
 	void loadUrlTemplates().then((summary) => dlog(`url templates: ${summary}`));
 	trackOverlayFocus();

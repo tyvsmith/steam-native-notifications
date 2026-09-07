@@ -25,19 +25,20 @@ not implemented on <platform>` at load and `unsupported platform: <platform>
 delivery is not implemented, notification dropped` per toast, and `Notify`
 answers `"unsupported"`. Nothing is delivered and nothing is silent.
 
-**Shipped:** the frontend closes Steam's own toast only after `Notify`
-answers `"ok"` (frontend/index.tsx), so a platform that cannot deliver -- or
-a failed spawn anywhere -- leaves Steam's own toast alone instead of
-swallowing the notification. Earlier Linux live checks covered the transport
+**Shipped:** when replacing Steam's toast with native delivery, the frontend
+closes it only after `Notify` answers `"ok"` (frontend/index.tsx). A rejected
+request leaves Steam's toast alone. Disabling both Steam and OS notifications
+for a context intentionally closes Steam without delivery. Earlier Linux live checks covered the transport
 before unification; the current-path measurements below define the tested scope.
 
 ## What differs per platform
 
-The frontend runs inside Steam's CEF and is OS-blind. The Lua backend and the
-helper are the whole surface. Everything file-shaped lives in one runtime
-directory per platform, and everything the backend knows and the helper
-needs crosses in files there, never as a sixth argument: the five positional
-slots (`title body image route ingame`) are the contract on every platform.
+The frontend runs inside Steam's CEF and reads the backend's `Platform()`
+answer for Windows-only presentation controls. The positional `Notify` RPC
+carries `title body image route ingame suppressPopup`. Windows receives a JSON
+payload with a boolean `suppressPopup`; the POSIX helper retains its five
+arguments and ignores Windows presentation preferences. Runtime files live
+in one directory per platform.
 
 | piece | Linux | Linux, inside Steam's Flatpak sandbox | macOS | Windows |
 |---|---|---|---|---|
@@ -613,10 +614,10 @@ The private scheme and JScript handler were removed.
 
 ### Remaining Windows work
 
-- add an in-game presentation setting with three modes: Steam only, Steam plus
-  a silent Notification Center copy (`SuppressPopup = true`), or a native
-  banner; keep Steam's in-game toast in the first two modes and validate click
-  dispatch with the game focused and unfocused
+- validate the independent Steam/OS presentation settings and opt-in
+  Notification Center-only delivery on native Windows hardware
+- correct stale game focus after alt-tab for history clicks ([#14](https://github.com/tyvsmith/steam-native-notify/issues/14));
+  Linux X11 host detection is tracked separately in [#15](https://github.com/tyvsmith/steam-native-notify/issues/15)
 - `fire.ps1` / `capture.ps1` tester tooling
 - `scenario="urgent"` opt-in for Focus Assist bypass
 - `-Teardown` validation

@@ -50,21 +50,33 @@ Windows toast identity per-user at load, and
 
 ## Settings
 
-Two toggles, both on by default:
+| Setting | Outside games | Inside games |
+| --- | --- | --- |
+| Show OS notifications | On | On |
+| Show Steam notifications | Off | On |
+| Save to Notification Center only (Windows) | Off | Off |
 
-- **Use native notifications when outside of games**: send Steam
-  notifications to the desktop daemon while no game has focus.
-- **Use native notifications when inside games**: also send them while a
-  game has focus, alongside Steam's in-game toast. Off keeps in-game
-  notifications inside Steam only.
+- control Steam and OS notifications independently in each section; both off
+  suppresses both
+- show Notification Center controls only on Windows when the section's OS
+  notifications are enabled; hiding a control preserves its preference
+- let Windows decide banner visibility through its notification settings,
+  including Do Not Disturb, unless Notification Center only is enabled
+- leave Linux banner and history policy to the notification daemon
 
-Steam's own toast is hidden once the native notification is confirmed
-delivered — it replaces Steam's toast rather than duplicating it, and a
-failed or unimplemented delivery leaves Steam's toast alone. That and the
-`tools/fire` test-command door are developer toggles (`hideSteamToast`,
-on by default; `devFire`, off), hidden unless `devMode` is set in the
-plugin's stored settings — there is deliberately no UI for it (see
-`docs/architecture.md`, testing methodology).
+Context follows where Steam renders the toast. Steam can keep using the game
+overlay after alt-tab, so Inside games settings can still apply then. Native
+notifications cannot capture events that Steam never renders.
+
+When replacing Steam's toast, the plugin closes it after the backend
+acknowledges launching native delivery. A rejected request leaves Steam's
+toast visible; the acknowledgement does not confirm a displayed OS banner.
+
+Windows history clicks can still target a hidden overlay while a game is
+running; focus detection is tracked in [#14](https://github.com/tyvsmith/steam-native-notify/issues/14).
+
+The `tools/fire` test door ships off and appears only with `devMode` enabled
+out of band. See `docs/architecture.md` for testing instructions.
 
 ## Diagnosing
 

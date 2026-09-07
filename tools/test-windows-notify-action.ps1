@@ -16,6 +16,34 @@ try {
         throw 'FAIL notification delivery still retains an activation callback'
     }
     Write-Output 'PASS notification delivery retains no activation callback'
+    $suppressionSource = [regex]::Match($helperSource,
+        '(?s)if \(\$Payload\.suppressPopup -is \[bool\] -and \$Payload\.suppressPopup\) \{.*?\r?\n    \}')
+    if (-not $suppressionSource.Success) { throw 'FAIL popup suppression block not found' }
+    $toastCreation = $helperSource.IndexOf('$toast = New-Object Windows.UI.Notifications.ToastNotification')
+    $suppressionAt = $helperSource.IndexOf($suppressionSource.Value)
+    $showAt = $helperSource.IndexOf('.Show($toast)')
+    if ($toastCreation -lt 0 -or $suppressionAt -le $toastCreation -or $showAt -le $suppressionAt) {
+        throw 'FAIL popup suppression is not applied between toast creation and Show'
+    }
+    $applySuppression = [scriptblock]::Create(
+        'param($Payload, $toast)' + "`n" + $suppressionSource.Value + "`n" + '$toast.SuppressPopup')
+    $suppressionCases = @(
+        @{ Name = 'boolean true'; Json = '{"suppressPopup":true}'; Expected = $true },
+        @{ Name = 'boolean false'; Json = '{"suppressPopup":false}'; Expected = $false },
+        @{ Name = 'missing'; Json = '{}'; Expected = $false },
+        @{ Name = 'string true'; Json = '{"suppressPopup":"true"}'; Expected = $false },
+        @{ Name = 'number one'; Json = '{"suppressPopup":1}'; Expected = $false },
+        @{ Name = 'null'; Json = '{"suppressPopup":null}'; Expected = $false }
+    )
+    foreach ($case in $suppressionCases) {
+        $payload = $case.Json | ConvertFrom-Json
+        $toast = [pscustomobject]@{ SuppressPopup = $false }
+        $actual = & $applySuppression $payload $toast
+        if ($actual -cne $case.Expected) {
+            throw "FAIL popup suppression for $($case.Name): expected $($case.Expected), got $actual"
+        }
+    }
+    Write-Output 'PASS production popup suppression block accepts only JSON boolean true before delivery'
     if ($helperSource -notmatch '\[string\]\$FocusKind') {
         throw 'FAIL helper has no route-aware focus mode'
     }

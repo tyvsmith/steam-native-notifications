@@ -35,7 +35,6 @@ end
 -- Stubbed before the module loads: main.lua captures `millennium` at load time,
 -- so a stub installed afterwards would never be seen. assets.read serves the
 -- real helper from the repo, standing in for the copy packed into the .star.
-local stored = {}
 -- steam_path answers with a throwaway Steam directory; a test that needs a
 -- loginusers.vdf writes one there. Empty by default, so Identity falls
 -- through to the machine's real candidates exactly as before.
@@ -44,11 +43,6 @@ package.preload["millennium"] = function()
 	return {
 		ready = function() end,
 		steam_path = function() return steam_dir .. "/" end,
-		config = {
-			get = function(k) return stored[k] end,
-			set = function(k, v) stored[k] = v end,
-			delete = function(k) stored[k] = nil end,
-		},
 		assets = {
 			read = function(path)
 				local handle = io.open(root .. "/" .. path, "r")
@@ -132,6 +126,7 @@ for _, entry in ipairs(logged) do
 	if entry[1] == "error" then check("no errors at load", false, entry[2]) end
 end
 check("helper installed at load", sawHelper)
+check("Platform reports linux", Platform() == "linux", tostring(Platform()))
 
 local focus_appid
 package.loaded.game_focus = dofile(root .. '/backend/game_focus.lua')
@@ -192,10 +187,11 @@ end
 
 -- A notification with a route: the friend-message shape.
 executed = {}
-ok = pcall(Notify, "NightFury", "hello", "", "steam://friends/message/76561198257837083", nil)
+ok = pcall(Notify, "NightFury", "hello", "", "steam://friends/message/76561198257837083", nil, "true")
 check("Notify with a route runs", ok)
 if executed[1] then
 	check("passes the route", executed[1]:find("steam://friends/message/", 1, true) ~= nil, executed[1])
+	check("Linux helper keeps its five positional slots", executed[1]:find("'true'", 1, true) == nil, executed[1])
 end
 
 -- The body crosses to the helper raw; markup escaping is the helper's job,
@@ -212,33 +208,6 @@ pcall(Notify, "Someone", "; touch /tmp/pwned #", "", nil, nil)
 if executed[1] then
 	check("quotes shell metacharacters", executed[1]:find("'; touch /tmp/pwned #'", 1, true) ~= nil, executed[1])
 end
-
--- Settings live per-key in Millennium's config store; the backend's only job
--- is the one-time move of the legacy one-document form, run at load. The
--- retired nativeToastInGame key inverts into notifyInGame; existing per-key
--- values always win over the document; the document is removed either way.
-stored.settings = '{"hideSteamToast":true,"devFire":true,"nativeToastInGame":true}'
-stored.devFire = nil
-stored.notifyInGame = nil
-ok = pcall(plugin.on_load)
-check("migration runs at load", ok)
-check("migration moves document keys per-key", stored.devFire == true, tostring(stored.devFire))
-check("migration inverts nativeToastInGame", stored.notifyInGame == false, tostring(stored.notifyInGame))
-check("migration removes the document", stored.settings == nil, tostring(stored.settings))
-
-stored.settings = '{"devFire":false}'
-pcall(plugin.on_load)
-check("existing per-key value wins over the document", stored.devFire == true, tostring(stored.devFire))
-check("losing document is removed too", stored.settings == nil, tostring(stored.settings))
-
-stored.settings = "not json"
-pcall(plugin.on_load)
-check("garbage document is dropped", stored.settings == nil, tostring(stored.settings))
-
-stored.settings = nil
-stored.notifyOutsideGame = nil
-pcall(plugin.on_load)
-check("fresh install seeds no keys", stored.notifyOutsideGame == nil, tostring(stored.notifyOutsideGame))
 
 -- Identity: shape only. The steamid comes from the machine's loginusers.vdf,
 -- which this test does not fabricate; present it must be a steamid64, absent
@@ -982,33 +951,55 @@ executed = {}
 local win_ffi_plugin = dofile(root .. "/backend/main.lua")
 ok, err = pcall(win_ffi_plugin.on_load)
 check("windows+ffi: on_load runs", ok, err)
+check("windows+ffi: Platform reports windows", Platform() == "windows", tostring(Platform()))
 check("windows+ffi: setup is spawned through CreateProcessW",
 	#ffi_commands == 1
 		and ffi_commands[1]:find("powershell.exe", 1, true) ~= nil
 		and ffi_commands[1]:find('-File "' .. win_runtime .. '\\notify-action.ps1" -Setup', 1, true) ~= nil,
 	tostring(ffi_commands[1]))
 local click_payload = "click:eyJ2IjoxfQ"
-ok, win_result = pcall(Notify, "Download Complete", "Aircar is ready", "img", click_payload, "")
+ok, win_result = pcall(Notify, "Download Complete", "Aircar is ready", "img", click_payload, "", "true")
 check("windows+ffi: Notify runs", ok, win_result)
 check("windows+ffi: Notify reports ok", win_result == "ok", tostring(win_result))
 check("windows+ffi: delivery is spawned with an id",
 	#ffi_commands == 2 and ffi_commands[2]:find('%-Id "%d+%-%d+"$') ~= nil, tostring(ffi_commands[2]))
 check("windows+ffi: nothing rides os.execute", #executed == 0, tostring(#executed))
-local payload_name = io.popen("ls '" .. tmp_cache .. "' | grep '\\.notify$' | head -1"):read("*l")
-local payload = payload_name and slurp(tmp_cache .. "/" .. payload_name) or nil
-check("windows+ffi: the payload file carries the five slots",
+local function consume_windows_payload()
+	local name = io.popen("ls '" .. tmp_cache .. "' | grep '\\.notify$' | head -1"):read("*l")
+	if not name or name == "" then return nil end
+	local content = slurp(tmp_cache .. "/" .. name)
+	os.remove(tmp_cache .. "/" .. name)
+	return content
+end
+local payload = consume_windows_payload()
+check("windows+ffi: the payload file carries boolean popup suppression",
 	payload ~= nil
 		and payload:find('"title":"Download Complete"', 1, true) ~= nil
-		and payload:find('"route":"' .. click_payload .. '"', 1, true) ~= nil,
-		tostring(payload))
+		and payload:find('"route":"' .. click_payload .. '"', 1, true) ~= nil
+		and payload:find('"suppressPopup":true', 1, true) ~= nil,
+	tostring(payload))
+
+for _, case in ipairs({
+	{ "string false", "false" },
+	{ "missing", nil },
+	{ "boolean true", true },
+	{ "number one", 1 },
+}) do
+	ok, win_result = pcall(Notify, "Friend Online", "NightFury", "", "", "", case[2])
+	check("windows+ffi: " .. case[1] .. " suppression input is accepted",
+		ok and win_result == "ok", tostring(win_result))
+	payload = consume_windows_payload()
+	check("windows+ffi: " .. case[1] .. " does not suppress popup",
+		payload ~= nil and payload:find('"suppressPopup":false', 1, true) ~= nil, tostring(payload))
+end
 
 local focus_result
 ok, focus_result = pcall(FocusSteam, "chat")
 check("windows+ffi: FocusSteam runs", ok, focus_result)
 check("windows+ffi: FocusSteam reports ok", focus_result == "ok", tostring(focus_result))
 check("windows+ffi: chat focus is a one-shot helper invocation",
-	#ffi_commands == 3 and ffi_commands[3]:find('%-FocusKind "chat"$') ~= nil,
-	tostring(ffi_commands[3]))
+	ffi_commands[#ffi_commands]:find('%-FocusKind "chat"$') ~= nil,
+	tostring(ffi_commands[#ffi_commands]))
 local before_invalid_focus = #ffi_commands
 ok, focus_result = pcall(FocusSteam, "other")
 check("windows+ffi: invalid focus is refused", ok and focus_result == "unsupported", tostring(focus_result))
@@ -1066,6 +1057,7 @@ executed = {}
 local mac_plugin = dofile(root .. "/backend/main.lua")
 ok, err = pcall(mac_plugin.on_load)
 check("macos: on_load runs", ok, err)
+check("macos: Platform reports macos", Platform() == "macos", tostring(Platform()))
 
 local mac_platform, mac_unsupported, mac_helper = false, false, false
 for _, entry in ipairs(logged) do

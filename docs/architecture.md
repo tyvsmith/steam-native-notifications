@@ -41,9 +41,11 @@ Steam renders a toast (its own CEF popup window)
 
 `frontend/fiber.ts` owns the `__reactFiber` discovery both walkers share;
 `frontend/log.ts` owns `dlog`/`safeJson`, whose prefixes are `tools/capture`'s
-grep contract; `frontend/settings.ts` + `SettingsPanel.tsx` hold the two
-user-facing toggles (desktop notifications outside / inside games) and the
-developer toggles behind `devMode`; `frontend/devfire.ts` is the `tools/fire`
+grep contract; `frontend/settings.ts` + `SettingsPanel.tsx` hold independent
+Steam/OS controls for desktop and game contexts, Windows Notification Center-only
+controls, and the test door behind `devMode`; `frontend/presentation.ts` resolves
+a captured toast's policy and `frontend/platform.ts` caches the backend platform;
+`frontend/devfire.ts` is the `tools/fire`
 door, gated on the `devFire` developer toggle.
 
 ## Capture
@@ -61,9 +63,19 @@ kitsune-notifications plugin uses, which is the only reason to trust it.
 
 The popup exists before it paints, so delivery polls for text (~1.2s) rather
 than trusting a settle delay. Each popup name delivers at most once. Delivery
-is gated per surface by the two user toggles; a suppressed toast is left
-entirely to Steam — nothing sent, popup not closed. The `hideSteamToast`
-developer toggle closes Steam's own popup after a successful read.
+uses one settings snapshot per captured surface. OS and Steam visibility are
+independent: both enabled sends a copy and preserves Steam; both disabled
+closes Steam without sending a copy. Replacing Steam with an OS notification
+closes its popup only after the backend acknowledges launching delivery.
+A failed request preserves Steam, but a successful launch does not establish
+whether the OS displayed a banner. Unknown capture surfaces preserve Steam
+and skip mirroring. Closing happens after capture, so a brief flash is possible.
+
+Defaults enable OS notifications in both contexts and preserve Steam only
+in games. Windows Notification Center-only preferences default off, appear
+only when OS delivery is enabled, and set `SuppressPopup` before WinRT `Show`.
+Linux ignores those preferences. Steam's capture surface can lag after
+alt-tab, so an explicitly silent game-context copy can remain silent there.
 
 ## The click path
 
@@ -83,7 +95,7 @@ candidates), BFS downward collecting every function-valued
   (a voice-chat accept answers the call). A separately verified catalog route
   can still handle the click; without one, the notification remains inert.
 
-A clickable notification crosses the five-position RPC as
+A clickable notification crosses the positional RPC's route argument as
 `click:<base64url JSON>`. The helpers expose the same envelope to the OS as
 `steam://steam-native-notify/notification/<base64url-envelope>`. The version-1
 envelope contains a cryptographically random 128-bit replay token, capture
@@ -258,14 +270,15 @@ action.
   `notify-send` returns that action. Quickshell additionally receives Quattro's
   fixed argv history hint. Expiry does not synthesize an action.
 - Frontend-backend RPC rides Millennium's `ffi` bridge with positional
-  arguments (`Notify(title, body, image, route, ingame)`); the retired
+  arguments (`Notify(title, body, image, route, ingame, suppressPopup)`); the retired
   `callable` transport could not order a multi-key object. A Lua string return
   has arrived both raw and JSON-quoted across transports — unwrap only what
   starts with a quote.
 - Settings are per-key values in Millennium's config store (`usePluginConfig`
   in the panel, `pluginConfig`/`subscribePluginConfig` behind `settings()`);
-  the backend migrates the earlier one-document form at load, and a config
-  write from any source pushes to the running frontend (verified 2026-08-30).
+  a config write from any source pushes to the running frontend (verified
+  2026-08-30). Missing settings use defaults; obsolete development settings
+  have no migration path.
 
 ## Testing methodology, which is easy to get wrong
 

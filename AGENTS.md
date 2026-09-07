@@ -116,7 +116,7 @@ The log prefixes in `frontend/log.ts` are the contract `tools/capture` greps;
 renaming one blinds the triage tool.
 
 **Frontend-backend RPC is Millennium's `ffi` bridge, positional.**
-`ffi('Notify')(title, body, image, route, ingame)` lands on the Lua parameters
+`ffi('Notify')(title, body, image, route, ingame, suppressPopup)` lands on the Lua parameters
 in order (the old `callable` transport could not order a multi-key object,
 which is why everything once travelled as one JSON string). A Lua string
 return has arrived both raw and JSON-quoted across transports: unwrap only
@@ -124,9 +124,15 @@ what provably starts with a quote (clickbridge.ts).
 
 **Settings live per-key in Millennium's config store.** The panel uses
 `usePluginConfig`; the `settings()` snapshot loads via `pluginConfig.getAll`
-and stays current through `subscribePluginConfig`; the backend migrates the
-old one-document form at load. A write from any source (panel, backend,
+and stays current through `subscribePluginConfig`. Missing values use defaults;
+obsolete development settings are ignored. A write from any source (panel, backend,
 `tools/mep`) reaches a running frontend without a restart.
+
+**Presentation is independent per capture surface.** OS delivery defaults on
+for desktop and game contexts; Steam visibility defaults off on desktop and
+on in games. Windows-only Notification Center controls default off and appear
+when the corresponding OS toggle is on. Both visibility toggles off closes
+Steam without native delivery. Unknown capture surfaces preserve Steam.
 
 ## Testing notifications
 

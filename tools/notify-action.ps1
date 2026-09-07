@@ -17,9 +17,8 @@
 #        notify-action.ps1 -Id <id>          deliver <id>.notify from the runtime directory
 #        notify-action.ps1 -FocusKind <kind> pulse the main or chat window
 #
-# The .notify file carries the same five slots the POSIX helper takes as
-# positional arguments: title, body, image, route, ingame. A file, not a
-# command line, so quoting stays out of the contract.
+# The .notify file carries the five POSIX slots plus the Windows-only boolean
+# suppressPopup. A file, not a command line, so quoting stays out of the contract.
 
 param(
     [string]$Id,
@@ -370,6 +369,9 @@ try {
     $doc = New-Object Windows.Data.Xml.Dom.XmlDocument
     $doc.LoadXml($Xml)
     $toast = New-Object Windows.UI.Notifications.ToastNotification $doc
+    if ($Payload.suppressPopup -is [bool] -and $Payload.suppressPopup) {
+        $toast.SuppressPopup = $true
+    }
     [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($Aumid).Show($toast)
 } catch {
     if ($_.Exception.Message -match 'notification platform') {
