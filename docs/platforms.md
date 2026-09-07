@@ -26,9 +26,12 @@ delivery is not implemented, notification dropped` per toast, and `Notify`
 answers `"unsupported"`. Nothing is delivered and nothing is silent.
 
 **Shipped:** when replacing Steam's toast with native delivery, the frontend
-closes it only after `Notify` answers `"ok"` (frontend/index.tsx). A rejected
-request leaves Steam's toast alone. Disabling both Steam and OS notifications
-for a context intentionally closes Steam without delivery. Earlier Linux live checks covered the transport
+closes it only after `Notify` answers `"ok"` (frontend/index.tsx). This acknowledges
+dispatch or helper launch, not successful native delivery or banner display.
+A later helper failure can leave no OS notification after Steam closes.
+A rejected request leaves Steam's toast alone. Disabling both Steam and OS
+notifications for a context intentionally closes Steam without delivery.
+Earlier Linux live checks covered the transport
 before unification; the current-path measurements below define the tested scope.
 
 ## What differs per platform
