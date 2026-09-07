@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, mock, spyOn, test } from 'bun:test';
 // Keep replay, surface discovery, and dispatch real; replace only the host APIs.
 const events: string[] = [];
 let navigator: any;
-let hostFocus = 'unknown';
+let hostFocus: string | Promise<string> = 'unknown';
 const overlayStore = {
 	OnGameOverlayActivateRequested(request: any) { events.push(`overlay:${request.appid}:${request.strDialog}`); },
 	OnSteamURLOpenExternalForPID() {},
@@ -116,6 +116,37 @@ test('a backgrounded Gamescope host overrides stale Steam focus before replay', 
 	await dispatchClick(click);
 	expect(events).toEqual(['overlay:0:chat', 'focus:main']);
 });
+
+for (const outcome of ['game', 'desktop', 'unknown', 'reject']) {
+	for (const nextFocus of [0, 730, null]) {
+		test(`focus changes during a ${outcome} host probe refuse dispatch (${nextFocus})`, async () => {
+			sc.Overlay.GetOverlayBrowserInfo = async () => [{ appID: 570 }, { appID: 730 }];
+			focusChanged(570);
+			let finish!: () => void;
+			hostFocus = new Promise<string>((resolve, reject) => {
+				finish = () => outcome === 'reject' ? reject(new Error('probe unavailable')) : resolve(outcome);
+			});
+			const click = envelope('steam://friends/message/76561198018634384', 570);
+			capture(click, 'notificationtoasts_uid570-10000');
+			const pending = dispatchClick(click);
+			await flush();
+			focusChanged(nextFocus);
+			finish();
+			await pending;
+			expect(events).toEqual([]);
+		});
+	}
+}
+
+for (const result of ['"desktop"', '"\\u0064esktop"']) {
+	test(`quoted host focus selects desktop: ${result}`, async () => {
+		sc.Overlay.GetOverlayBrowserInfo = async () => [{ appID: 570 }];
+		focusChanged(570);
+		hostFocus = result;
+		await dispatchClick(envelope('steam://friends/message/76561198018634384', 570));
+		expect(events).toEqual(['overlay:0:chat', 'focus:main']);
+	});
+}
 
 test('a focused Gamescope host preserves overlay replay', async () => {
 	sc.Overlay.GetOverlayBrowserInfo = async () => [{ appID: 570 }];

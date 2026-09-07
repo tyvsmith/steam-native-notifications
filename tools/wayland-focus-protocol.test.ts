@@ -58,7 +58,8 @@ async function probe(mode: 'active' | 'background' | 'unsupported' | 'disconnect
     });
     const output = await new Response(child.stdout).text();
     const error = await new Response(child.stderr).text();
-    expect(await child.exited).toBe(0);
+    const exitCode = await child.exited;
+    if (exitCode !== 0) throw new Error(`luajit exited with ${exitCode}\n${error.trim()}`);
     return {output: output.trim(), error};
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));

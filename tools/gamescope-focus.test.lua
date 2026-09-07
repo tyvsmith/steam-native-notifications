@@ -45,5 +45,17 @@ files['/proc/1/environ'] = nil
 assert(focus.owners(fs)[1] == false, 'unreadable owner must remain ambiguous')
 fs.list = function() return {{name = '1'}, {name = '2'}} end
 assert(#focus.owners(fs) == 2, 'unreadable second wrapper must not disappear')
+files['/proc/1/environ'] = 'SteamAppId=553850\0'
+files['/proc/2/environ'] = 'SteamAppId=570\0'
+fs.canonical = function(path)
+    return path == '/proc/1/exe' and '/usr/bin/gamescope' or '/usr/bin/gamescope-wl'
+end
+local owners = focus.owners(fs)
+assert(#owners == 2 and owners[2] == 570, 'readable gamescope-wl must not disappear')
+assert(focus.select(553850, {{'gamescope', false}, {'terminal', true}}, owners) == 'unknown')
+fs.list = function() return {{name = '2'}} end
+assert(focus.owners(fs)[1] == 570, 'single gamescope-wl owner must be recognized')
+fs.canonical = function() return '/usr/bin/gamescopereaper' end
+assert(#focus.owners(fs) == 0, 'unrelated gamescope prefixes must not count as owners')
 io.open = open
 print('PASS native focus selection and missing display')

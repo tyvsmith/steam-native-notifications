@@ -79,14 +79,15 @@ export async function currentClickSurface(): Promise<{ runningAppId: number | nu
 			if (!appids.includes(focused)) return null;
 			// Nested Gamescope can retain inner game focus after its host loses
 			// focus. Only a positively identified host may override Steam.
+			let host = 'unknown';
 			try {
-				const host = await gameHostFocus(focused);
-				dlog(`focus-host: appid=${focused} result=${host}`);
-				if (host === 'desktop' || host === '"desktop"') {
-					return { runningAppId: focused, focusedAppId: 0 };
-				}
+				const result = await gameHostFocus(focused);
+				host = result.startsWith('"') ? JSON.parse(result) : result;
 			} catch { /* An unavailable host probe leaves Steam's selection intact. */ }
-			return { runningAppId: focused, focusedAppId: focused };
+			// Even a rejected probe can outlive the focus state it queried.
+			if (focusedOverlayAppId !== focused) return null;
+			dlog(`focus-host: appid=${focused} result=${host}`);
+			return { runningAppId: focused, focusedAppId: host === 'desktop' ? 0 : focused };
 		}
 		if (appids.length === 0) return { runningAppId: null, focusedAppId: 0 };
 		return focused === 0 ? { runningAppId: appids[0], focusedAppId: 0 } : null;

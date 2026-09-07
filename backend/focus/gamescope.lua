@@ -28,7 +28,7 @@ function M.owners(fs)
         if entry.name:match('^%d+$') then
             local path = '/proc/' .. entry.name
             local exe = fs.canonical(path .. '/exe')
-            if exe and exe:match('/gamescope$') then
+            if exe and (exe:match('/gamescope$') or exe:match('/gamescope%-wl$')) then
                 local env = read(path .. '/environ')
                 local id = env and ('\0' .. env):match('%zSteamAppId=(%d+)%z')
                 owners[#owners + 1] = tonumber(id) or false
