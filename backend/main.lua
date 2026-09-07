@@ -508,12 +508,7 @@ function GameHostFocus(appid)
     if PLATFORM ~= "linux" or type(appid) ~= "number" or appid <= 0
         or appid > 4294967295 or appid ~= math.floor(appid) then return "unknown" end
     local ok, result = pcall(function()
-        local handle = io.popen("env -u LD_LIBRARY_PATH -u LD_PRELOAD timeout 2s python3 "
-            .. shell_quote(join(RUNTIME_DIR, "game-focus")) .. " " .. string.format("%.0f", appid)
-            .. " 2>/dev/null", "r")
-        if not handle then return "unknown" end
-        local value = handle:read("*l")
-        handle:close()
+        local value = require('game_focus').query(appid)
         return (value == "desktop" or value == "game") and value or "unknown"
     end)
     return ok and result or "unknown"
@@ -533,11 +528,6 @@ local function on_load()
 
     migrate_legacy_settings()
     publish_steam_dir()
-
-    if PLATFORM == "linux" then
-        local _, err = materialize_asset("tools/game-focus", join(RUNTIME_DIR, "game-focus"))
-        if err then log_line("error", "focus helper install failed: " .. tostring(err)) end
-    end
 
     -- Each platform materializes what it runs: the sh helper on Linux and the
     -- PowerShell helper on Windows (-Setup registers its AUMID at every load,

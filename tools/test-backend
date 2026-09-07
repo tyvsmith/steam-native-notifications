@@ -133,22 +133,17 @@ for _, entry in ipairs(logged) do
 end
 check("helper installed at load", sawHelper)
 
-local focus_popen = io.popen
-local focus_command
-io.popen = function(command)
-	focus_command = command
-	return { read = function() return "desktop" end, close = function() end }
-end
+local focus_appid
+package.loaded.game_focus = {query = function(appid) focus_appid = appid; return "desktop" end}
 check("host focus returns a confirmed desktop result", GameHostFocus(553850) == "desktop")
-check("host focus subprocess is bounded", focus_command:find("timeout 2s python3", 1, true) ~= nil)
-focus_command = nil
-check("host focus rejects string appids", GameHostFocus("553850;bad") == "unknown" and focus_command == nil)
-check("host focus rejects fractional appids", GameHostFocus(1.5) == "unknown" and focus_command == nil)
-io.popen = function() error("spawn unavailable") end
-check("host focus survives spawn failure", GameHostFocus(553850) == "unknown")
-io.popen = function() return { read = function() return "garbage" end, close = function() end } end
+check("host focus uses the packed module", focus_appid == 553850)
+focus_appid = nil
+check("host focus rejects string appids", GameHostFocus("553850;bad") == "unknown" and focus_appid == nil)
+check("host focus rejects fractional appids", GameHostFocus(1.5) == "unknown" and focus_appid == nil)
+package.loaded.game_focus.query = function() error("ffi unavailable") end
+check("host focus survives native failure", GameHostFocus(553850) == "unknown")
+package.loaded.game_focus.query = function() return "garbage" end
 check("host focus rejects unexpected helper output", GameHostFocus(553850) == "unknown")
-io.popen = focus_popen
 
 -- The materialized helper must be byte-identical to the packed asset (here:
 -- the repo copy the assets.read stub serves).

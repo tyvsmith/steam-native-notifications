@@ -125,6 +125,24 @@ The closures stay in CEF RAM and disappear at restart. The fallback data lives
 in the notification URL, so an OS-retained actionable notification can route
 without persisting a closure or a plugin route file.
 
+### Host focus correction
+
+- Query `GameHostFocus(appid)` at click time when Steam selects a running game
+- On Linux, use the packed `backend/game_focus.lua` module through Millennium's
+  embedded LuaJIT and system `libwayland-client.so.0`; no Python or helper process
+- Bind version 1 of `zwlr_foreign_toplevel_manager_v1` on a separate connection
+  with a 500ms event deadline; never activate a window through Wayland
+- Override Steam with desktop only when one Gamescope process belongs to the
+  selected app ID, one Gamescope window exists, and another window is active
+- Return `unknown` on unavailable libraries/protocols, disconnected or stalled
+  compositors, or ambiguous ownership; retain Steam's selection
+- Keep this correction scoped to nested Gamescope on compatible Wayland
+  compositors; it does not add Windows, X11, GNOME, or KDE focus providers
+
+Desktop chat dispatch targets app ID 0 directly without opening the main Steam
+window. Non-chat desktop replay prepares the main window only after checking
+that the stashed handler belongs to the selected surface.
+
 On Linux, a live FreeDesktop default action makes the detached helper run
 `steam <canonical-url>` with the URL as one argv element. The notification
 daemon controls the popup lifetime. When the daemon identifies itself as

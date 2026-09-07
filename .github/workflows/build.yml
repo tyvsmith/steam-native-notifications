@@ -22,8 +22,8 @@ jobs:
       - uses: oven-sh/setup-bun@v2
 
       # tools/test-backend runs backend/main.lua with Millennium stubbed.
-      - name: Install lua5.4
-        run: sudo apt-get update && sudo apt-get install -y lua5.4
+      - name: Install test runtimes
+        run: sudo apt-get update && sudo apt-get install -y lua5.4 luajit libwayland-client0
 
       - run: bun install --frozen-lockfile
       - run: bun run typecheck

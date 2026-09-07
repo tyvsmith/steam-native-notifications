@@ -14,7 +14,6 @@ description = "Mirrors Steam's in-client notification toasts to the desktop noti
 resources = [
     "tools/notify-action",
     "tools/notify-action.ps1",
-    "tools/game-focus",
 ]
 
 [backend]
