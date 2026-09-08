@@ -73,12 +73,12 @@ local function runtime_dir()
     if IS_WINDOWS then
         local base = os.getenv("LOCALAPPDATA")
             or join(os.getenv("USERPROFILE") or "", "AppData", "Local")
-        return join(base, "steam-native-notify")
+        return join(base, "steam-native-notifications")
     end
     if IS_MACOS then
-        return join(home, "Library", "Caches", "steam-native-notify")
+        return join(home, "Library", "Caches", "steam-native-notifications")
     end
-    return join(os.getenv("XDG_CACHE_HOME") or join(home, ".cache"), "steam-native-notify")
+    return join(os.getenv("XDG_CACHE_HOME") or join(home, ".cache"), "steam-native-notifications")
 end
 local RUNTIME_DIR = runtime_dir()
 -- Windows delivers through a PowerShell helper (clicks come back through
@@ -94,7 +94,7 @@ local LOG_FILE = join(RUNTIME_DIR, "plugin.log")
 --- into a session log file next to the helper; on_load truncates it, so the
 --- file always describes the current Steam session.
 local function log_line(level, line)
-    local tagged = "[steam-native-notify] " .. line
+    local tagged = "[steam-native-notifications] " .. line
     if level == "error" then logger:error(tagged) else logger:info(tagged) end
     local handle = io.open(LOG_FILE, "a")
     if handle then

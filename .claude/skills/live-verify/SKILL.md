@@ -4,9 +4,9 @@ description: End-to-end runtime verification against the live Steam client — b
 ---
 
 All commands run from the repo root. Plugin log:
-`~/.cache/steam-native-notify/plugin.log` (mirrored by the backend, truncated
+`~/.cache/steam-native-notifications/plugin.log` (mirrored by the backend, truncated
 at each backend load); Millennium's loader lines are in
-`~/.steam/steam/logs/console-linux.txt` under `me.tysmith.steam-native-notify`.
+`~/.steam/steam/logs/console-linux.txt` under `me.tysmith.steam-native-notifications`.
 
 ## 1. Build, then full-restart Steam
 
@@ -15,13 +15,13 @@ bun run build
 ```
 
 The build packs and installs
-`~/.local/share/millennium/plugins/me.tysmith.steam-native-notify.star`
+`~/.local/share/millennium/plugins/me.tysmith.steam-native-notifications.star`
 (starlight `output_path = "auto"`); there is no separate install step.
 
 **A full Steam restart is required for ANY change, backend included.** Under
 the .star format `plugin.restart` and disable/enable leave the backend
 STOPPED — the log shows "backend loaded" then "backend unloaded" immediately,
-`tools/mep plugin.status name=me.tysmith.steam-native-notify` reports
+`tools/mep plugin.status name=me.tysmith.steam-native-notifications` reports
 `running: false`, and `.dev-fire` sits unconsumed. Only a full Steam restart
 recovers it. The frontend was already unreloadable ("Delegating frontend
 load" logs and does not execute).
@@ -54,21 +54,21 @@ this step.
 ## 3. The tools/fire toggle
 
 The dev poll is gated on **"Accept test commands from tools/fire"** in
-Millennium > Plugins > Steam Native Notify. Ships OFF. Flipping it in the UI
+Millennium > Plugins > Steam Native Notifications. Ships OFF. Flipping it in the UI
 takes effect immediately, no restart.
 
 Preset it externally (needs Steam running for the socket; `tools/mep` needs
 python3-msgpack):
 
 ```sh
-tools/mep plugin.config.get name=me.tysmith.steam-native-notify key=devFire   # read current first
-tools/mep plugin.config.set name=me.tysmith.steam-native-notify key=devMode value=true
-tools/mep plugin.config.set name=me.tysmith.steam-native-notify key=devFire value=true
+tools/mep plugin.config.get name=me.tysmith.steam-native-notifications key=devFire   # read current first
+tools/mep plugin.config.set name=me.tysmith.steam-native-notifications key=devMode value=true
+tools/mep plugin.config.set name=me.tysmith.steam-native-notifications key=devFire value=true
 ```
 
 With Steam stopped, seed the same per-key values directly in
 `~/.config/millennium/config.json` under
-`plugins."me.tysmith.steam-native-notify".config` (`"devFire": true`,
+`plugins."me.tysmith.steam-native-notifications".config` (`"devFire": true`,
 `"devMode": true`).
 
 - Settings are per-key booleans in Millennium's config store (the earlier
@@ -165,7 +165,7 @@ Known gates that swallow fires silently:
 - **Watch the client while clicking**: `steam://nav/...` changes a page inside
   the existing window; unwatched, a working navigation looks like nothing.
 - **Every click rides the click bridge**: notify-action writes the click to
-  `~/.cache/steam-native-notify/.click` and the bridge opens it from inside
+  `~/.cache/steam-native-notifications/.click` and the bridge opens it from inside
   Steam, picking the surface by live game focus. A consumed click always logs
   `click-bridge:`; the bridge polls for 120s after each delivery and drops
   clicks older than 30s.

@@ -1,6 +1,6 @@
 Under Active Development
 
-# steam-native-notify
+# steam-native-notifications
 
 A Millennium plugin that mirrors Steam's in-client notification toasts to the
 desktop notification daemon, keeping the artwork and the click. Toasts land
@@ -36,7 +36,7 @@ Building **is** installing: starlight packs the plugin and writes it straight
 into Millennium's plugins directory —
 `~/.local/share/millennium/plugins/` on Linux, and
 `<Steam>\millennium\plugins\` on Windows (the Steam path comes from the
-registry). Then restart Steam and enable **Steam Native Notify** under
+registry). Then restart Steam and enable **Steam Native Notifications** under
 Millennium > Plugins. After any rebuild, restart Steam fully: `plugin.restart`
 and disable/enable leave the plugin stopped.
 
@@ -75,7 +75,7 @@ acknowledges launching native delivery. A rejected request leaves Steam's
 toast visible; the acknowledgement does not confirm a displayed OS banner.
 
 Windows history clicks can still target a hidden overlay while a game is
-running; focus detection is tracked in [#14](https://github.com/tyvsmith/steam-native-notify/issues/14).
+running; focus detection is tracked in [#14](https://github.com/tyvsmith/steam-native-notifications/issues/14).
 
 The `tools/fire` test door ships off and appears only with `devMode` enabled
 out of band. See `docs/architecture.md` for testing instructions.
@@ -87,8 +87,8 @@ tools/capture   # is the running .star current, did the hook attach,
                 # what did the last notifications carry
 ```
 
-The plugin logs to `~/.cache/steam-native-notify/plugin.log` (truncated at
+The plugin logs to `~/.cache/steam-native-notifications/plugin.log` (truncated at
 each backend load); Millennium's loader lines are in
-`~/.steam/steam/logs/console-linux.txt` under `me.tysmith.steam-native-notify`.
+`~/.steam/steam/logs/console-linux.txt` under `me.tysmith.steam-native-notifications`.
 Every stage of a click logs one line, and every failure mode names itself —
 the vocabulary table is in `docs/architecture.md`.

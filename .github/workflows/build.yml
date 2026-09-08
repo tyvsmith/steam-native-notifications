@@ -42,7 +42,7 @@ jobs:
       # AGENTS.md), but a red one blocks a broken bundle.
       - name: Validate the .star
         run: |
-          star=dist/me.tysmith.steam-native-notify.star
+          star=dist/me.tysmith.steam-native-notifications.star
           test -f "$star" || { echo "no .star produced"; exit 1; }
           size=$(stat -c%s "$star")
           echo "packed: $star ($size bytes)"
@@ -57,6 +57,6 @@ jobs:
       - if: inputs.upload
         uses: actions/upload-artifact@v7
         with:
-          path: dist/me.tysmith.steam-native-notify.star
+          path: dist/me.tysmith.steam-native-notifications.star
           archive: false
           if-no-files-found: error

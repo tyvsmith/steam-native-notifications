@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/download-artifact@v8
         with:
-          name: me.tysmith.steam-native-notify.star
+          name: me.tysmith.steam-native-notifications.star
           path: dist
 
       # The tag names the release; millennium.toml is the version the bundle
@@ -40,7 +40,7 @@ jobs:
         env:
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          test -f dist/me.tysmith.steam-native-notify.star || { echo "artifact missing"; ls -R dist; exit 1; }
+          test -f dist/me.tysmith.steam-native-notifications.star || { echo "artifact missing"; ls -R dist; exit 1; }
           manifest=$(awk -F'"' '/^\[/{s=$0} s=="[plugin]" && /^version *=/{print $2}' millennium.toml)
           if [ "$GITHUB_REF_TYPE" = tag ]; then
             tag=$GITHUB_REF_NAME
@@ -61,5 +61,5 @@ jobs:
           TAG: ${{ steps.version.outputs.tag }}
         run: |
           case $TAG in *-*) pre=--prerelease ;; *) pre= ;; esac
-          gh release create "$TAG" dist/me.tysmith.steam-native-notify.star \
+          gh release create "$TAG" dist/me.tysmith.steam-native-notifications.star \
             --verify-tag --generate-notes $pre

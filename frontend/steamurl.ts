@@ -15,7 +15,7 @@ import { dispatchClick } from './clickbridge';
  *
  * `RegisterForRunSteamURL` takes any section name (Millennium registers
  * `millennium` the same way), so a toast carries a versioned envelope
- * in `steam://steam-native-notify/notification/<base64url>`. Windows stores
+ * in `steam://steam-native-notifications/notification/<base64url>`. Windows stores
  * that URI in the toast; Linux launches it after a live default action.
  *
  * Quickshell also receives the fixed `steam`, URL argv pair that Quattro can

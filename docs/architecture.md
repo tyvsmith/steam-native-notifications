@@ -97,7 +97,7 @@ candidates), BFS downward collecting every function-valued
 
 A clickable notification crosses the positional RPC's route argument as
 `click:<base64url JSON>`. The helpers expose the same envelope to the OS as
-`steam://steam-native-notify/notification/<base64url-envelope>`. The version-1
+`steam://steam-native-notifications/notification/<base64url-envelope>`. The version-1
 envelope contains a cryptographically random 128-bit replay token, capture
 surface appid (`0` for desktop), durable fallback or `null`, and the desktop
 window family (`main` or `chat`) used for replay preparation and platform focus.
@@ -117,7 +117,7 @@ copy always comes from Steam's painted DOM, never from this routing table. This
 also avoids treating Millennium's placeholder type 12 as Steam's unrelated
 `FamilySharingStopPlaying` notification.
 
-`frontend/steamurl.ts` registers the `steam-native-notify` URL section for the
+`frontend/steamurl.ts` registers the `steam-native-notifications` URL section for the
 whole Steam session and rejects malformed paths and envelopes. On a matching
 live surface the dispatcher tries exact replay first. The stash binds the
 capture surface to its closure, so changing the envelope cannot authorize a
@@ -181,7 +181,7 @@ focus-owner measurement, and shell/login restart remain untested. See
 
 ### Log vocabulary
 
-All in `~/.cache/steam-native-notify/plugin.log` (the Linux runtime
+All in `~/.cache/steam-native-notifications/plugin.log` (the Linux runtime
 directory; `docs/platforms.md` has the others), truncated at each backend
 load (Millennium buffers a packed plugin's logger output away from Steam's
 console log, so the backend mirrors every line there itself). The helper
@@ -201,7 +201,7 @@ appends there too when it refuses a platform:
 | `click-bridge: replay token=<prefix>` | matching-surface exact replay ran |
 | `click-bridge: fallback <route>` | durable dispatch was attempted; later door/window failures can refuse it |
 | `click-bridge: no verified fallback token=<prefix>` | replay was unavailable and no safe route exists |
-| `steam-url: registered steam://steam-native-notify/notification/<payload>` | the canonical activation handler attached |
+| `steam-url: registered steam://steam-native-notifications/notification/<payload>` | the canonical activation handler attached |
 | `steam-url: click token=<prefix>` | the OS activation URL decoded and entered dispatch |
 | `click-bridge: stale click dropped (Ns old)` | a legacy/test click-file input was older than 30s |
 | `replay: invoke <name> onClick@D age=Ns` then `-> returned without throwing` | the click ran |

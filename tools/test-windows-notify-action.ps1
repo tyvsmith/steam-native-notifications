@@ -48,7 +48,7 @@ try {
         throw 'FAIL helper has no route-aware focus mode'
     }
     Write-Output 'PASS helper has route-aware focus mode'
-    if ($helperSource -notmatch 'steam://steam-native-notify/notification/\$\(\$Matches\[1\]\)') {
+    if ($helperSource -notmatch 'steam://steam-native-notifications/notification/\$\(\$Matches\[1\]\)') {
         throw 'FAIL helper does not persist the durable click envelope in the activation URI'
     }
     Write-Output 'PASS helper persists the durable click envelope in the activation URI'
@@ -64,7 +64,7 @@ try {
     foreach ($length in @(1, 8192)) {
         $encoded = 'a' * $length
         $actual = & $attributes "click:$encoded"
-        $expected = " activationType=`"protocol`" launch=`"steam://steam-native-notify/notification/$encoded`""
+        $expected = " activationType=`"protocol`" launch=`"steam://steam-native-notifications/notification/$encoded`""
         if ($actual -cne $expected) { throw "FAIL activation XML at payload length $length" }
     }
     foreach ($route in @('', 'click:', 'click:a/b', 'CLICK:abc', "click:abc`n",
@@ -79,7 +79,7 @@ try {
 
     $id = 'routed-lifetime'
     @{
-        title = 'Steam Native Notify lifetime test'
+        title = 'Steam Native Notifications lifetime test'
         body = 'This notification may be ignored.'
         image = ''
         route = 'click:eyJ2IjoxLCJ0b2tlbiI6IjAwMTEyMjMzNDQ1NTY2Nzc4ODk5YWFiYmNjZGRlZWZmIiwiY2FwdHVyZUFwcElkIjowLCJmYWxsYmFjayI6bnVsbCwiZm9jdXMiOiJtYWluIn0'
@@ -102,7 +102,7 @@ try {
 
     $id = 'unrouted-lifetime'
     @{
-        title = 'Steam Native Notify lifetime test'
+        title = 'Steam Native Notifications lifetime test'
         body = 'This notification may be ignored.'
         image = ''
         route = ''

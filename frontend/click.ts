@@ -1,5 +1,5 @@
 export const CLICK_PAYLOAD_PREFIX = 'click:';
-export const STEAM_URL_SECTION = 'steam-native-notify';
+export const STEAM_URL_SECTION = 'steam-native-notifications';
 export const STEAM_URL_RESOURCE = 'notification';
 
 export type FocusKind = 'chat' | 'main';

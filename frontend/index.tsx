@@ -301,11 +301,11 @@ export default definePlugin(() => {
 	startDevFirePoll();
 	startClickBridge();
 	// Linux and Windows return the durable envelope through the canonical
-	// steam://steam-native-notify/notification/<payload> URL.
+	// steam://steam-native-notifications/notification/<payload> URL.
 	const steamUrl = registerSteamUrlClicks();
 
 	return {
-		title: 'Steam Native Notify',
+		title: 'Steam Native Notifications',
 		icon: pluginIcon(),
 		content: <SettingsPanel />,
 		onDismount() {

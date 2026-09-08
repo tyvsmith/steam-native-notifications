@@ -33,7 +33,7 @@ $ErrorActionPreference = 'Stop'
 # Materialized into the runtime directory next to plugin.log and .click, so
 # the script's own location is the runtime directory.
 $RuntimeDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Aumid = 'me.tysmith.steam-native-notify'
+$Aumid = 'me.tysmith.steam-native-notifications'
 $AumidKey = "HKCU:\Software\Classes\AppUserModelId\$Aumid"
 $SchemeKey = 'HKCU:\Software\Classes\snn'
 $IconPath = Join-Path $RuntimeDir 'steam.ico'
@@ -44,7 +44,7 @@ function Write-PluginLog([string]$Line) {
     # reads one vocabulary. Best-effort: logging must never break delivery.
     try {
         $stamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Add-Content -LiteralPath $LogFile -Value "[$stamp] [steam-native-notify] $Line" -Encoding UTF8
+        Add-Content -LiteralPath $LogFile -Value "[$stamp] [steam-native-notifications] $Line" -Encoding UTF8
     } catch {}
 }
 
@@ -350,7 +350,7 @@ if ($FocusKind) {
 # No route means the toast is deliberately inert, mirroring Steam's own.
 $ToastAttrs = ''
 if ($Route -cmatch '\Aclick:([A-Za-z0-9_-]{1,8192})\z') {
-    $ToastAttrs = " activationType=`"protocol`" launch=`"steam://steam-native-notify/notification/$($Matches[1])`""
+    $ToastAttrs = " activationType=`"protocol`" launch=`"steam://steam-native-notifications/notification/$($Matches[1])`""
 }
 $ImageXml = ''
 if ($Icon) {

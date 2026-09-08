@@ -14,12 +14,12 @@
 set -uo pipefail
 
 LOG="$HOME/.steam/steam/logs/console-linux.txt"
-PLUGIN_LOG="${XDG_CACHE_HOME:-$HOME/.cache}/steam-native-notify/plugin.log"
-BUNDLE="$HOME/.local/share/millennium/plugins/me.tysmith.steam-native-notify.star"
+PLUGIN_LOG="${XDG_CACHE_HOME:-$HOME/.cache}/steam-native-notifications/plugin.log"
+BUNDLE="$HOME/.local/share/millennium/plugins/me.tysmith.steam-native-notifications.star"
 LINES="${1:-8}"
 
 # The Steam log is not valid UTF-8 throughout and is full of ANSI colour.
-steam_log_lines() { grep -a "me.tysmith.steam-native-notify" "$LOG" 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g'; }
+steam_log_lines() { grep -a "me.tysmith.steam-native-notifications" "$LOG" 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g'; }
 plugin_lines() { cat "$PLUGIN_LOG" 2>/dev/null; }
 
 hr() { printf '%s\n' "----------------------------------------------------------------"; }

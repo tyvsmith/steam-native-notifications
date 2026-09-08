@@ -7,7 +7,7 @@ The chain: frontend captures the toast → backend `Notify` spawns
 `tools/notify-action` (detached, one per notification, because
 `notify-send --action` implies `--wait`) → notify-send → daemon. A click runs
 the chain backwards: notify-action writes the replay token to
-`~/.cache/steam-native-notify/.click` and the frontend click bridge opens it
+`~/.cache/steam-native-notifications/.click` and the frontend click bridge opens it
 from inside Steam, picking the surface by live game focus. Walk it in order;
 each stage's log output places the fault. All commands run from the repo
 root.
@@ -30,20 +30,20 @@ a BigInt did exactly that). Keep `dlog` wrapped and use `safeJson`.
 ## 2. Did the backend spawn the helper?
 
 ```sh
-tail -30 ~/.cache/steam-native-notify/plugin.log
+tail -30 ~/.cache/steam-native-notifications/plugin.log
 ```
 
 (The mirrored plugin log; Millennium buffers a packed plugin's logger output
 away from Steam's console log. Truncated at each backend load.)
 
 - `helper install FAILED: ...` (at load) — the packed asset could not be
-  written to `~/.cache/steam-native-notify/notify-action`; the reason is in
+  written to `~/.cache/steam-native-notifications/notify-action`; the reason is in
   the line. The backend re-materializes the helper from the .star at every
   load, so a stale or deleted copy heals on restart.
 - `undecodable payload:` / `undecodable settings:` — the frontend sent
   malformed JSON; the payload is in the line.
 - Nothing wrong logged and step 1 showed delivery — the backend ran
-  notify-action (via `sh ~/.cache/steam-native-notify/notify-action`); go to
+  notify-action (via `sh ~/.cache/steam-native-notifications/notify-action`); go to
   step 3.
 
 ## 3. Exercise notify-action's seams directly
@@ -57,7 +57,7 @@ tools/notify-action --escape-markup 'a < b & c'
 - `--resolve-icon` prints a file path, or `steam` (theme-icon fallback) when
   the reference cannot be resolved. `steamloopback.host/assets/<tail>` maps to
   `~/.local/share/Steam/appcache/librarycache/<tail>`; http(s) avatars are
-  fetched once (5s cap) into `~/.cache/steam-native-notify/icons/`. A wrong
+  fetched once (5s cap) into `~/.cache/steam-native-notifications/icons/`. A wrong
   icon with a valid-looking URL usually means the librarycache file is absent.
 - `--click-plan <route> [action]` prints `none` (no route AND no action
   token: the click only dismisses, by design) or `overlay` (everything else:
@@ -86,7 +86,7 @@ tools/notify-action 'Title' 'body text' '' 'steam://nav/games/details/570'
 ## 4. A click did the wrong thing (or nothing): bridge triage
 
 Clicks are executed by the click bridge inside Steam. The log places the
-fault (`~/.cache/steam-native-notify/plugin.log`; the full vocabulary is in
+fault (`~/.cache/steam-native-notifications/plugin.log`; the full vocabulary is in
 `docs/architecture.md`, "Log vocabulary"):
 
 | signature | meaning |

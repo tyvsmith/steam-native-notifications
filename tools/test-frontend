@@ -76,11 +76,11 @@ if (click) {
 	is('click envelope round trips', JSON.stringify(click.decodeClickEnvelope(encoded)), JSON.stringify(envelope));
 	is('click-file payload round trips', JSON.stringify(click.decodeClickPayload(`click:${encoded}`)), JSON.stringify(envelope));
 	is('canonical notification URL round trips',
-		JSON.stringify(click.clickEnvelopeFromSteamUrl(`steam://steam-native-notify/notification/${encoded}`)), JSON.stringify(envelope));
+		JSON.stringify(click.clickEnvelopeFromSteamUrl(`steam://steam-native-notifications/notification/${encoded}`)), JSON.stringify(envelope));
 	is('canonical single-slash URL round trips',
-		JSON.stringify(click.clickEnvelopeFromSteamUrl(`steam:/steam-native-notify/notification/${encoded}/`)), JSON.stringify(envelope));
+		JSON.stringify(click.clickEnvelopeFromSteamUrl(`steam:/steam-native-notifications/notification/${encoded}/`)), JSON.stringify(envelope));
 	is('canonical URL formats once',
-		click.steamNotificationUrl(encoded), `steam://steam-native-notify/notification/${encoded}`);
+		click.steamNotificationUrl(encoded), `steam://steam-native-notifications/notification/${encoded}`);
 	is('legacy snn URL is refused',
 		click.clickEnvelopeFromSteamUrl(`steam://snn/click/${encoded}`), null);
 

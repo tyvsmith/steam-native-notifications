@@ -11,7 +11,7 @@
 
 local root = arg[0]:match("(.*)/tools/[^/]+$") or "."
 
--- The backend materializes its helper into ${XDG_CACHE_HOME}/steam-native-notify
+-- The backend materializes its helper into ${XDG_CACHE_HOME}/steam-native-notifications
 -- at load. Point that at a throwaway directory so the test never touches the
 -- real cache; os.getenv is intercepted before main.lua reads it at load time.
 local tmp_handle = io.popen("mktemp -d")
@@ -151,7 +151,7 @@ local function slurp(path)
 	return content
 end
 check("helper materialized verbatim",
-	slurp(tmp_cache .. "/steam-native-notify/notify-action") == slurp(root .. "/tools/notify-action"))
+	slurp(tmp_cache .. "/steam-native-notifications/notify-action") == slurp(root .. "/tools/notify-action"))
 
 -- A write that fails (disk full, a quota) must be reported as a failed
 -- install, not as a helper at its path: io.open is shimmed to hand the
@@ -179,7 +179,7 @@ check("Notify with no route runs", ok, err)
 check("Notify spawned something", #executed == 1, tostring(#executed) .. " commands")
 if executed[1] then
 	check("spawns the helper through sh", executed[1]:sub(1, 3) == "sh ", executed[1])
-	check("spawns the materialized helper", executed[1]:find("steam%-native%-notify/notify%-action") ~= nil, executed[1])
+	check("spawns the materialized helper", executed[1]:find("steam%-native%-notifications/notify%-action") ~= nil, executed[1])
 	check("passes the title", executed[1]:find("'Download Complete'", 1, true) ~= nil, executed[1])
 	check("passes the image", executed[1]:find("steamloopback", 1, true) ~= nil, executed[1])
 	check("backgrounded", executed[1]:sub(-1) == "&", executed[1])
@@ -249,8 +249,8 @@ os.remove(steam_dir .. "/config/loginusers.vdf")
 -- The same steam_path answer is published for the helper at load, trimmed
 -- of its trailing slash, as one line in the runtime directory.
 check("load publishes steam_path for the helper",
-	slurp(tmp_cache .. "/steam-native-notify/steam-dir") == steam_dir .. "\n",
-	tostring(slurp(tmp_cache .. "/steam-native-notify/steam-dir")))
+	slurp(tmp_cache .. "/steam-native-notifications/steam-dir") == steam_dir .. "\n",
+	tostring(slurp(tmp_cache .. "/steam-native-notifications/steam-dir")))
 
 -- With nothing under steam_path, the Linux guesses run native first
 -- (~/.steam/steam, then ~/.local/share/Steam), then Steam's Flatpak per-app
@@ -291,7 +291,7 @@ end
 
 -- TakeDevCommand: consume-once semantics against the runtime cache directory
 -- (created by on_load above), the same place tools/fire writes.
-local fire = assert(io.open(tmp_cache .. "/steam-native-notify/.dev-fire", "w"))
+local fire = assert(io.open(tmp_cache .. "/steam-native-notifications/.dev-fire", "w"))
 fire:write('{"call":"TestFriendOnline","args":[]}')
 fire:close()
 local taken
@@ -304,7 +304,7 @@ check("TakeDevCommand consumes once", ok and taken == "", tostring(taken))
 -- TakeClick: the click handoff, same consume-once contract. The file holds a
 -- stamped payload (<epoch-seconds>|<payload>); the stamp is the bridge's
 -- business, so TakeClick passes it through untouched.
-local click = assert(io.open(tmp_cache .. "/steam-native-notify/.click", "w"))
+local click = assert(io.open(tmp_cache .. "/steam-native-notifications/.click", "w"))
 click:write("1756500000|steam://openurl/https://store.steampowered.com/gifts/")
 click:close()
 ok, taken = pcall(TakeClick)
@@ -324,7 +324,7 @@ end
 -- notify-action's durable Linux activation seam accepts only the versioned
 -- click envelope transport and maps it onto Steam's canonical URL grammar.
 local encoded = "eyJ2IjoxLCJ0b2tlbiI6IjAwMTEyMjMzNDQ1NTY2Nzc4ODk5YWFiYmNjZGRlZWZmIiwiY2FwdHVyZUFwcElkIjowLCJmYWxsYmFjayI6bnVsbCwiZm9jdXMiOiJtYWluIn0"
-local activation_url = "steam://steam-native-notify/notification/" .. encoded
+local activation_url = "steam://steam-native-notifications/notification/" .. encoded
 local function notification_url(route)
 	local handle = io.popen(root .. "/tools/notify-action --notification-url '" .. route .. "'")
 	local url = handle:read("*l")
@@ -338,7 +338,7 @@ check("notification URL: malformed payload is refused", notification_url("click:
 check("notification URL: non-click route is refused", notification_url("steam://nav/games") == nil)
 check("notification URL: maximum payload is accepted",
 	notification_url("click:" .. string.rep("a", 8192))
-		== "steam://steam-native-notify/notification/" .. string.rep("a", 8192))
+		== "steam://steam-native-notifications/notification/" .. string.rep("a", 8192))
 check("notification URL: oversized payload is refused",
 	notification_url("click:" .. string.rep("a", 8193)) == nil)
 
@@ -365,7 +365,7 @@ end
 check("resolve-icon: missing library-cache asset falls back",
 	resolved_icon("https://steamloopback.host/assets/999999999/missing.jpg?c=1") == "steam")
 check("resolve-icon: missing absolute path falls back",
-	resolved_icon("/nonexistent/steam-native-notify/icon.png") == "steam")
+	resolved_icon("/nonexistent/steam-native-notifications/icon.png") == "steam")
 check("resolve-icon: garbage falls back",
 	resolved_icon("not a url at all") == "steam")
 
@@ -392,8 +392,8 @@ if lc_home and lc_home ~= "" then
 		return out
 	end
 	local function publish_steam_dir(dir)
-		io.popen("mkdir -p '" .. lc_home .. "/cache/steam-native-notify' && printf '%s\\n' '" .. dir
-			.. "' > '" .. lc_home .. "/cache/steam-native-notify/steam-dir'"):close()
+		io.popen("mkdir -p '" .. lc_home .. "/cache/steam-native-notifications' && printf '%s\\n' '" .. dir
+			.. "' > '" .. lc_home .. "/cache/steam-native-notifications/steam-dir'"):close()
 	end
 	check("resolve-icon: no Steam directory anywhere falls back",
 		resolved_under_home() == "steam", tostring(resolved_under_home()))
@@ -441,10 +441,10 @@ if gate_dir and gate_dir ~= "" then
 	ns:write("#!/bin/sh\nprintf 'called' > " .. gate_dir .. "/sent\nexit 0\n")
 	ns:close()
 	io.popen("chmod +x '" .. gate_dir .. "/uname' '" .. gate_dir .. "/notify-send'"):close()
-	io.popen("mkdir -p '" .. gate_dir .. "/steam-native-notify'"):close()
+	io.popen("mkdir -p '" .. gate_dir .. "/steam-native-notifications'"):close()
 	local status = io.popen("XDG_CACHE_HOME='" .. gate_dir .. "' PATH='" .. gate_dir .. "':\"$PATH\" "
 		.. root .. "/tools/notify-action 'T' 'b' '' '' >/dev/null 2>&1; echo $?"):read("*l")
-	local gate_log = slurp(gate_dir .. "/steam-native-notify/plugin.log") or "(no log)"
+	local gate_log = slurp(gate_dir .. "/steam-native-notifications/plugin.log") or "(no log)"
 	check("macos helper: refused in plugin.log",
 		gate_log:find("notify-action: unsupported platform: macos", 1, true) ~= nil, gate_log)
 	check("macos helper: exits non-zero", status == "1", tostring(status))
@@ -458,10 +458,10 @@ if gate_dir and gate_dir ~= "" then
 	local bare = gate_dir .. "/bare"
 	io.popen("mkdir -p '" .. bare .. "' && printf '#!/bin/sh\\necho Linux\\n' > '" .. bare
 		.. "/uname' && chmod +x '" .. bare .. "/uname' && ln -s \"$(command -v date)\" '" .. bare .. "/date'"):close()
-	io.popen("rm -f '" .. gate_dir .. "/steam-native-notify/plugin.log'"):close()
+	io.popen("rm -f '" .. gate_dir .. "/steam-native-notifications/plugin.log'"):close()
 	status = io.popen("XDG_CACHE_HOME='" .. gate_dir .. "' PATH='" .. bare .. "' "
 		.. root .. "/tools/notify-action 'T' 'b' '' '' >/dev/null 2>&1; echo $?"):read("*l")
-	gate_log = slurp(gate_dir .. "/steam-native-notify/plugin.log") or "(no log)"
+	gate_log = slurp(gate_dir .. "/steam-native-notifications/plugin.log") or "(no log)"
 	check("helper without notify-send: refused in plugin.log",
 		gate_log:find("notify-action: notify-send not found", 1, true) ~= nil, gate_log)
 	check("helper without notify-send: exits non-zero", status == "1", tostring(status))
@@ -633,7 +633,7 @@ exit 0
 	local resolved = rh and rh:read("*l") or "(nothing)"
 	if rh then rh:close() end
 	check("icon download scrubs the loader environment",
-		resolved ~= nil and resolved:find("/steam-native-notify/icons/", 1, true) ~= nil,
+		resolved ~= nil and resolved:find("/steam-native-notifications/icons/", 1, true) ~= nil,
 		tostring(resolved))
 	io.popen("rm -rf '" .. scrub_dir .. "'"):close()
 else
@@ -655,7 +655,7 @@ exit 0
 ]])
 	pc:close()
 	io.popen("chmod +x '" .. prune_dir .. "/curl'"):close()
-	local prune_icons = prune_dir .. "/steam-native-notify/icons"
+	local prune_icons = prune_dir .. "/steam-native-notifications/icons"
 	io.popen("mkdir -p '" .. prune_icons .. "'"):close()
 	io.popen("touch -d '40 days ago' '" .. prune_icons .. "/old.jpg'"):close()
 	io.popen("touch '" .. prune_icons .. "/new.jpg'"):close()
@@ -775,14 +775,14 @@ esac
 		.. "/uname' '" .. click_dir .. "/date'"):close()
 	io.popen("ln -s \"$(command -v sed)\" '" .. click_dir
 		.. "/sed'; ln -s \"$(command -v mv)\" '" .. click_dir .. "/mv'"):close()
-	io.popen("mkdir -p '" .. click_dir .. "/steam-native-notify'"):close()
+	io.popen("mkdir -p '" .. click_dir .. "/steam-native-notifications'"):close()
 
 	local function run_delivery(route, action)
 		os.remove(click_dir .. "/notify-args")
 		os.remove(click_dir .. "/steam-count")
 		os.remove(click_dir .. "/steam-args")
 		os.remove(click_dir .. "/steam-done")
-		os.remove(click_dir .. "/steam-native-notify/.click")
+		os.remove(click_dir .. "/steam-native-notifications/.click")
 		local h = io.popen("XDG_CACHE_HOME='" .. click_dir .. "' PATH='" .. click_dir .. "':\"$PATH\" "
 			.. root .. "/tools/notify-action 'T' 'b' '' '" .. route .. "' '" .. (action or "")
 			.. "'")
@@ -792,7 +792,7 @@ esac
 			real_execute("sleep 0.01")
 		end
 		return slurp(click_dir .. "/notify-args"), slurp(click_dir .. "/steam-count"),
-			slurp(click_dir .. "/steam-args"), slurp(click_dir .. "/steam-native-notify/.click")
+			slurp(click_dir .. "/steam-args"), slurp(click_dir .. "/steam-native-notifications/.click")
 	end
 
 	local notify_args, steam_count, steam_args, click_file = run_delivery("click:" .. encoded)
@@ -812,11 +812,11 @@ esac
 	-- A live action cannot dispatch without the Steam executable. Keep the
 	-- notification delivery, but refuse the activation in the session log.
 	os.rename(click_dir .. "/steam", click_dir .. "/steam.disabled")
-	os.remove(click_dir .. "/steam-native-notify/plugin.log")
+	os.remove(click_dir .. "/steam-native-notifications/plugin.log")
 	local absent = io.popen("XDG_CACHE_HOME='" .. click_dir .. "' PATH='" .. click_dir .. "' "
 		.. root .. "/tools/notify-action 'T' 'b' '' 'click:" .. encoded .. "' ''; echo done")
 	if absent then absent:read("*a"); absent:close() end
-	local absent_log = slurp(click_dir .. "/steam-native-notify/plugin.log")
+	local absent_log = slurp(click_dir .. "/steam-native-notifications/plugin.log")
 	check("valid activation without steam: refusal is logged",
 		absent_log and absent_log:find("steam not found on PATH", 1, true) ~= nil,
 		tostring(absent_log))
@@ -878,7 +878,7 @@ os.getenv = function(name)
 	return real_getenv(name)
 end
 io.popen("mkdir -p '" .. win_local .. "'"):close()
-local win_runtime = win_local .. "\\steam-native-notify"
+local win_runtime = win_local .. "\\steam-native-notifications"
 
 logged = {}
 executed = {}
@@ -1050,7 +1050,7 @@ os.getenv = function(name)
 	if name == "XDG_CACHE_HOME" then return nil end
 	return real_getenv(name)
 end
-local mac_runtime = mac_home .. "/Library/Caches/steam-native-notify"
+local mac_runtime = mac_home .. "/Library/Caches/steam-native-notifications"
 
 logged = {}
 executed = {}

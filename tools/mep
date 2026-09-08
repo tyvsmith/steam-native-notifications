@@ -12,8 +12,8 @@ Usage:
 
 Examples:
   mep millennium.version
-  mep plugin.config.set name=steam-native-notify key=selftest value=go
-  mep plugin.config.get_all name=steam-native-notify
+  mep plugin.config.set name=steam-native-notifications key=selftest value=go
+  mep plugin.config.get_all name=steam-native-notifications
 """
 
 import json

@@ -14,7 +14,7 @@ registered URL, and unknown types only open Steam generally. Missing stashes
 after a Steam restart take the same fallback.
 
 Current Linux and Windows delivery encode that envelope in
-`steam://steam-native-notify/notification/<base64url-envelope>`. Linux launches
+`steam://steam-native-notifications/notification/<base64url-envelope>`. Linux launches
 the URL after a live default action and gives Quickshell a fixed `steam`, URL
 argv hint for Quattro history. Windows stores it as the WinRT protocol target.
 The closures remain RAM-only. An arbitrary FreeDesktop daemon does not promise
@@ -297,7 +297,7 @@ records why, next to the other dead ends.
   broken feature), then fire.
 - A full Steam restart for ANY change, backend included. The restart
   incantation and its silent-relaunch trap are in live-verify.
-- Evidence is `~/.cache/steam-native-notify/plugin.log` lines, quoted in the
+- Evidence is `~/.cache/steam-native-notifications/plugin.log` lines, quoted in the
   session. New `replay:` prefixes are fine; renaming existing prefixes blinds
   tools/capture.
 
@@ -306,7 +306,7 @@ records why, next to the other dead ends.
 Paste into a fresh agent session:
 
 ```
-Working directory: /home/ty/Code/steam-native-notify
+Working directory: /home/ty/Code/steam-native-notifications
 
 Read first, in order: CLAUDE.md, docs/HANDOFF.md,
 docs/experiments/click-replay.md (the plan you are executing). Consult
@@ -327,7 +327,7 @@ Hard constraints:
 - Before diagnosing anything, run `tools/capture`. If it says STALE, restart
   Steam. Never diagnose past a stale bundle.
 - `tools/fire` needs the "Accept test commands from tools/fire" toggle ON in
-  Millennium > Plugins > Steam Native Notify. No `dev-fire:` log line means
+  Millennium > Plugins > Steam Native Notifications. No `dev-fire:` log line means
   the toggle is off. A `dev-fire:` line with no `from-toast` line means one
   of Steam's own gates ate the toast (see HANDOFF, testing methodology).
 - Diagnostics must never throw. Use dlog/safeJson from frontend/log.ts;

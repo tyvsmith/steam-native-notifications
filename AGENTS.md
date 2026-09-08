@@ -34,7 +34,7 @@ The replay stash retains the latest 256 chosen closures for the Steam session,
 with no time expiry. Heap measurements found current handlers under 0.5KB each
 and no detached documents. The closures stay in RAM and disappear when Steam
 restarts. Durable data is encoded in
-`steam://steam-native-notify/notification/<base64url-envelope>`, not in the
+`steam://steam-native-notifications/notification/<base64url-envelope>`, not in the
 heap or on plugin disk.
 
 Linux launches that URL after a live `notify-send` default action. Quickshell
@@ -69,14 +69,14 @@ tools/notify-action --resolve-icon <url>
 ```
 
 Install: `bun install`, then `bun run build`; starlight packs the plugin into
-`~/.local/share/millennium/plugins/me.tysmith.steam-native-notify.star`
+`~/.local/share/millennium/plugins/me.tysmith.steam-native-notifications.star`
 (building IS installing). Enable under Millennium > Plugins.
 
-Plugin log: `~/.cache/steam-native-notify/plugin.log`, truncated at each
+Plugin log: `~/.cache/steam-native-notifications/plugin.log`, truncated at each
 backend load (Millennium buffers a packed plugin's logger output away from
 Steam's console log, so the backend mirrors it there). Millennium's own
 loader lines are still in `~/.steam/steam/logs/console-linux.txt`, filtered
-by `me.tysmith.steam-native-notify`. Click triage reads the same log:
+by `me.tysmith.steam-native-notifications`. Click triage reads the same log:
 `replay: candidates` shows what each toast stashed, `click-bridge:` every
 consumed click, `replay: invoke` what running the handler did (a throw is
 logged verbatim, never propagated).

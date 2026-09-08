@@ -46,7 +46,7 @@ in one directory per platform.
 | piece | Linux | Linux, inside Steam's Flatpak sandbox | macOS | Windows |
 |---|---|---|---|---|
 | detection | `package.config` first char `/`, no `jit.os == "OSX"` | as Linux, plus `FLATPAK_ID` set | `jit.os == "OSX"`, else the SystemVersion.plist probe | `package.config` first char `\` |
-| runtime directory | `$XDG_CACHE_HOME/steam-native-notify` (`~/.cache/...`) | `$XDG_CACHE_HOME` is `~/.var/app/com.valvesoftware.Steam/cache` there, so `.../cache/steam-native-notify` | `~/Library/Caches/steam-native-notify` | `%LOCALAPPDATA%\steam-native-notify` |
+| runtime directory | `$XDG_CACHE_HOME/steam-native-notifications` (`~/.cache/...`) | `$XDG_CACHE_HOME` is `~/.var/app/com.valvesoftware.Steam/cache` there, so `.../cache/steam-native-notifications` | `~/Library/Caches/steam-native-notifications` | `%LOCALAPPDATA%\steam-native-notifications` |
 | `millennium.steam_path()` | `~/.steam/steam/` | `~/.steam/steam/` (resolves inside the sandbox) | `~/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS` | `HKCU\Software\Valve\Steam\SteamPath` |
 | Steam data guesses, after `steam_path()` | `~/.steam/steam`, `~/.local/share/Steam`, then `~/.var/app/com.valvesoftware.Steam/{.local/share/Steam,.steam/steam}` | the same list; `$HOME`-relative entries resolve through `--persist=.` | `~/Library/Application Support/Steam` | none: the registry is the only source |
 | helper spawn | `sh <helper> ... >/dev/null 2>&1 &` | same | same call would work; refused until the helper has a macOS branch | `ffi` `CreateProcessW` with `CREATE_NO_WINDOW`, payload in a `<id>.notify` file |
@@ -156,7 +156,7 @@ The pre-unification click-file path was regression-tested on native Linux,
 - synthetic post-restart `.click` envelope through the catalog fallback
 
 The current helper converts a validated `click:<base64url-envelope>` route to
-`steam://steam-native-notify/notification/<base64url-envelope>`. A live
+`steam://steam-native-notifications/notification/<base64url-envelope>`. A live
 `notify-send` default action launches `steam` with that URL as one argv element;
 no Linux notification click writes `.click`. The notification daemon controls
 the popup lifetime, and the helper stays detached. Live-action survival across
@@ -221,7 +221,7 @@ From Steam's Flathub manifest, **verified:**
 - "Inside the sandbox `$XDG_CACHE_HOME`, `$XDG_CONFIG_HOME` and
   `$XDG_DATA_HOME` is set to `$HOME/.var/app/$FLATPAK_ID/{cache, config,
   data}` respectively" (same page). So the runtime directory lands in
-  `~/.var/app/com.valvesoftware.Steam/cache/steam-native-notify` with no
+  `~/.var/app/com.valvesoftware.Steam/cache/steam-native-notifications` with no
   code change, and Millennium's plugin directory (`$XDG_DATA_HOME/millennium/plugins`,
   **verified:**
   [src/system/environment.cc](https://github.com/SteamClientHomebrew/Millennium/blob/main/src/system/environment.cc))
@@ -276,7 +276,7 @@ What that changes, all **unverified** until run:
 
 A Flatpak Steam with a Millennium build inside it. None exists. When one
 does: expect `platform: linux flatpak: com.valvesoftware.Steam runtime:
-/home/<user>/.var/app/com.valvesoftware.Steam/cache/steam-native-notify`,
+/home/<user>/.var/app/com.valvesoftware.Steam/cache/steam-native-notifications`,
 then `helper:`, then a `toast ... ->` line for any Steam toast; then a
 banner; then a click printing `default`. `tools/capture` needs a `--flatpak`
 switch that reads the per-app cache and log paths.
@@ -308,7 +308,7 @@ build (`Steam.AppBundle` in `filesystem.cc`, `Steam.app/Contents/MacOS/steam_osx
 in `environment.cc`; the two files disagree on the bundle name).
 
 What the backend does today on macOS: detects the platform, logs
-`platform: macos runtime: /Users/<user>/Library/Caches/steam-native-notify`,
+`platform: macos runtime: /Users/<user>/Library/Caches/steam-native-notifications`,
 publishes `steam-dir`, reports delivery as not implemented, refuses each
 toast with `unsupported platform: macos`, and answers `"unsupported"`.
 `Identity` finds `loginusers.vdf` under `~/Library/Application Support/Steam/config/`.
@@ -319,7 +319,7 @@ toast with `unsupported platform: macos`, and answers `"unsupported"`.
   config and data under `~/Library/Application Support`, logs under
   `~/Library/Logs`. **Verified:**
   [src/system/environment.cc](https://github.com/SteamClientHomebrew/Millennium/blob/main/src/system/environment.cc).
-- Runtime directory `~/Library/Caches/steam-native-notify`: Apple's rule for
+- Runtime directory `~/Library/Caches/steam-native-notifications`: Apple's rule for
   `~/Library/Caches` is "app-specific support files that your app can
   re-create easily", and `Application Support` is for data the user would
   miss. Everything here is re-creatable (the helper is re-materialized at
@@ -427,7 +427,7 @@ Decisions:
 ### Validation
 
 A macOS tester, in order. Pass signals are in
-`~/Library/Caches/steam-native-notify/plugin.log`.
+`~/Library/Caches/steam-native-notifications/plugin.log`.
 
 1. **Groundwork (this branch).** Build, install under
    `~/Library/Application Support/Millennium/plugins`, enable, restart Steam.
@@ -499,8 +499,8 @@ coverage keeps the platform experimental.
 
     banner or Notification Center click
       Windows launches
-        steam://steam-native-notify/notification/<base64url-envelope>
-      Steam dispatches the registered steam-native-notify section
+        steam://steam-native-notifications/notification/<base64url-envelope>
+      Steam dispatches the registered steam-native-notifications section
         to frontend/steamurl.ts
       clickbridge.ts validates and routes:
         matching surface + live stash -> exact handler replay
@@ -529,7 +529,7 @@ binary, private URI scheme, or Start-menu shortcut is required.
 ### Setup
 
 `notify-action.ps1 -Setup`, spawned at every load, idempotently registers
-`HKCU\Software\Classes\AppUserModelId\me.tysmith.steam-native-notify` with the
+`HKCU\Software\Classes\AppUserModelId\me.tysmith.steam-native-notifications` with the
 display name and an icon extracted from the user's Steam executable. `-Setup`
 also removes the obsolete private `snn:` registration. `-Teardown` removes the
 AUMID key and icon. All changes are per-user.
@@ -569,7 +569,7 @@ protocol invocation rather than UI clicks.
 - Windows PowerShell 5.1 source tests passed all eight helper assertions,
   including bounded canonical activation XML and one-shot process exit
 - a full Steam restart logged backend load, AUMID setup, hook installation, and
-  canonical `steam-native-notify` URL registration
+  canonical `steam-native-notifications` URL registration
 - FriendOnline produced a canonical WinRT history URL; invoking it through the
   active user session logged exact handler replay
 - Achievement produced a canonical WinRT history URL; a fresh active-session
@@ -606,7 +606,7 @@ in the VM. See Microsoft's
 
 Protocol activation is the documented path for unpackaged toast senders and
 works from both banners and Notification Center without an activator. Steam
-already owns `steam:` and forwards the registered `steam-native-notify` section
+already owns `steam:` and forwards the registered `steam-native-notifications` section
 to the client JS.
 
 An earlier private `snn:` scheme never launched from a Windows toast despite
@@ -619,8 +619,8 @@ The private scheme and JScript handler were removed.
 
 - validate the independent Steam/OS presentation settings and opt-in
   Notification Center-only delivery on native Windows hardware
-- correct stale game focus after alt-tab for history clicks ([#14](https://github.com/tyvsmith/steam-native-notify/issues/14));
-  Linux X11 host detection is tracked separately in [#15](https://github.com/tyvsmith/steam-native-notify/issues/15)
+- correct stale game focus after alt-tab for history clicks ([#14](https://github.com/tyvsmith/steam-native-notifications/issues/14));
+  Linux X11 host detection is tracked separately in [#15](https://github.com/tyvsmith/steam-native-notifications/issues/15)
 - `fire.ps1` / `capture.ps1` tester tooling
 - `scenario="urgent"` opt-in for Focus Assist bypass
 - `-Teardown` validation

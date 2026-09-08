@@ -30,8 +30,8 @@ set -euo pipefail
 # .star has no plugin directory at runtime); backend/main.lua computes the
 # same path. Writing without the plugin installed would queue into a void
 # while still printing "queued", hence the .star check.
-RUNTIME_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/steam-native-notify"
-STAR="$HOME/.local/share/millennium/plugins/me.tysmith.steam-native-notify.star"
+RUNTIME_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/steam-native-notifications"
+STAR="$HOME/.local/share/millennium/plugins/me.tysmith.steam-native-notifications.star"
 if [[ ! -f $STAR ]]; then
   echo "not installed: $STAR does not exist" >&2
   echo "build first: bun run build (output_path=auto installs it)" >&2

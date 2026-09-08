@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "steam-native-notify",
+      "name": "steam-native-notifications",
       "devDependencies": {
         "@steambrew/starlight": "^1.1.4",
         "@types/react": "19.1.1",

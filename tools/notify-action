@@ -38,7 +38,7 @@ unset LD_LIBRARY_PATH LD_PRELOAD
 APP_NAME="Steam"
 # The icon-theme name used whenever no real artwork can be resolved.
 FALLBACK_ICON="steam"
-RUNTIME_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/steam-native-notify"
+RUNTIME_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/steam-native-notifications"
 # Since the image-path hint (30982bf) the daemon receives a PATH into this
 # cache, not pixels: a file removed here can blank a history row on a daemon
 # that does not copy what it shows (quickshell copies its own; others
@@ -106,7 +106,7 @@ notification_url() {
 	[ "$payload" != "$1" ] || return 1
 	case $payload in '' | *[!A-Za-z0-9_-]*) return 1 ;; esac
 	[ "${#payload}" -le 8192 ] || return 1
-	printf 'steam://steam-native-notify/notification/%s\n' "$payload"
+	printf 'steam://steam-native-notifications/notification/%s\n' "$payload"
 }
 
 # A daemon that advertises `body-markup` parses the body as markup, and a
@@ -237,7 +237,7 @@ fi
 # tools/capture looks, before this exits: a dropped notification is never
 # silent. After the seams above, which are portable and need no daemon.
 refuse() {
-	printf '%s [steam-native-notify] notify-action: %s\n' \
+	printf '%s [steam-native-notifications] notify-action: %s\n' \
 		"$(date '+[%Y-%m-%d %H:%M:%S]')" "$1" >>"$RUNTIME_DIR/plugin.log" 2>/dev/null
 	exit 1
 }
