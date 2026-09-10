@@ -17,13 +17,13 @@
 // section 3 also prints the newest toast Windows itself recorded, from the
 // notification platform's database, since the XML delivered and its launch
 // URL are not in the log there.
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { toastFacts } from './lib/devtools';
+import { newestSource, staleness } from './lib/capture';
 import {
 	IS_WINDOWS, LOG, PLUGIN_ID, parseStamp, pluginLogPath, readPluginLog, stamp, starPath, steamConsoleLogPath, steamDir,
 } from './lib/snn';
-import { toastRows } from './lib/toastdb';
+import { toastFacts, toastRows } from './lib/toastdb';
 
 const arg = process.argv[2];
 const lines = arg === undefined ? 8 : Number(arg);
@@ -71,55 +71,35 @@ if (!loaded) {
 	if (hookLine) loaded = parseStamp(hookLine);
 }
 const shutdown = IS_WINDOWS ? 'steam.exe -shutdown' : 'steam -shutdown';
-if (loaded) {
-	console.log(`   loaded  ${stamp(loaded)}`);
-	if (built && built > loaded) {
+if (loaded) console.log(`   loaded  ${stamp(loaded)}`);
+// The verdict (tools/lib/capture.ts). A load stamp with no .star has nothing
+// to be current against, and the built line above already says so.
+switch (staleness(built, loaded, plugin.some((l) => /backend loaded/.test(l))).kind) {
+	case 'stale':
 		console.log('   STALE -- Steam is running an older build.');
 		console.log('   Any change needs a FULL Steam restart (plugin.restart and disable/enable');
 		console.log(`   reload nothing that matters here): ${shutdown}, wait, relaunch, re-run this.`);
-	} else {
+		break;
+	case 'current':
 		console.log('   current.');
-	}
-} else if (plugin.some((l) => /backend loaded/.test(l))) {
-	console.log('   loaded  (unknown) -- plugin.log holds a backend stamp but no hook verdict:');
-	console.log('   a plugin restart or toggle truncated it, and the frontend still running is of');
-	console.log('   unknown age. Full Steam restart.');
-} else {
-	console.log('   loaded  (never) -- enable the plugin in Millennium > Plugins.');
+		break;
+	case 'unknown-age':
+		console.log('   loaded  (unknown) -- plugin.log holds a backend stamp but no hook verdict:');
+		console.log('   a plugin restart or toggle truncated it, and the frontend still running is of');
+		console.log('   unknown age. Full Steam restart.');
+		break;
+	case 'never-loaded':
+		console.log('   loaded  (never) -- enable the plugin in Millennium > Plugins.');
+		break;
+	case 'no-star':
+		break;
 }
 
 // No rebuild here (bun run build would overwrite the running plugin), so the
-// working tree answers "would a build change anything" by mtime alone. The
-// build inputs are whatever millennium.toml names, plus the manifest itself.
-// The three code sections -- [frontend], [backend] and the [webkit] one this
-// manifest deliberately omits -- name an entry or a glob, and each is taken at
-// its first path segment because an entry pulls in its whole tree. An [assets]
-// path is the one file it names. Every other section ([plugin], [compiler])
-// holds settings, not inputs.
-const CODE_SECTIONS = ['frontend', 'backend', 'webkit'];
-function newestSource(): { path: string; mtime: Date } | null {
-	const manifest = join(repoRoot, 'millennium.toml');
-	if (!existsSync(manifest)) return null;
-	const toml = Bun.TOML.parse(readFileSync(manifest, 'utf8')) as Record<string, Record<string, unknown> | undefined>;
-	// A section's values are strings and arrays of strings; flatten to paths.
-	const paths = (section: string): string[] => Object.values(toml[section] ?? {}).flat().filter((v) => typeof v === 'string');
-	const roots = new Set<string>(['millennium.toml']);
-	for (const section of CODE_SECTIONS) for (const p of paths(section)) roots.add(p.split('/')[0]);
-	for (const p of paths('assets')) roots.add(p);
-	let newest: { path: string; mtime: Date } | null = null;
-	const visit = (p: string) => {
-		if (!existsSync(p)) return;
-		const st = statSync(p);
-		if (st.isDirectory()) {
-			for (const child of readdirSync(p)) visit(join(p, child));
-		} else if (!newest || st.mtime > newest.mtime) {
-			newest = { path: p, mtime: st.mtime };
-		}
-	};
-	for (const r of roots) visit(join(repoRoot, r));
-	return newest;
-}
-const src = newestSource();
+// working tree answers "would a build change anything" by mtime alone
+// (tools/lib/capture.ts says which files count).
+const manifest = join(repoRoot, 'millennium.toml');
+const src = existsSync(manifest) ? newestSource(repoRoot, readFileSync(manifest, 'utf8')) : null;
 if (src) {
 	console.log(`   sources ${stamp(src.mtime)}  (${src.path.slice(repoRoot.length + 1)})`);
 	if (built && src.mtime > built) console.log('   the working tree is newer than the .star -- run: bun run build');
