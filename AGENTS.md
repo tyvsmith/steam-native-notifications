@@ -217,7 +217,8 @@ frontend/replay.ts        stash Steam's handler by random token; invoke it
 frontend/routes.ts        verified durable fallback catalog
 frontend/choose.ts        which handler a click may invoke (pure, offline-tested)
 frontend/fiber.ts         the __reactFiber discovery both walkers share
-frontend/log.ts           dlog/safeJson; prefixes are capture's contract
+frontend/log.ts           dlog/safeJson; owns the log-prefix vocabulary that
+                          tools/lib/snn.ts mirrors
 frontend/clickbridge.ts   replay on matching surface; live-focus fallback otherwise
 frontend/devfire.ts       tools/fire door, gated by a setting
 frontend/SettingsPanel.tsx settings panel; settings.ts, per-key config store
@@ -226,5 +227,13 @@ tools/notify-action       POSIX delivery; live action launches canonical URL,
                           Quickshell gets Quattro's fixed argv history hint
 tools/notify-action.ps1   Windows delivery: WinRT toast, protocol-activation
                           click + one-shot route-aware focus (EXPERIMENTAL)
+tools/lib/snn.ts          the dev tools' shared paths per platform and the log
+                          vocabulary; mirrors backend/main.lua and frontend/log.ts
+tools/lib/capture.ts      tools/capture's staleness verdict and newest-source rule
+tools/lib/devtools.ts     tools/fire's argument grammar
+tools/lib/toastdb.ts      what Windows recorded: the notification database and
+                          the toast-XML reader
+tools/lib/msgpack.ts      msgpack codec for Millennium's external protocol
+tools/lib/json.ts         JSON with exact integers past 2^53
 frontend/steamurl.ts      register and validate the canonical Steam URL
 ```
