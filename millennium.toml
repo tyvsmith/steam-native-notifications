@@ -28,6 +28,7 @@ entry = "frontend/index.tsx"
 # build, and a backend restart mid-verification muddies tools/capture.
 
 [compiler]
-# "auto" resolves to ~/.local/share/millennium/plugins/<id>.star, so building
-# IS installing; there is no separate install step.
+# "auto" resolves to <id>.star under Millennium's plugins directory for the
+# platform (paths in the README), so building IS installing; there is no
+# separate install step.
 output_path = "auto"

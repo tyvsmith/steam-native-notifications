@@ -1,98 +1,54 @@
-#!/usr/bin/env bash
-# Fire a test notification through Steam's own toast pipeline, and drive the
-# plugin's dev diagnostics. Every command writes a file the plugin's dev poll
-# consumes within ~3s, gated on the devFire developer toggle.
-#
-# Client toasts (Steam's own NotificationStore Test* methods; args are JSON —
-# bare numbers and null pass through, quote strings):
-#   tools/fire TestDownloadComplete 1073390
-#   tools/fire TestFriendOnline
-#   tools/fire TestFriendMessage null '"Ready to play?"'
-#   tools/fire TestAchievement 570
-#   NEVER TestIncomingVoiceChat: the fake call cannot resolve and wedges
-#   Steam's toast queue until restart (CLAUDE.md).
-#
-# Server-sourced (eSource=2) types, whose shipped test methods are stubbed, go
-# through the real ingestion path instead (OnServerNotification):
-#   tools/fire --wishlist [appid]              store-bound wishlist toast
-#                                              (defaults to 1073390, Aircar)
-#   tools/fire --server <type> '<body-json>'   any type; see the body_data
-#                                              fields in docs/steam-routing.md
-#
-# Diagnostics (results land in the plugin log):
-#   tools/fire --overlay-info                dump overlay browser PIDs
-#   tools/fire --replay inspect              dump the stashed handler entries
-#   tools/fire --replay invoke [toast-name]  invoke a stashed handler
+#!/usr/bin/env bun
+// Fire a test notification through Steam's own toast pipeline, and drive the
+// plugin's dev diagnostics. Every command writes a file the plugin's dev poll
+// consumes within ~3s, gated on the devFire developer toggle.
+//
+// Client toasts (Steam's own NotificationStore Test* methods; args are JSON --
+// bare numbers and null pass through, quote strings):
+//   tools/fire TestDownloadComplete 1073390
+//   tools/fire TestFriendOnline
+//   tools/fire TestFriendMessage null '"Ready to play?"'
+//   tools/fire TestAchievement 570
+//   NEVER TestIncomingVoiceChat: the fake call cannot resolve and wedges
+//   Steam's toast queue until restart (AGENTS.md).
+//
+// Server-sourced (eSource=2) types, whose shipped test methods are stubbed, go
+// through the real ingestion path instead (OnServerNotification):
+//   tools/fire --wishlist [appid]              store-bound wishlist toast
+//                                              (defaults to 1073390, Aircar)
+//   tools/fire --server <type> '<body-json>'   any type; see the body_data
+//                                              fields in docs/steam-routing.md
+//
+// Diagnostics (results land in the plugin log):
+//   tools/fire --overlay-info                dump overlay browser PIDs
+//   tools/fire --replay inspect              dump the stashed handler entries
+//   tools/fire --replay invoke [toast-name]  invoke a stashed handler
+//
+// Runs under bun on every platform (on Windows: bun tools/fire ...). The
+// runtime directory and the .star location follow backend/main.lua
+// (tools/lib/snn.ts).
+import { existsSync } from 'node:fs';
+import { planFire } from './lib/devtools';
+import { PLUGIN_ID, starPath, usageFromHeader, writeDevFire } from './lib/snn';
 
-set -euo pipefail
+const plan = planFire(process.argv.slice(2));
+if (plan.kind === 'usage') {
+	console.log(usageFromHeader(import.meta.path));
+	process.exit(2);
+}
+if (plan.kind === 'error') {
+	console.error(plan.message);
+	process.exit(1);
+}
 
-# The backend reads .dev-fire from the plugin's cache directory (the packed
-# .star has no plugin directory at runtime); backend/main.lua computes the
-# same path. Writing without the plugin installed would queue into a void
-# while still printing "queued", hence the .star check.
-RUNTIME_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/steam-native-notifications"
-STAR="$HOME/.local/share/millennium/plugins/me.tysmith.steam-native-notifications.star"
-if [[ ! -f $STAR ]]; then
-  echo "not installed: $STAR does not exist" >&2
-  echo "build first: bun run build (output_path=auto installs it)" >&2
-  exit 1
-fi
-mkdir -p "$RUNTIME_DIR"
+// Writing without the plugin installed would queue into a void while still
+// printing "queued", hence the .star check.
+const star = starPath();
+if (!star || !existsSync(star)) {
+	console.error(`not installed: ${star ? `${star} does not exist` : `no Steam install found for ${PLUGIN_ID}.star`}`);
+	console.error('build first: bun run build (output_path=auto installs it)');
+	process.exit(1);
+}
 
-if [[ $# -lt 1 ]]; then
-  sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
-  exit 2
-fi
-
-if [[ $1 == --wishlist ]]; then
-  appid="${2:-1073390}"
-  printf '{"server":{"type":8,"body":{"appid":%s,"count":1}}}\n' "$appid" >"$RUNTIME_DIR/.dev-fire"
-  echo "queued: server Wishlist appid=$appid  (needs the tools/fire toggle on in the plugin settings; picked up within ~3s)"
-  exit 0
-fi
-
-# Overlay diagnostics (which games have a live overlay surface; devfire.ts):
-#   tools/fire --overlay-info                     dump overlay browser PIDs
-if [[ $1 == --overlay-info ]]; then
-  printf '{"overlay":{"call":"info"}}\n' >"$RUNTIME_DIR/.dev-fire"
-  echo "queued: overlay info  (result lands in the plugin log)"
-  exit 0
-fi
-
-# Replay diagnostics (the click path on this branch; frontend/replay.ts):
-#   tools/fire --replay inspect          dump the stashed handler candidates
-#   tools/fire --replay invoke [name]    invoke a stashed handler (latest if
-#                                        no toast name is given)
-if [[ $1 == --replay ]]; then
-  call="${2:?--replay needs a call (inspect or invoke)}"
-  name="${3:-}"
-  if [[ -n $name ]]; then
-    printf '{"replay":{"call":"%s","name":"%s"}}\n' "$call" "$name" >"$RUNTIME_DIR/.dev-fire"
-  else
-    printf '{"replay":{"call":"%s"}}\n' "$call" >"$RUNTIME_DIR/.dev-fire"
-  fi
-  echo "queued: replay $call ${name:-'(latest)'}  (result lands in the plugin log)"
-  exit 0
-fi
-
-if [[ $1 == --server ]]; then
-  type="${2:?--server needs a numeric ESteamNotificationType}"
-  body="${3:-{\}}"
-  printf '{"server":{"type":%s,"body":%s}}\n' "$type" "$body" >"$RUNTIME_DIR/.dev-fire"
-  echo "queued: server type=$type body=$body  (needs the tools/fire toggle on in the plugin settings; picked up within ~3s)"
-  exit 0
-fi
-
-call="$1"
-shift
-
-args="["
-sep=""
-for a in "$@"; do
-  args+="$sep$a"
-  sep=","
-done
-args+="]"
-
-printf '{"call":"%s","args":%s}\n' "$call" "$args" >"$RUNTIME_DIR/.dev-fire"
-echo "queued: $call $args  (needs the tools/fire toggle on in the plugin settings; picked up within ~3s)"
+writeDevFire(plan.command);
+console.log(plan.message);

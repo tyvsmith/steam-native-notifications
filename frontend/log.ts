@@ -4,11 +4,15 @@ import { ffi } from 'millennium';
  * Diagnostics for the whole frontend, kept out of index so any module can log
  * without importing the capture path.
  *
- * These lines are the plugin's observability: tools/capture greps the plugin
- * log for the prefixes `hook installed`, `helper`, `from-toast `,
- * `toast <name> -> `, `dev-fire`, `replay: candidates`, `replay: invoke` and
- * `click-bridge`. Renaming a prefix without updating tools/capture blinds
- * the triage tool.
+ * The prefixes written here are the plugin's observability contract:
+ * tools/lib/snn.ts mirrors them as regexes and tools/capture greps the plugin
+ * log with those. Three families are read — startup verdicts (`hook
+ * installed`, `hook failed`, `helper`, `g_PopupManager never appeared`,
+ * `steam-url: ...`), notification lines (`from-toast `, `toast <name> -> `,
+ * `dev-fire`, `replay: ...`, `click-bridge`, `focus:`) and failure lines
+ * (delivery, platform, suppression, unreadable payload, dropped, left open).
+ * Renaming a prefix without updating tools/lib/snn.ts blinds the triage
+ * tool.
  */
 const logLine = ffi<[string], string>('Log');
 

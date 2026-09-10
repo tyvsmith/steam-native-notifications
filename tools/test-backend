@@ -1107,6 +1107,28 @@ check("macos: load publishes the bundle steam_path for the helper",
 jit = nil
 steam_dir = tmp_cache .. "/steam"
 
+-- ---------------------------------------------------------------------------
+-- A fourth load, Linux again, with XDG_CACHE_HOME set but empty. The base
+-- directory spec counts that as unset, so the runtime directory lands under
+-- ~/.cache, the same answer tools/lib/snn.ts gives the dev tools.
+-- ---------------------------------------------------------------------------
+local xdg_home = tmp_cache .. "/xdghome"
+io.popen("mkdir -p '" .. xdg_home .. "'"):close()
+os.getenv = function(name)
+	if name == "HOME" then return xdg_home end
+	if name == "XDG_CACHE_HOME" then return "" end
+	return real_getenv(name)
+end
+local xdg_runtime = xdg_home .. "/.cache/steam-native-notifications"
+
+logged = {}
+executed = {}
+local xdg_plugin = dofile(root .. "/backend/main.lua")
+ok, err = pcall(xdg_plugin.on_load)
+check("linux: on_load runs with an empty XDG_CACHE_HOME", ok, err)
+check("linux: an empty XDG_CACHE_HOME counts as unset, so the runtime directory is under ~/.cache",
+	slurp(xdg_runtime .. "/plugin.log") ~= nil, tostring(slurp(xdg_runtime .. "/plugin.log")))
+
 os.execute = real_execute
 os.getenv = real_getenv
 if tmp_cache:find("^/tmp/") then os.execute("rm -rf '" .. tmp_cache .. "'") end

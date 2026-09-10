@@ -34,7 +34,7 @@ bun run build
 
 Building **is** installing: starlight packs the plugin and writes it straight
 into Millennium's plugins directory —
-`~/.local/share/millennium/plugins/` on Linux, and
+`${XDG_DATA_HOME:-~/.local/share}/millennium/plugins/` on Linux, and
 `<Steam>\millennium\plugins\` on Windows (the Steam path comes from the
 registry). Then restart Steam and enable **Steam Native Notifications** under
 Millennium > Plugins. After any rebuild, restart Steam fully: `plugin.restart`
@@ -85,9 +85,11 @@ out of band. See `docs/architecture.md` for testing instructions.
 ```sh
 tools/capture   # is the running .star current, did the hook attach,
                 # what did the last notifications carry
+                # (the dev tools run under bun; on Windows: bun tools/capture)
 ```
 
-The plugin logs to `~/.cache/steam-native-notifications/plugin.log` (truncated at
+The plugin logs to `~/.cache/steam-native-notifications/plugin.log` on Linux and
+`%LOCALAPPDATA%\steam-native-notifications\plugin.log` on Windows (truncated at
 each backend load); Millennium's loader lines are in
 `~/.steam/steam/logs/console-linux.txt` under `me.tysmith.steam-native-notifications`.
 Every stage of a click logs one line, and every failure mode names itself —

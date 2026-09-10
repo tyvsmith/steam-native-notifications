@@ -78,7 +78,11 @@ local function runtime_dir()
     if IS_MACOS then
         return join(home, "Library", "Caches", "steam-native-notifications")
     end
-    return join(os.getenv("XDG_CACHE_HOME") or join(home, ".cache"), "steam-native-notifications")
+    -- A set-but-empty XDG_CACHE_HOME counts as unset (the base directory
+    -- spec), as it does in tools/lib/snn.ts.
+    local cache = os.getenv("XDG_CACHE_HOME")
+    if cache == nil or cache == "" then cache = join(home, ".cache") end
+    return join(cache, "steam-native-notifications")
 end
 local RUNTIME_DIR = runtime_dir()
 -- Windows delivers through a PowerShell helper (clicks come back through

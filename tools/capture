@@ -1,72 +1,165 @@
-#!/usr/bin/env bash
-# Report what the plugin is doing, in the order the answers are needed:
-# is the running .star current, did the notification hook attach, and what did
-# the last notification carry.
-#
-# Usage: tools/capture [n]      n = how many notification lines to show (default 8)
-#
-# Two log sources. Steam's console-linux.txt carries Millennium's loader lines
-# (the "Delegating frontend load" stamp that dates the running frontend).
-# The plugin's own diagnostics do NOT go there: Millennium buffers a packed
-# (.star) plugin's logger output in memory, so backend/main.lua mirrors every
-# line into PLUGIN_LOG, truncated at each backend load.
+#!/usr/bin/env bun
+// Report what the plugin is doing, in the order the answers are needed:
+// is the running .star current, did the notification hook attach, and what did
+// the last notification carry.
+//
+// Usage: tools/capture [n]      n = how many notification lines to show (default 8)
+//        (on Windows: bun tools/capture [n])
+//
+// Log sources. The plugin's own diagnostics go to plugin.log in the runtime
+// directory (tools/lib/snn.ts): Millennium buffers a packed (.star) plugin's
+// logger output in memory, so backend/main.lua mirrors every line there,
+// truncated at each backend load. On Linux Steam's console-linux.txt carries
+// Millennium's loader lines too (the "Delegating frontend load" stamp that
+// dates the running frontend); a Linux box without that log has no Steam that
+// has run, and the report stops there. Elsewhere the running frontend is dated
+// by the newest hook verdict the frontend writes once per real start. On Windows
+// section 3 also prints the newest toast Windows itself recorded, from the
+// notification platform's database, since the XML delivered and its launch
+// URL are not in the log there.
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { toastFacts } from './lib/devtools';
+import {
+	IS_WINDOWS, LOG, PLUGIN_ID, parseStamp, pluginLogPath, readPluginLog, stamp, starPath, steamConsoleLogPath, steamDir,
+} from './lib/snn';
+import { toastRows } from './lib/toastdb';
 
-set -uo pipefail
+const arg = process.argv[2];
+const lines = arg === undefined ? 8 : Number(arg);
+if (!Number.isSafeInteger(lines) || lines < 0) {
+	console.error('usage: tools/capture [n], n a non-negative integer (default 8)');
+	process.exit(2);
+}
+// On Linux Steam's console log is the only thing that dates the running
+// frontend from outside the plugin; no Steam directory, or no log in it, means
+// Steam has never run and the whole report would be guesswork.
+const consoleLog = steamConsoleLogPath();
+if (process.platform === 'linux' && !(consoleLog && existsSync(consoleLog))) {
+	console.error(`No Steam log at ${consoleLog ?? '<Steam>/logs/console-linux.txt'} -- is Steam installed and has it run?`);
+	process.exit(1);
+}
+const repoRoot = dirname(dirname(import.meta.path));
+const plugin = readPluginLog();
+const hr = () => console.log('----------------------------------------------------------------');
 
-LOG="$HOME/.steam/steam/logs/console-linux.txt"
-PLUGIN_LOG="${XDG_CACHE_HOME:-$HOME/.cache}/steam-native-notifications/plugin.log"
-BUNDLE="$HOME/.local/share/millennium/plugins/me.tysmith.steam-native-notifications.star"
-LINES="${1:-8}"
+console.log('== 1. is the running plugin the .star on disk? ==');
+const star = starPath();
+let built: Date | null = null;
+if (star && existsSync(star)) {
+	built = statSync(star).mtime;
+	console.log(`   built   ${stamp(built)}`);
+	console.log(`   sha256  ${Bun.CryptoHasher.hash('sha256', readFileSync(star), 'hex')}`);
+} else if (IS_WINDOWS && !steamDir()) {
+	console.log('   built   (no Steam install found: no published steam-dir, nothing in the registry)');
+} else {
+	console.log('   built   (no .star -- run: bun run build)');
+}
 
-# The Steam log is not valid UTF-8 throughout and is full of ANSI colour.
-steam_log_lines() { grep -a "me.tysmith.steam-native-notifications" "$LOG" 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g'; }
-plugin_lines() { cat "$PLUGIN_LOG" 2>/dev/null; }
+// The frontend's load stamp: Millennium's loader line where Steam's console
+// log has one, else the frontend's own hook verdict.
+let loaded: Date | null = null;
+if (consoleLog) {
+	// Not valid UTF-8 throughout and full of ANSI colour.
+	const line = readFileSync(consoleLog, 'latin1')
+		.split('\n')
+		.findLast((l) => l.includes(PLUGIN_ID) && l.includes('Delegating frontend load'));
+	if (line) loaded = parseStamp(line.replace(/\x1b\[[0-9;]*m/g, ''));
+}
+if (!loaded) {
+	const hookLine = plugin.findLast((l) => LOG.hook.test(l));
+	if (hookLine) loaded = parseStamp(hookLine);
+}
+const shutdown = IS_WINDOWS ? 'steam.exe -shutdown' : 'steam -shutdown';
+if (loaded) {
+	console.log(`   loaded  ${stamp(loaded)}`);
+	if (built && built > loaded) {
+		console.log('   STALE -- Steam is running an older build.');
+		console.log('   Any change needs a FULL Steam restart (plugin.restart and disable/enable');
+		console.log(`   reload nothing that matters here): ${shutdown}, wait, relaunch, re-run this.`);
+	} else {
+		console.log('   current.');
+	}
+} else if (plugin.some((l) => /backend loaded/.test(l))) {
+	console.log('   loaded  (unknown) -- plugin.log holds a backend stamp but no hook verdict:');
+	console.log('   a plugin restart or toggle truncated it, and the frontend still running is of');
+	console.log('   unknown age. Full Steam restart.');
+} else {
+	console.log('   loaded  (never) -- enable the plugin in Millennium > Plugins.');
+}
 
-hr() { printf '%s\n' "----------------------------------------------------------------"; }
+// No rebuild here (bun run build would overwrite the running plugin), so the
+// working tree answers "would a build change anything" by mtime alone. The
+// build inputs are whatever millennium.toml names, plus the manifest itself.
+// The three code sections -- [frontend], [backend] and the [webkit] one this
+// manifest deliberately omits -- name an entry or a glob, and each is taken at
+// its first path segment because an entry pulls in its whole tree. An [assets]
+// path is the one file it names. Every other section ([plugin], [compiler])
+// holds settings, not inputs.
+const CODE_SECTIONS = ['frontend', 'backend', 'webkit'];
+function newestSource(): { path: string; mtime: Date } | null {
+	const manifest = join(repoRoot, 'millennium.toml');
+	if (!existsSync(manifest)) return null;
+	const toml = Bun.TOML.parse(readFileSync(manifest, 'utf8')) as Record<string, Record<string, unknown> | undefined>;
+	// A section's values are strings and arrays of strings; flatten to paths.
+	const paths = (section: string): string[] => Object.values(toml[section] ?? {}).flat().filter((v) => typeof v === 'string');
+	const roots = new Set<string>(['millennium.toml']);
+	for (const section of CODE_SECTIONS) for (const p of paths(section)) roots.add(p.split('/')[0]);
+	for (const p of paths('assets')) roots.add(p);
+	let newest: { path: string; mtime: Date } | null = null;
+	const visit = (p: string) => {
+		if (!existsSync(p)) return;
+		const st = statSync(p);
+		if (st.isDirectory()) {
+			for (const child of readdirSync(p)) visit(join(p, child));
+		} else if (!newest || st.mtime > newest.mtime) {
+			newest = { path: p, mtime: st.mtime };
+		}
+	};
+	for (const r of roots) visit(join(repoRoot, r));
+	return newest;
+}
+const src = newestSource();
+if (src) {
+	console.log(`   sources ${stamp(src.mtime)}  (${src.path.slice(repoRoot.length + 1)})`);
+	if (built && src.mtime > built) console.log('   the working tree is newer than the .star -- run: bun run build');
+}
 
-if [[ ! -f $LOG ]]; then
-  echo "No Steam log at $LOG — is Steam installed and has it run?" >&2
-  exit 1
-fi
+hr();
+console.log('== 2. did the hook attach, and did startup data load? ==');
+// The prefixes are the contract in frontend/log.ts (tools/lib/snn.ts holds
+// them). `steam-url: registered` is startup work in exactly the way the hook
+// is: without that handler a toast still delivers but every click is a no-op.
+const verdict = plugin.filter((l) => LOG.startup.test(l)).slice(-6);
+if (verdict.length) console.log(verdict.join('\n'));
+else console.log(`   (nothing yet -- no ${pluginLogPath()}; has the backend loaded?)`);
 
-echo "== 1. is the running plugin the .star on disk? =="
-if [[ -f $BUNDLE ]]; then
-  built=$(stat -c %Y "$BUNDLE")
-  printf '   built   %s\n' "$(date -d "@$built" '+%Y-%m-%d %H:%M:%S')"
-else
-  echo "   built   (no .star — run: bun run build)"
-  built=0
-fi
-
-loaded_line=$(steam_log_lines | grep -a "Delegating frontend load" | tail -1)
-if [[ -n $loaded_line ]]; then
-  loaded_stamp=$(sed -n 's/^\[\([0-9-]* [0-9:]*\)\].*/\1/p' <<<"$loaded_line")
-  printf '   loaded  %s\n' "$loaded_stamp"
-  loaded=$(date -d "$loaded_stamp" +%s 2>/dev/null || echo 0)
-  if (( built > loaded )); then
-    echo "   STALE — Steam is running an older build."
-    echo "   A frontend change needs a FULL Steam restart (toggling the plugin"
-    echo "   reloads only the backend): steam -shutdown, wait, relaunch, re-run this."
-  else
-    echo "   current."
-  fi
-else
-  echo "   loaded  (never) — enable the plugin in Millennium > Plugins."
-fi
-
-hr
-echo "== 2. did the hook attach, and did startup data load? =="
-# These prefixes are the contract stated in frontend/log.ts; keep in sync.
-# (This branch routes clicks by handler replay: the url templates / identity
-# startup lines left with the routing catalog.)
-verdict=$(plugin_lines | grep -aE "hook installed|hook failed|g_PopupManager never appeared|helper" | tail -6)
-if [[ -n $verdict ]]; then printf '%s\n' "$verdict"; else echo "   (nothing yet — no $PLUGIN_LOG; has the backend loaded?)"; fi
-
-hr
-echo "== 3. what did the last notifications carry? =="
-# A `dev-fire:` line with no `from-toast` line after it means Steam's own
-# per-type gating swallowed the test fire, not a break (docs/HANDOFF.md).
-# `replay: candidates` shows what the walk stashed for each toast;
-# `click-bridge:` + `replay: invoke` show what a click did with it.
-notifs=$(plugin_lines | grep -aE "from-toast |toast .* -> |dev-fire|replay: candidates|replay: invoke|click-bridge" | tail -"$LINES")
-if [[ -n $notifs ]]; then printf '%s\n' "$notifs"; else echo "   (no notifications captured yet — trigger one)"; fi
+hr();
+console.log('== 3. what did the last notifications carry? ==');
+// A `dev-fire:` line with no `from-toast` line after it means Steam's own
+// per-type gating swallowed the test fire, not a break. `replay: candidates`
+// shows what the walk stashed for each toast; `steam-url: click token=` +
+// `click-bridge:` + `replay: invoke` show what a click did with it, and
+// `focus:` is the backend's focus helper reporting the foreground it found.
+const matched = plugin.filter((l) => LOG.notification.test(l));
+const notifs = matched.slice(Math.max(0, matched.length - lines));
+if (notifs.length) console.log(notifs.join('\n'));
+else console.log('   (no notifications captured yet -- trigger one)');
+// Windows' own record, under its own heading below the log: the newest row is
+// the newest toast the platform accepted, which is not the outcome of the log
+// line above it. A delivery that failed leaves the previous successful toast
+// as the newest row, and the log lines say which of the two happened.
+if (IS_WINDOWS) {
+	console.log('   newest toast Windows recorded:');
+	try {
+		const row = toastRows(1)[0];
+		if (row) {
+			const f = toastFacts(row.xml);
+			console.log(`      ${stamp(row.arrived)}  '${f.title}' / '${f.body}'  launch=${f.launch}`);
+		} else {
+			console.log(`      (nothing recorded for ${PLUGIN_ID})`);
+		}
+	} catch (e) {
+		console.log(`      (notification database not readable: ${(e as Error).message})`);
+	}
+}

@@ -14,9 +14,12 @@ at each backend load); Millennium's loader lines are in
 bun run build
 ```
 
-The build packs and installs
-`~/.local/share/millennium/plugins/me.tysmith.steam-native-notifications.star`
-(starlight `output_path = "auto"`); there is no separate install step.
+The build packs and installs `me.tysmith.steam-native-notifications.star` into
+Millennium's plugins directory for the platform —
+`${XDG_DATA_HOME:-~/.local/share}/millennium/plugins/` on Linux,
+`<Steam install>\millennium\plugins\` on Windows,
+`~/Library/Application Support/Millennium/plugins/` on macOS (starlight
+`output_path = "auto"`); there is no separate install step.
 
 **A full Steam restart is required for ANY change, backend included.** Under
 the .star format `plugin.restart` and disable/enable leave the backend
@@ -57,8 +60,8 @@ The dev poll is gated on **"Accept test commands from tools/fire"** in
 Millennium > Plugins > Steam Native Notifications. Ships OFF. Flipping it in the UI
 takes effect immediately, no restart.
 
-Preset it externally (needs Steam running for the socket; `tools/mep` needs
-python3-msgpack):
+Preset it externally (needs Steam running for the socket; `tools/mep` is a bun
+script and speaks msgpack through `tools/lib/msgpack.ts`):
 
 ```sh
 tools/mep plugin.config.get name=me.tysmith.steam-native-notifications key=devFire   # read current first

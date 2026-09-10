@@ -1,99 +1,140 @@
-#!/usr/bin/env python3
-"""Talk to Millennium's external protocol from the shell.
+#!/usr/bin/env bun
+// Talk to Millennium's external protocol from the shell.
+//
+// MEP is a unix socket any local process can speak: 4-byte little-endian length
+// prefix, msgpack body, one response per request. It is how the click bridge
+// reaches into the running plugin, and it is useful on its own for poking at a
+// live Steam without a devtools session.
+//
+// Usage:
+//   mep <method> [key=value ...]        params are strings unless they parse as JSON
+//   mep --methods                       the ones this tool knows are useful
+//
+// Examples:
+//   mep millennium.version
+//   mep plugin.config.set name=me.tysmith.steam-native-notifications key=selftest value=go
+//   mep plugin.config.get_all name=me.tysmith.steam-native-notifications
+//
+// The reply is printed as JSON either way; the exit status is 0 when it came
+// back with no error, and 1 when it carries one or the call never got through.
+//
+// The socket is /tmp/millennium-mep.sock on POSIX and %TEMP%\millennium-mep.sock
+// on Windows (tools/lib/snn.ts); bun opens both. Runs on every platform
+// (on Windows: bun tools/mep ...).
+import { USEFUL_MEP_METHODS, parseMepParam } from './lib/devtools';
+import { formatJson } from './lib/json';
+import { decode, encode, frame, takeFrame } from './lib/msgpack';
+import { mepSocketPath, usageFromHeader } from './lib/snn';
 
-MEP is a unix socket any local process can speak: 4-byte little-endian length
-prefix, msgpack body, one response per request. It is how the click bridge
-reaches into the running plugin, and it is useful on its own for poking at a
-live Steam without a devtools session.
+function fail(message: string): never {
+	console.error(message);
+	process.exit(1);
+}
 
-Usage:
-  mep <method> [key=value ...]        params are strings unless they parse as JSON
-  mep --methods                       the ones this tool knows are useful
+function call(method: string, params: Record<string, unknown>, timeoutMs = 5000): Promise<unknown> {
+	// No existence check up front: on Windows the socket is a reparse point
+	// that stat cannot see, so the connect itself is the test.
+	const socket = mepSocketPath();
+	const request: Record<string, unknown> = { id: 'mep-cli', method };
+	if (Object.keys(params).length) request.params = params;
+	const out = frame(encode(request as never));
 
-Examples:
-  mep millennium.version
-  mep plugin.config.set name=steam-native-notifications key=selftest value=go
-  mep plugin.config.get_all name=steam-native-notifications
-"""
+	// Bun sockets do not buffer: a write may take fewer bytes than offered,
+	// and the rest goes out from the drain callback.
+	let sent = 0;
+	const pump = (s: { write(data: Uint8Array): number }) => {
+		while (sent < out.length) {
+			const n = s.write(out.subarray(sent));
+			if (n <= 0) return;
+			sent += n;
+		}
+	};
 
-import json
-import socket
-import struct
-import sys
+	// The reply arrives in chunks. A reply is one small frame, so each chunk
+	// joins what came before and takeFrame decides whether that is yet a whole
+	// frame -- the framing rule lives in tools/lib/msgpack.ts, not here.
+	const chunks: Uint8Array[] = [];
+	let taken = false;
 
-import msgpack
+	return new Promise<unknown>((resolve, reject) => {
+		const timer = setTimeout(() => reject(new Error(`no complete reply within ${timeoutMs / 1000} s`)), timeoutMs);
+		const finish = (fn: () => void) => {
+			clearTimeout(timer);
+			fn();
+		};
+		Bun.connect({
+			unix: socket,
+			socket: {
+				open(s) {
+					pump(s);
+				},
+				drain(s) {
+					pump(s);
+				},
+				data(s, chunk) {
+					chunks.push(chunk);
+					const got = takeFrame(Buffer.concat(chunks));
+					if (!got) return;
+					taken = true;
+					s.end();
+					if (got.rest.length) return finish(() => reject(new Error(`${got.rest.length} byte(s) after the reply frame -- more than one response`)));
+					finish(() => {
+						try {
+							resolve(decode(got.body));
+						} catch (e) {
+							reject(e);
+						}
+					});
+				},
+				close() {
+					if (!taken) finish(() => reject(new Error('connection closed before a complete reply')));
+				},
+				error(_s, e) {
+					finish(() => reject(e));
+				},
+				connectError(_s, e) {
+					const code = (e as NodeJS.ErrnoException).code;
+					finish(() => reject(new Error(code === 'ENOENT'
+						? `${socket} is not there -- is Steam running with Millennium?`
+						: `${socket} refused the connection -- Millennium may be starting up. (${e.message})`)));
+				},
+			},
+		}).catch((e: Error) => finish(() => reject(e)));
+	});
+}
 
-SOCKET = "/tmp/millennium-mep.sock"
-
-USEFUL_METHODS = [
-    "millennium.version", "millennium.status",
-    "plugin.list", "plugin.get", "plugin.status",
-    "plugin.enable", "plugin.disable", "plugin.restart",
-    "plugin.config.get", "plugin.config.set",
-    "plugin.config.delete", "plugin.config.get_all",
-]
-
-
-def call(method, params=None, timeout=5.0):
-    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    sock.settimeout(timeout)
-    try:
-        sock.connect(SOCKET)
-    except FileNotFoundError:
-        raise SystemExit(f"{SOCKET} is not there — is Steam running with Millennium?")
-    except ConnectionRefusedError:
-        raise SystemExit(f"{SOCKET} refused the connection — Millennium may be starting up.")
-
-    try:
-        request = {"id": "mep-cli", "method": method}
-        if params:
-            request["params"] = params
-        body = msgpack.packb(request, use_bin_type=True)
-        sock.sendall(struct.pack("<I", len(body)) + body)
-
-        header = sock.recv(4)
-        if len(header) < 4:
-            raise SystemExit("short response header — the connection dropped")
-        (length,) = struct.unpack("<I", header)
-
-        buf = b""
-        while len(buf) < length:
-            chunk = sock.recv(length - len(buf))
-            if not chunk:
-                raise SystemExit("connection closed mid-frame")
-            buf += chunk
-        return msgpack.unpackb(buf, raw=False)
-    finally:
-        sock.close()
-
-
-def parse_param(token):
-    """key=value. The value is JSON when it parses as JSON, else a plain string."""
-    if "=" not in token:
-        raise SystemExit(f"parameters look like key=value, got: {token}")
-    key, _, raw = token.partition("=")
-    try:
-        return key, json.loads(raw)
-    except json.JSONDecodeError:
-        return key, raw
-
-
-def main(argv):
-    if not argv or argv[0] in ("-h", "--help"):
-        print(__doc__)
-        return 0
-
-    if argv[0] == "--methods":
-        print("\n".join(f"  {m}" for m in USEFUL_METHODS))
-        return 0
-
-    method = argv[0]
-    params = dict(parse_param(t) for t in argv[1:])
-
-    reply = call(method, params or None)
-    print(json.dumps(reply, indent=2))
-    return 1 if reply.get("error") else 0
-
-
-if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+const argv = process.argv.slice(2);
+if (argv.length === 0 || argv[0] === '-h' || argv[0] === '--help') {
+	console.log(usageFromHeader(import.meta.path));
+	process.exit(0);
+}
+if (argv[0] === '--methods') {
+	console.log(USEFUL_MEP_METHODS.map((m) => `  ${m}`).join('\n'));
+	process.exit(0);
+}
+const params: Record<string, unknown> = {};
+for (const token of argv.slice(1)) {
+	try {
+		const [k, v] = parseMepParam(token);
+		params[k] = v;
+	} catch (e) {
+		fail((e as Error).message);
+	}
+}
+let reply: unknown;
+try {
+	reply = await call(argv[0], params);
+} catch (e) {
+	fail((e as Error).message);
+}
+if (!reply || typeof reply !== 'object' || Array.isArray(reply)) {
+	console.error('reply is not a map:');
+	fail(formatJson(reply));
+}
+console.log(formatJson(reply));
+// Millennium answers every call with both keys: a success carries
+// `error: null` and the answer in `result`, a failure carries the message in
+// `error` and `result: null`. So it is the error's presence as a value, not
+// its truthiness, that decides -- an empty map or a zero in there is still an
+// error, and only null (or no key at all) is not.
+process.exit((reply as Record<string, unknown>).error != null ? 1 : 0);
