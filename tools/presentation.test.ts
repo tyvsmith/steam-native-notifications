@@ -29,7 +29,7 @@ mock.module('millennium', () => ({
 	usePluginConfig: (key: string) => [store[key], async (value: unknown) => set(key, value)],
 	pluginConfig: { getAll: async () => ({ ...store }) },
 	subscribePluginConfig: (callback: typeof updateSetting) => { updateSetting = callback; },
-	findModuleExport: () => undefined,
+	findModuleExport: (): undefined => undefined,
 	ffi: (name: string) => (...args: string[]) => {
 		if (name === 'Notify') { notifications.push(args); return notifyReply(); }
 		if (name === 'Log') logs.push(args[0]);
@@ -56,7 +56,7 @@ function toast(surface: 'desktop' | 'game' | 'unknown' = 'desktop') {
 	const name = surface === 'desktop' ? `notificationtoasts_${++sequence}_desktop`
 		: surface === 'game' ? `notificationtoasts_uid570-${++sequence}` : `notificationtoasts_unknown-${++sequence}`;
 	const win = { name, closed: false, close() { closed++; }, document: {
-		body: { innerText: 'Download complete\nAircar' }, images: [], querySelectorAll: () => [],
+		body: { innerText: 'Download complete\nAircar' }, images: [] as unknown[], querySelectorAll: (): unknown[] => [],
 	} };
 	onPopup({ window: win });
 	return { closed: () => closed, name, win };
@@ -85,7 +85,7 @@ test('stash Steam handler before waiting for platform discovery', async () => {
 	await flush();
 	const stashedBeforeProbe = logs.some((line) => line.includes('stashed=onClick'));
 	// Steam can destroy the popup while the backend query is pending.
-	doc.querySelectorAll = () => [];
+	doc.querySelectorAll = (): unknown[] => [];
 	resolvePlatform('"windows"');
 	await flush();
 	expect(stashedBeforeProbe).toBe(true);

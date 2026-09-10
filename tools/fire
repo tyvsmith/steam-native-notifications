@@ -27,28 +27,6 @@
 // Runs under bun on every platform (on Windows: bun tools/fire ...). The
 // runtime directory and the .star location follow backend/main.lua
 // (tools/lib/snn.ts).
-import { existsSync } from 'node:fs';
-import { planFire } from './lib/devtools';
-import { PLUGIN_ID, starPath, usageFromHeader, writeDevFire } from './lib/snn';
+import { main } from './lib/cli/fire';
 
-const plan = planFire(process.argv.slice(2));
-if (plan.kind === 'usage') {
-	console.log(usageFromHeader(import.meta.path));
-	process.exit(2);
-}
-if (plan.kind === 'error') {
-	console.error(plan.message);
-	process.exit(1);
-}
-
-// Writing without the plugin installed would queue into a void while still
-// printing "queued", hence the .star check.
-const star = starPath();
-if (!star || !existsSync(star)) {
-	console.error(`not installed: ${star ? `${star} does not exist` : `no Steam install found for ${PLUGIN_ID}.star`}`);
-	console.error('build first: bun run build (output_path=auto installs it)');
-	process.exit(1);
-}
-
-writeDevFire(plan.command);
-console.log(plan.message);
+await main(import.meta.path);

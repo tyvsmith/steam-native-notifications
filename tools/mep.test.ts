@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { formatJson, parseJson } from './lib/json';
 import { frame, mepCall, parseMepParam, takeFrame } from './lib/mep';
-import { decode, encode } from './lib/msgpack';
+import { type Packable, decode, encode } from './lib/msgpack';
 
 describe('framing', () => {
 	test('frames carry a little-endian length and are taken whole', () => {
@@ -56,7 +56,7 @@ describe('tools/mep parameters', () => {
 // until takeFrame says it is whole, then whatever bytes the test scripted,
 // sent the way the test scripted them.
 type Sock = Parameters<NonNullable<Bun.SocketHandler<undefined>['data']>>[0];
-type Script = (s: Sock, request: Record<string, unknown>) => void | Promise<void>;
+type Script = (s: Sock, request: Record<string, Packable>) => void | Promise<void>;
 
 const servers: Bun.UnixSocketListener<undefined>[] = [];
 const paths: string[] = [];
@@ -75,7 +75,7 @@ function listen(script: Script): string {
 				const got = takeFrame(Buffer.concat(chunks));
 				if (!got) return;
 				expect(got.rest.length).toBe(0);
-				void script(s, decode(got.body) as Record<string, unknown>);
+				void script(s, decode(got.body) as Record<string, Packable>);
 			},
 		},
 	});
@@ -95,7 +95,7 @@ afterEach(() => {
 	}
 });
 
-const reply = (r: Record<string, unknown>): Uint8Array => frame(encode(r));
+const reply = (r: Record<string, Packable>): Uint8Array => frame(encode(r));
 
 describe('mepCall', () => {
 	test('one request, one reply, the map as sent', async () => {
