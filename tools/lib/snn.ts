@@ -4,7 +4,7 @@
 // the log-prefix contract from frontend/log.ts. backend/main.lua computes the
 // same paths; a change there is a change here.
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { homedir, tmpdir } from 'node:os';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 /** millennium.toml [plugin] id; also the AppUserModelId Windows records toasts under. */
@@ -119,14 +119,6 @@ export function runtimeDirFor(platform: NodeJS.Platform, env: Env, home: string)
 
 export function pluginLogPath(): string {
 	return join(runtimeDir(), 'plugin.log');
-}
-
-/**
- * Millennium's external protocol socket: /tmp on POSIX, the user's temp
- * directory on Windows (Millennium: src/include/mep/mep_server.h).
- */
-export function mepSocketPath(): string {
-	return IS_WINDOWS ? join(tmpdir(), 'millennium-mep.sock') : '/tmp/millennium-mep.sock';
 }
 
 /**

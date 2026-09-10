@@ -72,10 +72,12 @@ The three dev tools are bun scripts (`#!/usr/bin/env bun`, no extension) and
 run on every platform from the same files; on Windows prefix them with
 `bun` (`bun tools/fire TestFriendOnline`). Their shared paths live in
 `tools/lib/snn.ts`, which also mirrors the log-prefix contract `frontend/log.ts`
-owns; `bun test tools/devtools.test.ts tools/snn.test.ts tools/toastdb.test.ts`
-pins the argument grammar, the msgpack framing, exact integers, the toast-XML
-reader, the log-prefix regexes and platform paths, and the
-notification-database reader.
+owns; Millennium's external protocol (socket path, framing, transport) is
+`tools/lib/mep.ts`. `bun test tools/devtools.test.ts tools/mep.test.ts
+tools/snn.test.ts tools/toastdb.test.ts` pins the argument grammar, the
+msgpack codec, the MEP framing and transport against a stub socket server,
+exact integers, the toast-XML reader, the log-prefix regexes and platform
+paths, and the notification-database reader.
 
 Install: `bun install`, then `bun run build`; starlight packs the plugin as
 `me.tysmith.steam-native-notifications.star` into Millennium's plugins directory for
@@ -234,7 +236,9 @@ tools/lib/capture.ts      tools/capture's staleness verdict and newest-source ru
 tools/lib/devtools.ts     tools/fire's argument grammar
 tools/lib/toastdb.ts      what Windows recorded: the notification database and
                           the toast-XML reader
-tools/lib/msgpack.ts      msgpack codec for Millennium's external protocol
+tools/lib/mep.ts          Millennium's external protocol: socket, framing, one
+                          request -> one reply (tools/mep is the shell door)
+tools/lib/msgpack.ts      the msgpack codec MEP speaks, exact integers
 tools/lib/json.ts         JSON with exact integers past 2^53
 frontend/steamurl.ts      register and validate the canonical Steam URL
 ```

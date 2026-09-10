@@ -19,88 +19,16 @@
 // back with no error, and 1 when it carries one or the call never got through.
 //
 // The socket is /tmp/millennium-mep.sock on POSIX and %TEMP%\millennium-mep.sock
-// on Windows (tools/lib/snn.ts); bun opens both. Runs on every platform
+// on Windows (tools/lib/mep.ts); bun opens both. Runs on every platform
 // (on Windows: bun tools/mep ...).
-import { USEFUL_MEP_METHODS, parseMepParam } from './lib/devtools';
 import { formatJson } from './lib/json';
-import { decode, encode, frame, takeFrame } from './lib/msgpack';
-import { mepSocketPath, usageFromHeader } from './lib/snn';
+import { type Reply, USEFUL_MEP_METHODS, mepCall, parseMepParam } from './lib/mep';
+import { type Packable } from './lib/msgpack';
+import { usageFromHeader } from './lib/snn';
 
 function fail(message: string): never {
 	console.error(message);
 	process.exit(1);
-}
-
-function call(method: string, params: Record<string, unknown>, timeoutMs = 5000): Promise<unknown> {
-	// No existence check up front: on Windows the socket is a reparse point
-	// that stat cannot see, so the connect itself is the test.
-	const socket = mepSocketPath();
-	const request: Record<string, unknown> = { id: 'mep-cli', method };
-	if (Object.keys(params).length) request.params = params;
-	const out = frame(encode(request as never));
-
-	// Bun sockets do not buffer: a write may take fewer bytes than offered,
-	// and the rest goes out from the drain callback.
-	let sent = 0;
-	const pump = (s: { write(data: Uint8Array): number }) => {
-		while (sent < out.length) {
-			const n = s.write(out.subarray(sent));
-			if (n <= 0) return;
-			sent += n;
-		}
-	};
-
-	// The reply arrives in chunks. A reply is one small frame, so each chunk
-	// joins what came before and takeFrame decides whether that is yet a whole
-	// frame -- the framing rule lives in tools/lib/msgpack.ts, not here.
-	const chunks: Uint8Array[] = [];
-	let taken = false;
-
-	return new Promise<unknown>((resolve, reject) => {
-		const timer = setTimeout(() => reject(new Error(`no complete reply within ${timeoutMs / 1000} s`)), timeoutMs);
-		const finish = (fn: () => void) => {
-			clearTimeout(timer);
-			fn();
-		};
-		Bun.connect({
-			unix: socket,
-			socket: {
-				open(s) {
-					pump(s);
-				},
-				drain(s) {
-					pump(s);
-				},
-				data(s, chunk) {
-					chunks.push(chunk);
-					const got = takeFrame(Buffer.concat(chunks));
-					if (!got) return;
-					taken = true;
-					s.end();
-					if (got.rest.length) return finish(() => reject(new Error(`${got.rest.length} byte(s) after the reply frame -- more than one response`)));
-					finish(() => {
-						try {
-							resolve(decode(got.body));
-						} catch (e) {
-							reject(e);
-						}
-					});
-				},
-				close() {
-					if (!taken) finish(() => reject(new Error('connection closed before a complete reply')));
-				},
-				error(_s, e) {
-					finish(() => reject(e));
-				},
-				connectError(_s, e) {
-					const code = (e as NodeJS.ErrnoException).code;
-					finish(() => reject(new Error(code === 'ENOENT'
-						? `${socket} is not there -- is Steam running with Millennium?`
-						: `${socket} refused the connection -- Millennium may be starting up. (${e.message})`)));
-				},
-			},
-		}).catch((e: Error) => finish(() => reject(e)));
-	});
 }
 
 const argv = process.argv.slice(2);
@@ -112,7 +40,7 @@ if (argv[0] === '--methods') {
 	console.log(USEFUL_MEP_METHODS.map((m) => `  ${m}`).join('\n'));
 	process.exit(0);
 }
-const params: Record<string, unknown> = {};
+const params: Record<string, Packable> = {};
 for (const token of argv.slice(1)) {
 	try {
 		const [k, v] = parseMepParam(token);
@@ -121,15 +49,11 @@ for (const token of argv.slice(1)) {
 		fail((e as Error).message);
 	}
 }
-let reply: unknown;
+let reply: Reply;
 try {
-	reply = await call(argv[0], params);
+	reply = await mepCall(argv[0], params);
 } catch (e) {
 	fail((e as Error).message);
-}
-if (!reply || typeof reply !== 'object' || Array.isArray(reply)) {
-	console.error('reply is not a map:');
-	fail(formatJson(reply));
 }
 console.log(formatJson(reply));
 // Millennium answers every call with both keys: a success carries
@@ -137,4 +61,4 @@ console.log(formatJson(reply));
 // `error` and `result: null`. So it is the error's presence as a value, not
 // its truthiness, that decides -- an empty map or a zero in there is still an
 // error, and only null (or no key at all) is not.
-process.exit((reply as Record<string, unknown>).error != null ? 1 : 0);
+process.exit(reply.error != null ? 1 : 0);
