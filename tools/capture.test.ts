@@ -102,6 +102,32 @@ describe('the newest source', () => {
 		expect(newestSource(root, MANIFEST)).toEqual({ path: join(root, 'frontend/index.tsx'), mtime: at(2) });
 	});
 
+	test('a generated file that is the only new thing is not a reason to build', () => {
+		const root = fixture({
+			'frontend/index.tsx': at(2),
+			'frontend/generated/x.ts': at(9),
+		});
+		expect(newestSource(root, MANIFEST)).toEqual({ path: join(root, 'frontend/index.tsx'), mtime: at(2) });
+	});
+
+	test('the vendored schema the generator reads counts, though the manifest never names it', () => {
+		const root = fixture({
+			'millennium.toml': at(1),
+			'frontend/index.tsx': at(2),
+			'frontend/generated/notifications.ts': at(3),
+			'vendor/steammessages_clientnotificationtypes.proto': at(5),
+		});
+		expect(newestSource(root, MANIFEST)).toEqual({
+			path: join(root, 'vendor/steammessages_clientnotificationtypes.proto'),
+			mtime: at(5),
+		});
+	});
+
+	test('so do the generator and its parser', () => {
+		const root = fixture({ 'frontend/index.tsx': at(2), 'tools/gen-proto.mjs': at(5), 'tools/proto.mjs': at(6) });
+		expect(newestSource(root, MANIFEST)).toEqual({ path: join(root, 'tools/proto.mjs'), mtime: at(6) });
+	});
+
 	test('millennium.toml itself counts', () => {
 		const root = fixture({
 			'millennium.toml': at(5),

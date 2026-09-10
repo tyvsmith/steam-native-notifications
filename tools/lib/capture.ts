@@ -48,6 +48,17 @@ const CODE_SECTIONS = ['frontend', 'backend', 'webkit'];
 // every tree newer than its own .star.
 const GENERATED = 'frontend/generated';
 
+// What that pre-pack step reads instead (the `build` script in package.json
+// runs `bun tools/gen-proto.mjs` before `starlight pack`): the vendored
+// schema, the generator, and the parser it imports. The manifest does not
+// name them, but a refreshed .proto or an edited generator changes the .star
+// exactly as an edit under frontend/ does.
+const PRE_PACK_INPUTS = [
+	'vendor/steammessages_clientnotificationtypes.proto',
+	'tools/gen-proto.mjs',
+	'tools/proto.mjs',
+];
+
 /**
  * The newest build input under `repoRoot`, by mtime, so "would a build change
  * anything" is answered without running one (a build would overwrite the
@@ -60,6 +71,7 @@ export function newestSource(repoRoot: string, manifestToml: string): Source | n
 	const roots = new Set<string>(['millennium.toml']);
 	for (const section of CODE_SECTIONS) for (const p of paths(section)) roots.add(p.split('/')[0]);
 	for (const p of paths('assets')) roots.add(p);
+	for (const p of PRE_PACK_INPUTS) roots.add(p);
 	const generated = join(repoRoot, GENERATED);
 	let newest: Source | null = null;
 	const visit = (p: string) => {
