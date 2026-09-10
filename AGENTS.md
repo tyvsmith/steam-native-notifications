@@ -126,8 +126,9 @@ Run both, then confirm behaviour in the running client.
 **Diagnostics must never throw.** A debug log calling `JSON.stringify` on a
 BigInt silently killed every notification. Use `safeJson`; keep `dlog` wrapped.
 The log prefixes in `frontend/log.ts` own the vocabulary; `tools/lib/snn.ts`
-mirrors it for the tools and `tools/capture` greps it, so a renamed prefix
-blinds the triage tool until snn.ts follows.
+mirrors it for the tools and `tools/capture` greps it. `tools/snn.test.ts`
+reads the producers and fails on a prefix none of them writes, so a renamed
+prefix breaks the suite rather than silently blinding the triage tool.
 
 **Frontend-backend RPC is Millennium's `ffi` bridge, positional.**
 `ffi('Notify')(title, body, image, route, ingame, suppressPopup)` lands on the Lua parameters
