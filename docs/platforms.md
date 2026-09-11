@@ -602,6 +602,39 @@ unverified. Direct `SetForegroundWindow`, delayed retries,
 in the VM. See Microsoft's
 [SetForegroundWindow restrictions](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setforegroundwindow).
 
+### Game focus: which app owns the foreground
+
+`frontend/overlay.ts` consults the host only when an overlay instance holds
+focus. On Windows `GameHostFocus` then spawns `notify-action.ps1 -GameFocus
+<appid> -Result <file>` through the CreateProcessW seam and waits, bounded
+(3 s), for the file; `backend/focus/windows.lua` turns its three facts into
+the verdict and `tools/windows-focus.test.lua` pins the table:
+
+- `fg=<pid>`: `GetForegroundWindow` owner. A null window is unknown. The
+  probe must run in the desktop session; the same call from a service or
+  ssh logon (session 0) answers null (measured in the VM).
+- `tracked=<pid>:<appid>,...`: every live process Steam tracks, from
+  `logs\console_log.txt`'s `Game process added/removed` lines. Present for
+  any launched app, overlay hooked or not, launcher children included.
+- `overlay=<pid>:<appid>,...`: `gameoverlayui.exe -gameid/-pid`, present
+  only once the renderer hooked a device; a shortcut's 64-bit gameid carries
+  the appid in its high dword.
+
+`game` when the foreground pid is tracked as the app; `desktop` when the app
+is tracked and an untracked process (Steam, the shell) is in front; `unknown`
+when the app is not tracked at all, another Steam app is in front, or the
+two maps disagree on a pid. Unknown leaves the bridge's fail-closed path.
+
+Measured in the dockur/windows VM (no GPU) with a non-Steam shortcut to a
+GDI app: Steam tracked it and set `RunningAppID`, no overlay process ever
+appeared, and the verdicts followed every transition (front, minimized, Steam
+raised, another app raised, restored, exited). Because no device is ever
+hooked there, the overlay branch that triggers the probe never ran in the VM;
+that is the remaining hardware check. `SetForegroundWindow` from a spawned
+helper is refused by the foreground lock (returned false every time); the
+ALT-key trick or a synthetic click succeeds, which bears on the focus pulse,
+not on this probe.
+
 ### Why Steam's URI scheme
 
 Protocol activation is the documented path for unpackaged toast senders and
@@ -619,7 +652,9 @@ The private scheme and JScript handler were removed.
 
 - validate the independent Steam/OS presentation settings and opt-in
   Notification Center-only delivery on native Windows hardware
-- correct stale game focus after alt-tab for history clicks ([#14](https://github.com/tyvsmith/steam-native-notifications/issues/14));
+- validate the game-focus probe's overlay branch on hardware ([#14](https://github.com/tyvsmith/steam-native-notifications/issues/14)):
+  alt-tab out of a hooked game and click a history card; the VM cannot hook
+  a device, so only the windowed-app path ran there (see "Game focus" above).
   Linux X11 host detection is tracked separately in [#15](https://github.com/tyvsmith/steam-native-notifications/issues/15)
 - `scenario="urgent"` opt-in for Focus Assist bypass
 - `-Teardown` validation

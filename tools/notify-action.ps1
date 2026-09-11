@@ -16,6 +16,9 @@
 #        notify-action.ps1 -Teardown         remove the registration and the icon
 #        notify-action.ps1 -Id <id>          deliver <id>.notify from the runtime directory
 #        notify-action.ps1 -FocusKind <kind> pulse the main or chat window
+#        notify-action.ps1 -GameFocus <appid> -Result <file> [-SteamDir <dir>]
+#                                            write who owns the foreground window
+#                                            and which processes Steam tracks
 #
 # The .notify file carries the five POSIX slots plus the Windows-only boolean
 # suppressPopup. A file, not a command line, so quoting stays out of the contract.
@@ -24,6 +27,9 @@ param(
     [string]$Id,
     [ValidateSet('chat', 'main')]
     [string]$FocusKind,
+    [uint32]$GameFocus,
+    [string]$Result,
+    [string]$SteamDir,
     [switch]$Setup,
     [switch]$Teardown
 )
@@ -100,7 +106,7 @@ if ($Teardown) {
     exit 0
 }
 
-if (-not $Id -and -not $FocusKind) { exit 2 }
+if (-not $Id -and -not $FocusKind -and -not $GameFocus) { exit 2 }
 
 # ---------------------------------------------------------------- delivery
 
@@ -285,6 +291,15 @@ public static class SnnToastFocus
         return processId + ":" + processName + ":" + title.ToString();
     }
 
+    public static uint ForegroundProcessId()
+    {
+        IntPtr window = GetForegroundWindow();
+        if (window == IntPtr.Zero) return 0;
+        uint processId;
+        GetWindowThreadProcessId(window, out processId);
+        return processId;
+    }
+
     public static string Raise(string kind)
     {
         try
@@ -328,6 +343,50 @@ public static class SnnToastFocus
     }
 }
 '@
+
+# The game-focus probe for backend/focus/windows.lua: the foreground
+# window's owner, every process Steam tracks (console_log.txt's "Game process
+# added/removed" lines, live PIDs only; present whether or not the overlay
+# hooked the game), and the overlay's own -gameid/-pid mappings
+# (gameoverlayui.exe, present only when the renderer hooked a device; a
+# shortcut's 64-bit gameid carries its appid in the high dword). Written whole
+# through a rename so the reader never sees a partial file. The verdict is
+# not computed here: the backend owns the policy and its tests.
+if ($GameFocus) {
+    try {
+        if (-not $Result) { throw '-GameFocus needs -Result' }
+        Add-Type -TypeDefinition $FocusSinkSource
+        $fg = [SnnToastFocus]::ForegroundProcessId()
+        $tracked = @{}
+        $steam = if ($SteamDir) { $SteamDir } else { Get-SteamDir }
+        $log = if ($steam) { Join-Path $steam 'logs\console_log.txt' } else { $null }
+        if ($log -and (Test-Path -LiteralPath $log)) {
+            foreach ($line in [IO.File]::ReadAllLines($log)) {
+                if ($line -match 'Game process (added|removed)\s?: AppID (\d+) .*ProcID (\d+)') {
+                    if ($Matches[1] -eq 'added') { $tracked[[uint32]$Matches[3]] = [uint32]$Matches[2] } else { $tracked.Remove([uint32]$Matches[3]) }
+                }
+            }
+        }
+        $live = @{}
+        foreach ($pid2 in @($tracked.Keys)) { if (Get-Process -Id $pid2 -ErrorAction SilentlyContinue) { $live[$pid2] = $tracked[$pid2] } }
+        $overlay = @{}
+        foreach ($proc in (Get-CimInstance Win32_Process -Filter "Name='gameoverlayui.exe'" -ErrorAction SilentlyContinue)) {
+            if ($proc.CommandLine -match '-gameid\s+(\d+).*-pid\s+(\d+)') {
+                $gameid = [uint64]$Matches[1]
+                $overlay[[uint32]$Matches[2]] = if ($gameid -gt [uint32]::MaxValue) { [uint32]($gameid -shr 32) } else { [uint32]$gameid }
+            }
+        }
+        $pairs = { param($map) ($map.GetEnumerator() | ForEach-Object { "$($_.Key):$($_.Value)" }) -join ',' }
+        $text = "fg=$fg`ntracked=$(& $pairs $live)`noverlay=$(& $pairs $overlay)`n"
+        $tmp = "$Result.$PID.tmp"
+        [IO.File]::WriteAllText($tmp, $text, (New-Object System.Text.UTF8Encoding $false))
+        Move-Item -LiteralPath $tmp -Destination $Result -Force
+        exit 0
+    } catch {
+        Write-PluginLog "focus: probe failed: $($_.Exception.Message)"
+        exit 1
+    }
+}
 
 if ($FocusKind) {
     try {

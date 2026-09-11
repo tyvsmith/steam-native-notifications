@@ -79,8 +79,11 @@ When replacing Steam's toast, the plugin closes it after the backend
 acknowledges launching native delivery. A rejected request leaves Steam's
 toast visible; the acknowledgement does not confirm a displayed OS banner.
 
-Windows history clicks can still target a hidden overlay while a game is
-running; focus detection is tracked in [#14](https://github.com/tyvsmith/steam-native-notifications/issues/14).
+On Windows a history click captured in a game's overlay first asks a one-shot
+probe whether that game still owns the foreground window; after alt-tab the
+click routes to the desktop instead of the hidden overlay. The probe answers
+unknown, and the click stays on Steam's own choice, whenever Steam's process
+records and the foreground disagree ([#14](https://github.com/tyvsmith/steam-native-notifications/issues/14)).
 
 The `tools/fire` test door ships off and appears only with `devMode` enabled
 out of band. See `docs/architecture.md` for testing instructions.

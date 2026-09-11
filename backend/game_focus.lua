@@ -2,11 +2,12 @@
 -- Unknown never authorizes a desktop correction; the caller retains Steam focus.
 local M = {}
 
-function M.query(appid, platform)
+function M.query(appid, platform, host)
     if type(appid) ~= 'number' or appid <= 0 or appid > 4294967295
         or appid ~= math.floor(appid) then return 'unknown' end
     local ok, result = pcall(function()
         if platform == 'linux' then return require('focus.gamescope').query(appid) end
+        if platform == 'windows' then return require('focus.windows').query(appid, host) end
         return 'unknown'
     end)
     return ok and (result == 'game' or result == 'desktop') and result or 'unknown'
