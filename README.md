@@ -24,8 +24,13 @@ inside Steam's UI.
 ## Install
 
 Requires [Millennium](https://steambrew.app) >= v3.5 (the `.star` plugin
-format) and [Bun](https://bun.com). There is no tagged release yet, so build
-from a checkout:
+format). Every green push to `main` publishes the packed plugin under the
+[`latest`](https://github.com/tyvsmith/steam-native-notifications/releases/tag/latest)
+pre-release; drop
+[`me.tysmith.steam-native-notifications.star`](https://github.com/tyvsmith/steam-native-notifications/releases/download/latest/me.tysmith.steam-native-notifications.star)
+into Millennium's plugins directory (paths below) and restart Steam. There is
+no numbered release yet. To build from a checkout instead you also need
+[Bun](https://bun.com):
 
 ```sh
 bun install

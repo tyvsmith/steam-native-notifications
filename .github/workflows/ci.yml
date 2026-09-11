@@ -17,3 +17,50 @@ jobs:
     uses: ./.github/workflows/build.yml
     with:
       upload: ${{ github.event_name == 'push' }}
+
+  # Every green push to main republishes the packed .star under one fixed
+  # pre-release, so there is always one download URL for the newest build:
+  #   https://github.com/tyvsmith/steam-native-notifications/releases/download/latest/me.tysmith.steam-native-notifications.star
+  # The `latest` tag moves to the merge commit and the asset is replaced in
+  # place; the release record itself is kept, so watchers are not notified
+  # for every push. Numbered releases stay in release.yml.
+  latest:
+    if: github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: latest-release
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: me.tysmith.steam-native-notifications.star
+          path: dist
+
+      - name: Move the latest tag to this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ref=repos/${{ github.repository }}/git/refs/tags/latest
+          if gh api "$ref" >/dev/null 2>&1; then
+            gh api -X PATCH "$ref" -f sha="$GITHUB_SHA" -F force=true >/dev/null
+          else
+            gh api -X POST "repos/${{ github.repository }}/git/refs" -f ref=refs/tags/latest -f sha="$GITHUB_SHA" >/dev/null
+          fi
+
+      - name: Publish the .star under the latest pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          star=dist/me.tysmith.steam-native-notifications.star
+          test -f "$star" || { echo "artifact missing"; ls -R dist; exit 1; }
+          manifest=$(gh api "repos/${{ github.repository }}/contents/millennium.toml?ref=$GITHUB_SHA" --jq .content | base64 -d | awk -F'"' '/^\[/{s=$0} s=="[plugin]" && /^version *=/{print $2}')
+          notes="Rolling build of \`main\` at ${GITHUB_SHA:0:7} ($(date -u +%Y-%m-%dT%H:%MZ)). The bundle claims version $manifest. Replaced on every green push; for a fixed version use a numbered release."
+          if gh release view latest -R "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload latest "$star" --clobber -R "${{ github.repository }}"
+            gh release edit latest --prerelease --title "Latest build" --notes "$notes" -R "${{ github.repository }}"
+          else
+            gh release create latest "$star" --prerelease --title "Latest build" --notes "$notes" --verify-tag -R "${{ github.repository }}"
+          fi
