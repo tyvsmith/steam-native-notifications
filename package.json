@@ -22,6 +22,7 @@
   },
   "devDependencies": {
     "@steambrew/starlight": "^1.1.4",
+    "@types/bun": "^1.4.2",
     "@types/react": "19.1.1",
     "@types/react-dom": "19.1.1",
     "typescript": "^5.7.2"

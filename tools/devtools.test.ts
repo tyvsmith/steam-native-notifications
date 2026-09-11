@@ -7,7 +7,7 @@ describe('msgpack', () => {
 		const v = {
 			id: 'mep-cli',
 			method: 'plugin.config.set',
-			params: { name: 'me.tysmith.steam-native-notifications', key: 'devMode', value: true, n: 0, neg: -5, big: 70000, f: 1.5, none: null, list: [1, 'two', false] },
+			params: { name: 'me.tysmith.steam-native-notifications', key: 'devMode', value: true, n: 0, neg: -5, big: 70000, f: 1.5, none: null as null, list: [1, 'two', false] },
 		};
 		expect(decode(encode(v))).toEqual(v);
 	});

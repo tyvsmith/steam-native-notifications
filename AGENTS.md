@@ -70,7 +70,10 @@ tools/notify-action --resolve-icon <url>
 
 The three dev tools are bun scripts (`#!/usr/bin/env bun`, no extension) and
 run on every platform from the same files; on Windows prefix them with
-`bun` (`bun tools/fire TestFriendOnline`). Their shared paths live in
+`bun` (`bun tools/fire TestFriendOnline`). Each entrypoint holds only its
+usage header (printed by `usageFromHeader`) and imports its body from
+`tools/lib/cli/<name>.ts`, so `bun run typecheck` covers the tools along with
+`tools/lib` and the bun tests. Their shared paths live in
 `tools/lib/snn.ts`, which also mirrors the log-prefix contract `frontend/log.ts`
 owns; Millennium's external protocol (socket path, framing, transport) is
 `tools/lib/mep.ts`. `bun test tools/devtools.test.ts tools/mep.test.ts

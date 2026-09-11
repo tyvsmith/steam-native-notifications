@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, mock, spyOn, test } from 'bun:test';
+import type { ClickEnvelope } from '../frontend/click';
 
 // Keep replay, surface discovery, and dispatch real; replace only the host APIs.
 const events: string[] = [];
@@ -37,7 +38,7 @@ function mainWindow() {
 	}]]) });
 }
 
-function envelope(fallback: string | null = null, captureAppId = 0) {
+function envelope(fallback: string | null = null, captureAppId = 0): ClickEnvelope {
 	return { v: 1 as const, token: (++nextToken).toString(16).padStart(32, '0'), captureAppId, fallback, focus: 'main' as const };
 }
 
@@ -48,7 +49,7 @@ function toastWindow(fn = () => { events.push('replay'); }): Window {
 	return { document: doc } as Window;
 }
 
-function capture(value: ReturnType<typeof envelope>, name = 'notificationtoasts_10000_desktop', fn = () => { events.push('replay'); }) {
+function capture(value: ClickEnvelope, name = 'notificationtoasts_10000_desktop', fn = () => { events.push('replay'); }) {
 	expect(stashToastHandler(toastWindow(fn), name, value.token)).toBe(true);
 }
 
@@ -73,7 +74,7 @@ beforeEach(() => {
 		clearInterval(id: number) { intervals.delete(id); },
 	});
 	sc = {
-		Overlay: { GetOverlayBrowserInfo: async () => [] },
+		Overlay: { GetOverlayBrowserInfo: async (): Promise<unknown[]> => [] },
 		System: { UI: { RegisterForOverlayGameWindowFocusChanged(callback: typeof focusChanged) { focusChanged = callback; } } },
 		URL: { ExecuteSteamURL(route: string) { events.push(`url:${route}`); } },
 	};
