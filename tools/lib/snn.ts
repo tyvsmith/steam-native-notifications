@@ -17,7 +17,7 @@ export type Env = Record<string, string | undefined>;
 
 // The frontend's verdict on its notification hook, written once per real
 // start, so the newest one dates the running frontend.
-const HOOK = /hook installed|hook failed|g_PopupManager never appeared/;
+const HOOK = ['hook installed', 'hook failed', 'g_PopupManager never appeared'];
 
 // The startup-phase lines every producer writes: the frontend's hook verdict
 // and steam:// registration, and the backend's verdict on the delivery helper
@@ -26,35 +26,48 @@ const HOOK = /hook installed|hook failed|g_PopupManager never appeared/;
 // tools/notify-action.ps1 writes stays in the notification section where it
 // belongs.
 const STARTUP = [
-	HOOK.source,
-	'helper: ', // backend/main.lua:523, the installed path
-	'helper install FAILED', // backend/main.lua:525
-	'helper -Setup could not run', // backend/main.lua:532
-	'CreateProcessW failed for the Windows helper', // backend/main.lua:225
-	'notifications will not be delivered', // backend/main.lua:519, the macOS verdict
-	'steam-url: registered', // frontend/steamurl.ts:57
-].join('|');
+	...HOOK,
+	'helper: ', // the installed path
+	'helper install FAILED',
+	'helper -Setup could not run',
+	'CreateProcessW failed for the Windows helper',
+	'notifications will not be delivered', // the macOS verdict
+	'steam-url: registered',
+];
 
 // What one notification did, from the frontend's read of Steam's toast to the
 // platform's answer: the delivery path, the click path, and every way either
 // end reports a notification it could not deliver.
 const NOTIFICATION = [
-	'from-toast ', // frontend/index.tsx:170
-	'toast .* -> ', // frontend/index.tsx:210
-	'left open: ', // frontend/index.tsx:218 and :133
-	'could not close ', // frontend/index.tsx:224
+	'from-toast ',
+	'toast .* -> ',
+	'left open: ',
+	'could not close ',
 	'dev-fire',
 	'replay: candidates',
 	'replay: invoke',
 	'click-bridge',
 	'steam-url: click',
 	'steam-url: ignored',
-	'focus:', // frontend/clickbridge.ts and tools/notify-action.ps1:336, :339
-	'notification dropped', // backend/main.lua:258, :268, :281 and tools/notify-action.ps1:115
-	'toast delivery failed:', // tools/notify-action.ps1:381
-	'notification platform unavailable', // tools/notify-action.ps1:379
-	'delivery suppressed during platform back-off', // tools/notify-action.ps1:129
-].join('|');
+	'focus:',
+	'notification dropped',
+	'toast delivery failed:',
+	'notification platform unavailable',
+	'delivery suppressed during platform back-off',
+];
+
+/**
+ * The alternatives LOG is built from, one per producer line. Every entry is
+ * text a producer writes verbatim, except `toast .* -> `, whose `.*` stands
+ * for the toast name: tools/snn.test.ts reads the producers and fails when an
+ * entry no longer occurs in any of them, so a renamed prefix breaks the
+ * suite instead of blinding tools/capture.
+ */
+export const LOG_PREFIXES = {
+	hook: HOOK,
+	startup: STARTUP,
+	notification: NOTIFICATION,
+} as const;
 
 /**
  * The prefixes the tools read. frontend/log.ts owns the vocabulary and these
@@ -64,9 +77,9 @@ const NOTIFICATION = [
  * stale answer.
  */
 export const LOG = {
-	hook: HOOK,
-	startup: new RegExp(STARTUP),
-	notification: new RegExp(NOTIFICATION),
+	hook: new RegExp(HOOK.join('|')),
+	startup: new RegExp(STARTUP.join('|')),
+	notification: new RegExp(NOTIFICATION.join('|')),
 } as const;
 
 /**

@@ -11,8 +11,9 @@ import { ffi } from 'millennium';
  * `steam-url: ...`), notification lines (`from-toast `, `toast <name> -> `,
  * `dev-fire`, `replay: ...`, `click-bridge`, `focus:`) and failure lines
  * (delivery, platform, suppression, unreadable payload, dropped, left open).
- * Renaming a prefix without updating tools/lib/snn.ts blinds the triage
- * tool.
+ * tools/snn.test.ts reads these producers and fails when a prefix in
+ * tools/lib/snn.ts is no longer written verbatim by one of them, so renaming
+ * a prefix here breaks the suite until snn.ts follows.
  */
 const logLine = ffi<[string], string>('Log');
 

@@ -1,68 +1,79 @@
 import { describe, expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-	LOG, PLUGIN_ID, parseStamp, runtimeDir, runtimeDirFor, starPathFor, steamConsoleLogPathFor, steamDirCandidates,
+	LOG, LOG_PREFIXES, PLUGIN_ID, parseStamp, runtimeDir, runtimeDirFor, starPathFor, steamConsoleLogPathFor, steamDirCandidates,
 } from './lib/snn';
 
 // backend/main.lua log_line and tools/notify-action.ps1 Write-PluginLog write
 // the same shape, so a test line is composed the way the producers compose it.
 const line = (message: string) => `[2026-09-07 21:14:03] [steam-native-notifications] ${message}`;
 
-// The lines a load writes, by producer. The startup section must show the
-// backend's verdict on the helper it materializes at load, and must not show
-// the per-click focus helper's own lines.
-const STARTUP_LINES = [
-	'hook installed', // frontend/index.tsx:266
-	'hook failed: g_PopupManager.AddPopupCreatedCallback is not a function', // frontend/index.tsx:268
-	'g_PopupManager never appeared; bridge inactive', // frontend/index.tsx:258
-	'helper: /home/ty/.cache/steam-native-notifications/notify-action', // backend/main.lua:523
-	'helper install FAILED: asset tools/notify-action missing from the plugin bundle -- notifications will not be delivered', // backend/main.lua:525
-	'helper -Setup could not run -- toasts may be unbranded', // backend/main.lua:532
-	'CreateProcessW failed for the Windows helper: 2', // backend/main.lua:225
-	'desktop delivery is not implemented on macos -- notifications will not be delivered (docs/platforms.md)', // backend/main.lua:519
-	'steam-url: registered steam://steam-native-notifications/notification/<payload>', // frontend/steamurl.ts:57
+// Every file that writes to plugin.log. A prefix in LOG_PREFIXES must be
+// written verbatim by one of these, or tools/capture is grepping for a line
+// nobody produces.
+const PRODUCERS = [
+	'frontend/index.tsx',
+	'frontend/steamurl.ts',
+	'frontend/clickbridge.ts',
+	'frontend/replay.ts',
+	'frontend/devfire.ts',
+	'backend/main.lua',
+	'tools/notify-action',
+	'tools/notify-action.ps1',
 ];
+const root = join(import.meta.dir, '..');
+const producerLines = PRODUCERS.map((file) => ({ file, lines: readFileSync(join(root, file), 'utf8').split(/\r?\n/) }));
 
-// The lines one notification writes, from the frontend's read of Steam's toast
-// through to the platform's answer, including every way either end reports a
-// notification it could not deliver.
-const NOTIFICATION_LINES = [
-	'from-toast notificationtoasts_10004_desktop type=8 (wishlist) source=server {"appid":1073390}', // frontend/index.tsx:170
-	'toast notificationtoasts_10004_desktop -> {"title":"Aircar","replayable":true}', // frontend/index.tsx:210
-	'toast notificationtoasts_10004_desktop left open: backend answered unsupported', // frontend/index.tsx:218
-	'toast notificationtoasts_10004_desktop left open: notify failed: transport closed', // frontend/index.tsx:133
-	'could not close notificationtoasts_10004_desktop: popup already destroyed', // frontend/index.tsx:224
-	'dev-fire: NotificationStore.TestFriendMessage([null,"Ready to play?"])', // frontend/devfire.ts:148
-	'replay: candidates notificationtoasts_10004_desktop n=3 onClick@4', // frontend/replay.ts:164
-	'replay: invoke notificationtoasts_10004_desktop onClick@4 age=7s', // frontend/replay.ts:253
-	'click-bridge: desktop steam://url/StoreAppPage/1073390', // frontend/clickbridge.ts:155
-	'steam-url: click token=1a2b3c4d', // frontend/steamurl.ts:51
-	'steam-url: ignored steam://open/console', // frontend/steamurl.ts:48
-	'focus: raised main', // tools/notify-action.ps1:336
-	'focus: helper failed: Exception calling "Raise"', // tools/notify-action.ps1:339
-	'unsupported platform: macos delivery is not implemented, notification dropped', // backend/main.lua:258
-	'could not write C:\\Users\\ty\\AppData\\Local\\steam-native-notifications\\1757.notify; notification dropped', // backend/main.lua:268
-	'payload write failed for C:\\Users\\ty\\AppData\\Local\\steam-native-notifications\\1757.notify; notification dropped', // backend/main.lua:281
-	'payload 1757-1 unreadable, notification dropped: Unexpected end of JSON input', // tools/notify-action.ps1:115
-	'delivery suppressed during platform back-off: Download Complete', // tools/notify-action.ps1:129
-	'notification platform unavailable, backing off 60s: The notification platform is unavailable.', // tools/notify-action.ps1:379
-	'toast delivery failed: Element not found.', // tools/notify-action.ps1:381
-];
+// A prefix is produced when one line of one producer carries each of its
+// literal pieces in order, the first of them after a quote so a mention in a
+// comment or an identifier does not count. `.*` is the only regex syntax the
+// prefixes use (the toast name in `toast .* -> `), so the pieces are what
+// remains around it. A comment that happens to quote the prefix still passes:
+// the check is cheap, not a parser.
+function producedBy(prefix: string): string[] {
+	const pieces = prefix.split('.*');
+	return producerLines
+		.filter(({ lines }) => lines.some((text) => {
+			let at = text.indexOf(pieces[0]);
+			if (at < 0 || !/['"`]/.test(text.slice(0, at))) return false;
+			for (const piece of pieces.slice(1)) {
+				at = text.indexOf(piece, at + 1);
+				if (at < 0) return false;
+			}
+			return true;
+		}))
+		.map(({ file }) => file);
+}
 
 describe('the log prefixes the tools read', () => {
-	test('the startup section catches every line a load writes', () => {
-		for (const message of STARTUP_LINES) expect(LOG.startup.test(line(message))).toBe(true);
+	for (const [section, prefixes] of Object.entries(LOG_PREFIXES)) {
+		test(`every ${section} prefix is written by a producer`, () => {
+			for (const prefix of prefixes) {
+				const files = producedBy(prefix);
+				if (files.length === 0) {
+					throw new Error(`${section} prefix ${JSON.stringify(prefix)} is not written by any of: ${PRODUCERS.join(', ')}`);
+				}
+			}
+		});
+	}
+
+	test('each regex is the alternation of its prefixes, nothing more', () => {
+		expect(LOG.hook.source).toBe(LOG_PREFIXES.hook.join('|'));
+		expect(LOG.startup.source).toBe(LOG_PREFIXES.startup.join('|'));
+		expect(LOG.notification.source).toBe(LOG_PREFIXES.notification.join('|'));
+	});
+
+	test('the toast verdict matches with the name in the middle', () => {
+		expect(LOG.notification.test(line('toast notificationtoasts_10004_desktop -> {"title":"Aircar"}'))).toBe(true);
+		expect(LOG.notification.test(line('toast notificationtoasts_10004_desktop left open: notify failed: transport closed'))).toBe(true);
 	});
 
 	test('the per-click focus helper stays out of the startup section', () => {
-		// tools/notify-action.ps1:336 and :339 name a helper too, and fire once
-		// per click: a startup section that greps the bare word shows them.
+		// tools/notify-action.ps1 names a helper too, and fires once per
+		// click: a startup section that greps the bare word shows them.
 		expect(LOG.startup.test(line('focus: raised main'))).toBe(false);
 		expect(LOG.startup.test(line('focus: helper failed: Exception calling "Raise"'))).toBe(false);
-	});
-
-	test('the notification section catches every line one notification writes', () => {
-		for (const message of NOTIFICATION_LINES) expect(LOG.notification.test(line(message))).toBe(true);
 	});
 
 	test('the backend load verdict is not a notification', () => {
