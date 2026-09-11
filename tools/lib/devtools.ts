@@ -25,7 +25,8 @@ export type DevCommand =
 	| { call: string; args: unknown[] }
 	| { server: { type: number; body: unknown } }
 	| { overlay: { call: 'info' } }
-	| { replay: { call: 'inspect' | 'invoke'; name?: string } };
+	| { replay: { call: 'inspect' | 'invoke'; name?: string } }
+	| { focus: { appid: number } };
 
 export type FirePlan =
 	| { kind: 'usage' }
@@ -95,6 +96,12 @@ export function planFire(argv: string[]): FirePlan {
 	}
 	if (head === '--overlay-info') {
 		return { kind: 'queue', command: { overlay: { call: 'info' } }, message: 'queued: overlay info  (result lands in the plugin log)' };
+	}
+	if (head === '--focus') {
+		const appid = rest[0];
+		if (!appid) return { kind: 'error', message: '--focus needs the appid to ask about' };
+		if (!isNonNegativeInteger(appid) || appid === '0') return { kind: 'error', message: `an appid must be a positive integer, got: ${appid}` };
+		return { kind: 'queue', command: { focus: { appid: JSON.parse(appid) } }, message: `queued: focus probe appid=${appid}  (result lands in the plugin log as focus-host:)` };
 	}
 	if (head === '--replay') {
 		const call = rest[0];
