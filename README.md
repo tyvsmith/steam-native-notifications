@@ -24,13 +24,34 @@ inside Steam's UI.
 ## Install
 
 Requires [Millennium](https://steambrew.app) >= v3.5 (the `.star` plugin
-format). Every green push to `main` publishes the packed plugin under the
+format). Either install the packed plugin by hand or build it from a checkout.
+
+### Manual install
+
+Every green push to `main` publishes the packed plugin under the
 [`latest`](https://github.com/tyvsmith/steam-native-notifications/releases/tag/latest)
-pre-release; drop
-[`me.tysmith.steam-native-notifications.star`](https://github.com/tyvsmith/steam-native-notifications/releases/download/latest/me.tysmith.steam-native-notifications.star)
-into Millennium's plugins directory (paths below) and restart Steam. There is
-no numbered release yet. To build from a checkout instead you also need
-[Bun](https://bun.com):
+pre-release. There is no numbered release yet.
+
+1. Download
+   [`me.tysmith.steam-native-notifications.star`](https://github.com/tyvsmith/steam-native-notifications/releases/download/latest/me.tysmith.steam-native-notifications.star).
+2. Copy it, keeping that filename, into Millennium's plugins directory:
+   - Linux: `${XDG_DATA_HOME:-~/.local/share}/millennium/plugins/`
+   - Windows: `<Steam>\millennium\plugins\` (the Steam install directory,
+     usually `C:\Program Files (x86)\Steam`)
+
+   Create the directory if it does not exist.
+3. Restart Steam fully (`steam -shutdown`, wait, relaunch). `plugin.restart`
+   and disable/enable in Millennium leave the plugin stopped.
+4. Enable **Steam Native Notifications** under Millennium > Plugins.
+
+To update, replace the file and restart Steam the same way. To uninstall,
+delete the file and restart; on Windows first run
+`%LOCALAPPDATA%\steam-native-notifications\notify-action.ps1 -Teardown` to
+drop the toast registration.
+
+### Build from a checkout
+
+Needs [Bun](https://bun.com) as well:
 
 ```sh
 bun install
@@ -38,12 +59,9 @@ bun run build
 ```
 
 Building **is** installing: starlight packs the plugin and writes it straight
-into Millennium's plugins directory —
-`${XDG_DATA_HOME:-~/.local/share}/millennium/plugins/` on Linux, and
-`<Steam>\millennium\plugins\` on Windows (the Steam path comes from the
-registry). Then restart Steam and enable **Steam Native Notifications** under
-Millennium > Plugins. After any rebuild, restart Steam fully: `plugin.restart`
-and disable/enable leave the plugin stopped.
+into the plugins directory above (on Windows the Steam path comes from the
+registry). Then restart Steam and enable the plugin as in the manual steps.
+After any rebuild, restart Steam fully.
 
 The packed `.star` is platform-independent, so it can also be built on one
 machine and copied into the other's plugins directory — which is how the
