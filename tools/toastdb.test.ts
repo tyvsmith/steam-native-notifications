@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PLUGIN_ID } from './lib/snn';
-import { readToasts, toastRows } from './lib/toastdb';
+import { readToasts, toastFacts, toastRows } from './lib/toastdb';
 
 const dirs: string[] = [];
 
@@ -81,5 +81,27 @@ describe('reading the notification database', () => {
 			if (before === undefined) delete process.env.LOCALAPPDATA;
 			else process.env.LOCALAPPDATA = before;
 		}
+	});
+});
+
+describe('toast XML facts', () => {
+	test('reads the shape notify-action.ps1 builds', () => {
+		const xml =
+			'<toast activationType="protocol" launch="steam://steam-native-notifications/notification/eyJ2IjoxfQ">' +
+			'<visual><binding template="ToastGeneric"><text>Download Complete</text><text>Aircar &#8212; Your game &amp; DLC</text>' +
+			'<image placement="appLogoOverride" hint-crop="circle" src="file:///C:/x/y.jpg"/></binding></visual></toast>';
+		expect(toastFacts(xml)).toEqual({
+			title: 'Download Complete',
+			body: 'Aircar — Your game & DLC',
+			imageSrc: 'file:///C:/x/y.jpg',
+			imageCrop: 'circle',
+			launch: 'steam://steam-native-notifications/notification/eyJ2IjoxfQ',
+			activationType: 'protocol',
+		});
+	});
+
+	test('a toast without an image or a second text', () => {
+		const f = toastFacts('<toast><visual><binding template="ToastGeneric"><text>Only</text></binding></visual></toast>');
+		expect(f).toMatchObject({ title: 'Only', body: null, imageSrc: '', imageCrop: '', launch: '', activationType: '' });
 	});
 });

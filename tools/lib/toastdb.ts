@@ -80,3 +80,44 @@ export function toastRows(limit = 10): ToastRow[] {
 	if (!existsSync(src)) throw new Error(`no notification database at ${src}`);
 	return readToasts(src, limit);
 }
+
+export interface ToastFacts {
+	title: string | null;
+	body: string | null;
+	imageSrc: string;
+	imageCrop: string;
+	launch: string;
+	activationType: string;
+}
+
+const unescapeXml = (s: string): string =>
+	s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#(\d+);/g, (_m, n) => String.fromCodePoint(Number(n))).replace(/&amp;/g, '&');
+
+/**
+ * The assertable slots of one toast's XML, in the shape
+ * tools/notify-action.ps1 builds: two <text> nodes (title, body), an optional
+ * appLogoOverride <image>, and the launch attribute carrying
+ * steam://steam-native-notifications/notification/<envelope>. Pattern-matched
+ * rather than parsed: the helper writes this one shape and nothing else.
+ */
+export function toastFacts(xml: string): ToastFacts {
+	const attr = (name: string): string => {
+		const m = new RegExp(`<toast\\b[^>]*\\s${name}="([^"]*)"`).exec(xml);
+		return m ? unescapeXml(m[1]) : '';
+	};
+	const texts = [...xml.matchAll(/<text\b[^>]*>([^<]*)<\/text>/g)].map((m) => unescapeXml(m[1]));
+	const image = /<image\b([^>]*)\/?>/.exec(xml);
+	const imageAttr = (name: string): string => {
+		if (!image) return '';
+		const m = new RegExp(`\\s${name}="([^"]*)"`).exec(image[1]);
+		return m ? unescapeXml(m[1]) : '';
+	};
+	return {
+		title: texts[0] ?? null,
+		body: texts[1] ?? null,
+		imageSrc: imageAttr('src'),
+		imageCrop: imageAttr('hint-crop'),
+		launch: attr('launch'),
+		activationType: attr('activationType'),
+	};
+}

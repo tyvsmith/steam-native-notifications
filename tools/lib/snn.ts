@@ -238,7 +238,6 @@ export function starPathFor(platform: NodeJS.Platform, env: Env, home: string, s
  * there), and the macOS one is unverified.
  */
 export function steamConsoleLogPath(): string | null {
-	if (process.platform !== 'linux') return null;
 	return steamConsoleLogPathFor(process.platform, steamDir());
 }
 
