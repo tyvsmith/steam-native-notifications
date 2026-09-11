@@ -1,5 +1,5 @@
-// The pure halves of tools/fire and tools/mep, kept apart from the file and
-// socket work so tools/devtools.test.ts can pin their contracts.
+// tools/fire's argument grammar, kept apart from the file work so
+// tools/devtools.test.ts can pin its contract.
 import { parseJson } from './json';
 
 /** What a dev-door name may look like: a NotificationStore Test* method, a toast name, a replay call. */
@@ -140,24 +140,3 @@ export function planFire(argv: string[]): FirePlan {
 	}
 	return { kind: 'queue', command: { call: head, args }, message: `queued: ${head} ${list}  ${QUEUED}` };
 }
-
-/** key=value; the value is JSON when it parses as JSON, else a plain string. */
-export function parseMepParam(token: string): [string, unknown] {
-	const eq = token.indexOf('=');
-	if (eq < 0) throw new Error(`parameters look like key=value, got: ${token}`);
-	const key = token.slice(0, eq);
-	const raw = token.slice(eq + 1);
-	try {
-		return [key, parseJson(raw)];
-	} catch {
-		return [key, raw];
-	}
-}
-
-export const USEFUL_MEP_METHODS = [
-	'millennium.version', 'millennium.status',
-	'plugin.list', 'plugin.get', 'plugin.status',
-	'plugin.enable', 'plugin.disable', 'plugin.restart',
-	'plugin.config.get', 'plugin.config.set',
-	'plugin.config.delete', 'plugin.config.get_all',
-];

@@ -2,6 +2,13 @@
 // integers, floats, strings, binary, arrays and maps. No extension types.
 // Decoding is exact: a value must end where the frame ends, and a frame
 // that ends early is an error, never a partial answer.
+//
+// Hand-rolled rather than @msgpack/msgpack on purpose. The exact-integer
+// behaviour is load-bearing: a 17-digit steamid must go out as the 64-bit
+// rung and come back as a bigint, never a rounded double, and the rung tests
+// in tools/devtools.test.ts pin the leading byte and width of every form. And the
+// dev tools stay zero-install, which matters on a Windows guest VM where a
+// bun and a checkout are all there is.
 
 export type Packable = null | boolean | number | bigint | string | Uint8Array | Packable[] | { [key: string]: Packable };
 
@@ -243,23 +250,4 @@ export function decode(buf: Uint8Array): unknown {
 	const v = r.value();
 	if (r.remaining !== 0) throw new Error(`msgpack: ${r.remaining} trailing byte(s) after the value`);
 	return v;
-}
-
-/** MEP's framing: a 4-byte little-endian body length, then the body. */
-export function frame(body: Uint8Array): Uint8Array {
-	const out = new Uint8Array(4 + body.length);
-	new DataView(out.buffer).setUint32(0, body.length, true);
-	out.set(body, 4);
-	return out;
-}
-
-/**
- * Pull one complete frame off the front of a byte buffer, or null while the
- * buffer is still short. The header alone is not a frame.
- */
-export function takeFrame(buf: Uint8Array): { body: Uint8Array; rest: Uint8Array } | null {
-	if (buf.length < 4) return null;
-	const len = new DataView(buf.buffer, buf.byteOffset, buf.byteLength).getUint32(0, true);
-	if (buf.length < 4 + len) return null;
-	return { body: buf.subarray(4, 4 + len), rest: buf.subarray(4 + len) };
 }

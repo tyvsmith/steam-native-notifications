@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { isNonNegativeInteger, isToken, parseMepParam, planFire } from './lib/devtools';
-import { formatJson, parseJson } from './lib/json';
-import { decode, encode, frame, takeFrame } from './lib/msgpack';
+import { isNonNegativeInteger, isToken, planFire } from './lib/devtools';
+import { decode, encode } from './lib/msgpack';
 
 describe('msgpack', () => {
 	test('round-trips the request/response shapes MEP uses', () => {
@@ -65,17 +64,6 @@ describe('msgpack', () => {
 
 	test('rejects extension types rather than guessing', () => {
 		expect(() => decode(new Uint8Array([0xd4, 0x01, 0x00]))).toThrow(/unsupported/);
-	});
-
-	test('frames carry a little-endian length and are taken whole', () => {
-		const body = encode({ id: 'x' });
-		const f = frame(body);
-		expect(f[0]).toBe(body.length);
-		expect(takeFrame(f.subarray(0, 3))).toBeNull();
-		expect(takeFrame(f.subarray(0, f.length - 1))).toBeNull();
-		const got = takeFrame(new Uint8Array([...f, 9, 9]));
-		expect(got?.body).toEqual(body);
-		expect(got?.rest).toEqual(new Uint8Array([9, 9]));
 	});
 });
 
@@ -187,38 +175,5 @@ describe('tools/fire argument grammar', () => {
 		// A slot without a default reads an empty argument as missing.
 		expect(planFire(['--server', '']).kind).toBe('error');
 		expect(planFire(['--replay', '']).kind).toBe('error');
-	});
-});
-
-describe('tools/mep parameters', () => {
-	test('values are JSON when they parse, else strings', () => {
-		expect(parseMepParam('name=me.tysmith.steam-native-notifications')).toEqual(['name', 'me.tysmith.steam-native-notifications']);
-		expect(parseMepParam('value=true')).toEqual(['value', true]);
-		expect(parseMepParam('value=42')).toEqual(['value', 42]);
-		expect(parseMepParam('value="go"')).toEqual(['value', 'go']);
-		expect(parseMepParam('key=a=b')).toEqual(['key', 'a=b']);
-		expect(() => parseMepParam('novalue')).toThrow(/key=value/);
-	});
-
-	test('integers beyond 2^53 keep every digit through a request and its reply', () => {
-		// A steamid64 is 17 digits; JSON.parse alone would round it to ...680.
-		const id = 76561198300097684n;
-		expect(parseMepParam('value=76561198300097684')).toEqual(['value', id]);
-		expect(parseMepParam('value=42')).toEqual(['value', 42]);
-		expect(parseMepParam('value="76561198300097684"')).toEqual(['value', '76561198300097684']);
-		expect(parseMepParam('body={"steamid":76561198300097684,"n":1}')).toEqual(['body', { steamid: id, n: 1 }]);
-		expect(parseJson('-9007199254740993')).toBe(-9007199254740993n);
-		expect(parseJson('9007199254740991')).toBe(9007199254740991);
-		expect(parseJson('1.5')).toBe(1.5);
-
-		const request = { id: 'mep-cli', method: 'plugin.config.set', params: { value: id } };
-		const wire = encode(request);
-		expect(Array.from(wire)).toContain(0xcf);
-		expect(decode(wire)).toEqual(request);
-
-		const printed = formatJson({ result: { steamid: id, small: 7 } });
-		expect(printed).toContain('"steamid": 76561198300097684');
-		expect(printed).toContain('"small": 7');
-		expect(parseJson(printed)).toEqual({ result: { steamid: id, small: 7 } });
 	});
 });
