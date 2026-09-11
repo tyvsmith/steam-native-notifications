@@ -17,7 +17,7 @@ import { dlog, safeJson } from './log';
  * steam://openexternalforpid parser builds.
  */
 let overlayStore: any;
-const gameHostFocus = ffi<[number], string>('GameHostFocus');
+export const gameHostFocus = ffi<[number], string>('GameHostFocus');
 
 /**
  * Live game-focus state, from the client's own signal. Steam places toasts by

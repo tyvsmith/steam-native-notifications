@@ -23,6 +23,8 @@
 //   tools/fire --overlay-info                dump overlay browser PIDs
 //   tools/fire --replay inspect              dump the stashed handler entries
 //   tools/fire --replay invoke [toast-name]  invoke a stashed handler
+//   tools/fire --focus <appid>               ask the host-focus provider about
+//                                            a running app (focus-host: line)
 //
 // Runs under bun on every platform (on Windows: bun tools/fire ...). The
 // runtime directory and the .star location follow backend/main.lua

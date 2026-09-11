@@ -2,7 +2,7 @@ import { ffi, findModuleExport } from 'millennium';
 import { dlog, safeJson } from './log';
 import { parseCallableJson, settings } from './settings';
 import { inspectReplayStash, invokeReplayHandler } from './replay';
-import { currentClickSurface } from './overlay';
+import { currentClickSurface, gameHostFocus } from './overlay';
 
 /**
  * The tools/fire door: dev machinery, fenced off from the capture path.
@@ -117,10 +117,24 @@ export function startDevFirePoll(): void {
 				server?: { type: number; body?: unknown };
 				overlay?: { call?: string };
 				replay?: { call?: string; name?: string };
+				focus?: { appid?: number };
 			} | null>(raw, null);
 			if (!cmd) return;
 			if (cmd.overlay) {
 				void runOverlayProbe(cmd.overlay);
+				return;
+			}
+			// Host-focus diagnostics: ask the backend's provider directly, the
+			// call the click surface makes when an overlay holds focus, so the
+			// probe can be exercised on a host where no overlay ever will.
+			if (cmd.focus) {
+				const appid = Number(cmd.focus.appid);
+				try {
+					const result = await gameHostFocus(appid);
+					dlog(`focus-host: appid=${appid} result=${safeJson(result)} (dev-fire)`);
+				} catch (e) {
+					dlog(`focus-host: appid=${appid} probe failed: ${(e as Error)?.message ?? e}`);
+				}
 				return;
 			}
 			// Replay diagnostics: inspect the handler stash, or invoke a stashed
