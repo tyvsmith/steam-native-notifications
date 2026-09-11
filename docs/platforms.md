@@ -628,7 +628,9 @@ two maps disagree on a pid. Unknown leaves the bridge's fail-closed path.
 Measured in the dockur/windows VM (no GPU) with a non-Steam shortcut to a
 GDI app: Steam tracked it and set `RunningAppID`, no overlay process ever
 appeared, and the verdicts followed every transition (front, minimized, Steam
-raised, another app raised, restored, exited). Because no device is ever
+raised, another app raised, restored, exited), driven from inside Steam
+through `tools/fire --focus <appid>`; one probe round trip took about a
+second there, PowerShell start-up included. Because no device is ever
 hooked there, the overlay branch that triggers the probe never ran in the VM;
 that is the remaining hardware check. `SetForegroundWindow` from a spawned
 helper is refused by the foreground lock (returned false every time); the
