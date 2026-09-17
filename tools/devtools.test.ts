@@ -105,6 +105,13 @@ describe('tools/fire argument grammar', () => {
 		expect(planFire(['--replay', 'invoke', 'a"b']).kind).toBe('error');
 	});
 
+	test('--focus wants a positive appid and queues the host-focus probe', () => {
+		expect(planFire(['--focus', '2190059198'])).toMatchObject({ kind: 'queue', command: { focus: { appid: 2190059198 } } });
+		expect(planFire(['--focus'])).toMatchObject({ kind: 'error' });
+		expect(planFire(['--focus', '0'])).toMatchObject({ kind: 'error' });
+		expect(planFire(['--focus', 'abc'])).toMatchObject({ kind: 'error' });
+	});
+
 	test('--overlay-info', () => {
 		expect(planFire(['--overlay-info'])).toMatchObject({ kind: 'queue', command: { overlay: { call: 'info' } } });
 	});

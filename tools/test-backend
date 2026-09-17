@@ -926,7 +926,7 @@ check("windows: the payload file is removed on a failed spawn", leftover == "0",
 -- With ffi present (stubbed: this runner is PUC Lua), the spawn goes through
 -- CreateProcessW: the setup pass at load, then one PowerShell invocation per
 -- notification, with the five slots in a <id>.notify file the helper reads.
-local ffi_commands = {}
+local ffi_commands, ffi_waits = {}, {}
 package.preload["ffi"] = function()
 	local last_text
 	return {
@@ -943,6 +943,7 @@ package.preload["ffi"] = function()
 				return 1
 			end,
 			CloseHandle = function() return 1 end,
+			WaitForSingleObject = function(_, ms) ffi_waits[#ffi_waits + 1] = ms; return 0 end,
 		},
 	}
 end
@@ -993,6 +994,18 @@ for _, case in ipairs({
 		payload ~= nil and payload:find('"suppressPopup":false', 1, true) ~= nil, tostring(payload))
 end
 
+-- The game-focus probe rides the same seam, waits for the helper, and reads
+-- unknown when no result file appears (this stub spawns nothing). The packed
+-- module is loaded the way the Linux branch loads game_focus above.
+package.loaded['focus.windows'] = dofile(root .. '/backend/focus/windows.lua')
+local host_focus
+ok, host_focus = pcall(GameHostFocus, 2190059198)
+check("windows+ffi: GameHostFocus runs", ok, host_focus)
+check("windows+ffi: GameHostFocus is unknown without a result file", host_focus == "unknown", tostring(host_focus))
+check("windows+ffi: the probe is spawned with the appid and a result path under the runtime directory",
+	ffi_commands[#ffi_commands]:find('-GameFocus 2190059198 -Result "' .. win_runtime .. '\\focus-', 1, true) ~= nil,
+	tostring(ffi_commands[#ffi_commands]))
+check("windows+ffi: the probe spawn waits, bounded", #ffi_waits == 1 and ffi_waits[1] == 3000, tostring(ffi_waits[1]))
 local focus_result
 ok, focus_result = pcall(FocusSteam, "chat")
 check("windows+ffi: FocusSteam runs", ok, focus_result)

@@ -173,6 +173,7 @@ local function windows_ffi()
             uint32_t, void*, const wchar_t*, SNN_STARTUPINFOW*,
             SNN_PROCESS_INFORMATION*);
         int32_t CloseHandle(void*);
+        uint32_t WaitForSingleObject(void*, uint32_t);
         int MultiByteToWideChar(unsigned int, uint32_t, const char*, int,
             wchar_t*, int);
     ]])
@@ -194,8 +195,11 @@ end
 
 --- Start Windows PowerShell (5.1: pwsh cannot project WinRT) on the
 --- materialized helper with CREATE_NO_WINDOW, detached. False, with the
---- reason logged, when ffi is missing or the call fails.
-local function spawn_windows_helper(arguments)
+--- reason logged, when ffi is missing or the call fails. With `wait_ms` the
+--- call also waits, bounded, for the helper to exit (the focus probe answers
+--- through a file the caller reads next); a helper still running at the
+--- deadline is left to finish on its own.
+local function spawn_windows_helper(arguments, wait_ms)
     local ffi = windows_ffi()
     if not ffi then
         log_line("error",
@@ -217,6 +221,7 @@ local function spawn_windows_helper(arguments)
             nil, nil, startup, process) == 0 then
             return false
         end
+        if wait_ms then ffi.C.WaitForSingleObject(process.hProcess, wait_ms) end
         ffi.C.CloseHandle(process.hProcess)
         ffi.C.CloseHandle(process.hThread)
         return true
@@ -485,12 +490,23 @@ end
 
 --- Steam tracks focus inside nested Gamescope, not necessarily its host window.
 --- The optional Linux probe only answers for a uniquely identified wrapper.
+--- On Windows the provider spawns notify-action.ps1 -GameFocus through the
+--- seam above and reads its result file (backend/focus/windows.lua).
 ---@ffi
 ---@param appid number
 ---@return string
 function GameHostFocus(appid)
     local ok, result = pcall(function()
-        return require('game_focus').query(appid, PLATFORM)
+        local host
+        if IS_WINDOWS then
+            host = {
+                spawn = spawn_windows_helper,
+                runtime = RUNTIME_DIR,
+                steam = millennium_steam_dir(),
+                log = function(line) log_line("info", line) end,
+            }
+        end
+        return require('game_focus').query(appid, PLATFORM, host)
     end)
     return ok and result or "unknown"
 end
