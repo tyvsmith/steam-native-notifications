@@ -32,7 +32,7 @@ assert(win.parse('fg=1708\ntracked=1:2\n') == nil, 'a missing line is a partial 
 assert(win.parse(nil) == nil and win.parse('') == nil)
 
 -- query(): plumbing through a fake host
-local dir = os.getenv('TMPDIR') or '/tmp'
+local dir = os.getenv('TMPDIR') or os.getenv('TMP') or os.getenv('TEMP') or '/tmp'
 local spawned, logs = {}, {}
 local function host(body)
     return {

@@ -364,12 +364,15 @@ if ($GameFocus) {
             # Steam keeps the log open for writing; open it shared or the read is refused.
             $stream = New-Object IO.FileStream($log, [IO.FileMode]::Open, [IO.FileAccess]::Read, ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
             $reader = New-Object IO.StreamReader($stream)
-            try { $lines = @(); while (($l = $reader.ReadLine()) -ne $null) { $lines += $l } } finally { $reader.Dispose() }
-            foreach ($line in $lines) {
-                if ($line -match 'Game process (added|removed)\s?: AppID (\d+) .*ProcID (\d+)') {
-                    if ($Matches[1] -eq 'added') { $tracked[[uint32]$Matches[3]] = [uint32]$Matches[2] } else { $tracked.Remove([uint32]$Matches[3]) }
+            # One pass, no accumulated array: the log can run to megabytes and
+            # the backend waits at most 3 s for this file.
+            try {
+                while (($line = $reader.ReadLine()) -ne $null) {
+                    if ($line -match 'Game process (added|removed)\s?: AppID (\d+) .*ProcID (\d+)') {
+                        if ($Matches[1] -eq 'added') { $tracked[[uint32]$Matches[3]] = [uint32]$Matches[2] } else { $tracked.Remove([uint32]$Matches[3]) }
+                    }
                 }
-            }
+            } finally { $reader.Dispose() }
         }
         $live = @{}
         foreach ($pid2 in @($tracked.Keys)) { if (Get-Process -Id $pid2 -ErrorAction SilentlyContinue) { $live[$pid2] = $tracked[$pid2] } }
