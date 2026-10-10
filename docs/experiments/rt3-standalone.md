@@ -37,8 +37,8 @@ curl --fail http://127.0.0.1:8080/json/list
 bun standalone/daemon.ts --port 8080
 ```
 
-The debugging switches remain present in the installed RT3 binaries, but this
-branch has not verified that launch sequence against the live client. If the
+On October 10, 2026, this launch sequence was verified against the native
+64-bit RT3 client with a custom port (38275), bound only to 127.0.0.1. If the
 endpoint is unavailable, the daemon logs the reason and retries. If port 8080
 is occupied, use another port in both commands. Never run the daemon together
 with the enabled Millennium notification plugin: they would capture twice.
@@ -120,17 +120,33 @@ context isolation, and reload reinjection. Existing backend, route, click,
 platform, and Wayland fixtures still apply. CI builds both hosts and verifies
 the Millennium `.star` without installing it.
 
-Live RT3 checks remain pending:
+Live Linux RT3 checks on October 10, 2026 (client build 1791592380):
 
-1. Confirm the actual RT3 process, loopback DevTools listener, shared target,
-   successful injection, and both hook-registration log lines
-2. Capture a real download completion; inspect localized copy and artwork
-3. Click a native notification and verify exact replay plus visible focus
-4. Restart Steam; verify daemon reconnection and a retained notification's
-   durable fallback, then reload the UI and check for duplicate delivery
-5. Test nested-Gamescope focus and a compositor reconnect
-6. Confirm stopping the daemon leaves Steam notifications usable; fully exit
-   Steam to remove injected hooks
+- Confirmed the 64-bit client, loopback-only CEF listener, SharedJSContext,
+  both hook registrations, and no Millennium globals in that context.
+- Captured genuine friend-online events. Steam's built-in achievement and
+  download test methods also reached the native desktop server; game artwork
+  appeared on the visible download banner. A real download was not performed.
+- Invoked the visible download banner's default action through Omarchy's
+  notification IPC (the same handler as its UI click). The canonical URL
+  reached the standalone bridge, replayed the captured callback, and visibly
+  opened the correct Library page. A physical mouse click was not verified.
+- Restarted the daemon without repeating hook registration, reloaded the
+  shared UI with automatic reinjection, then restarted Steam with automatic
+  reattachment. A fresh post-restart test produced one delivery request.
+- Executed a retained native-history download action after UI reload and
+  full Steam restart. Its expired replay token used the durable Library URL.
+- The desktop initially had Do Not Disturb enabled: notifications were saved
+  to history and immediately dismissed. Temporarily disabling it verified
+  the visible banner; the original enabled setting was restored afterward.
+- Stopped the experimental daemon and monitor, exited the debugging session,
+  and relaunched Steam normally to remove injected hooks and the debug port.
+
+Remaining live checks: real download completion/localized copy, physical
+banner/history clicks and foreground focus from another app, in-game capture,
+nested-Gamescope focus, compositor reconnect, and delivery failure while the
+daemon is stopped. No game installation or user service was changed. Private
+notification text, IDs, logs, and desktop screenshots are not published here.
 
 Startup notifications before attachment can be missed. Delivery acknowledges
 helper launch, not a visible banner. At most 64 helpers may wait for native
@@ -138,4 +154,4 @@ actions; excess deliveries preserve Steam. LuaJIT or compositor failures return
 `unknown` and retain Steam's focus selection. Bundle updates require a full
 Steam restart; daemon reconnects deliberately reuse an already-injected bundle
 to avoid duplicate callbacks and broken pending requests. This is an
-experimental implementation, not a claim of tested RT3 support.
+experimental implementation with limited live desktop RT3 validation.
