@@ -130,7 +130,10 @@ Live Linux RT3 checks on October 10, 2026 (client build 1791592380):
 - Invoked the visible download banner's default action through Omarchy's
   notification IPC (the same handler as its UI click). The canonical URL
   reached the standalone bridge, replayed the captured callback, and visibly
-  opened the correct Library page. A physical mouse click was not verified.
+  opened the correct Library page. A subsequent physical mouse click on a
+  separately generated banner also replayed Steam's callback and opened the
+  same page. The existing neutral terminal was active immediately before the
+  click; Steam became active afterward (confirmed by compositor state).
 - Restarted the daemon without repeating hook registration, reloaded the
   shared UI with automatic reinjection, then restarted Steam with automatic
   reattachment. A fresh post-restart test produced one delivery request.
@@ -143,7 +146,7 @@ Live Linux RT3 checks on October 10, 2026 (client build 1791592380):
   and relaunched Steam normally to remove injected hooks and the debug port.
 
 Remaining live checks: real download completion/localized copy, physical
-banner/history clicks and foreground focus from another app, in-game capture,
+retained-history clicks, in-game capture,
 nested-Gamescope focus, compositor reconnect, and delivery failure while the
 daemon is stopped. No game installation or user service was changed. Private
 notification text, IDs, logs, and desktop screenshots are not published here.
