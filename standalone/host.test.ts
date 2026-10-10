@@ -51,20 +51,22 @@ test('standalone logs do not truncate Millennium plugin logs', async () => {
     expect(await readFile(join(host.runtime, 'standalone.log'), 'utf8')).toContain('hello world');
 });
 
-test('native delivery passes shell metacharacters as text through the real helper', async () => {
+test('native delivery honors changed PATH and passes shell metacharacters through the real helper', async () => {
     const { root, host } = await fixture(); const bin = join(root, 'bin'); await mkdir(bin);
     const sent = join(root, 'sent.json'); const marker = join(root, 'unexpected');
     await writeFile(join(bin, 'notify-send'), `#!${process.execPath}\nawait Bun.write(${JSON.stringify(sent)}, JSON.stringify(process.argv.slice(2)));\n`, { mode: 0o755 });
     await writeFile(join(bin, 'gdbus'), '#!/bin/sh\ncase "$*" in *GetCapabilities*) printf "([\\x27body-markup\\x27],)\\n";; *GetServerInformation*) printf "(\\x27fixture\\x27,)\\n";; esac\n', { mode: 0o755 });
-    const previousPath = process.env.PATH; process.env.PATH = `${bin}:${previousPath}`;
     try {
         const title = `Friend $(touch ${marker})`; const body = '`false`; <body>&';
-        expect(await host.dispatch('Notify', [title, body, '', '', '', 'false'])).toBe('ok');
+        const program = `import { Host } from ${JSON.stringify(join(import.meta.dir, 'host.ts'))}; process.env.PATH=${JSON.stringify(bin + ':' + process.env.PATH)}; const host=new Host(${JSON.stringify(host.runtime)},${JSON.stringify(host.config)},${JSON.stringify(host.steam)}); console.log(await host.dispatch('Notify', ${JSON.stringify([title, body, '', '', '', 'false'])}));`;
+        const child = Bun.spawn([process.execPath, '-e', program], { env: { ...process.env, PATH: '/no-startup-tools' }, stdout: 'pipe', stderr: 'pipe' });
+        expect((await new Response(child.stdout).text()).trim()).toBe('ok');
+        expect(await child.exited).toBe(0);
         let args: string[] | undefined;
         for (let attempt = 0; attempt < 100; attempt++) {
             try { args = JSON.parse(await readFile(sent, 'utf8')); break; } catch { await Bun.sleep(10); }
         }
         expect(args).toContain(title); expect(args?.join(' ')).toContain('`false`;');
         expect(await Bun.file(marker).exists()).toBe(false);
-    } finally { process.env.PATH = previousPath; host.stop(); }
+    } finally { host.stop(); }
 });

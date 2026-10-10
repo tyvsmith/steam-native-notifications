@@ -65,7 +65,7 @@ export class Host {
             }
             case 'Notify': {
                 if (args.length !== 6 || args.some(value => typeof value !== 'string' || value.length > 16384)) break;
-                if (!Bun.which('notify-send') || !Bun.which('gdbus') || this.children.size >= 64) return 'unsupported';
+                if (!Bun.which('notify-send', { PATH: process.env.PATH }) || !Bun.which('gdbus', { PATH: process.env.PATH }) || this.children.size >= 64) return 'unsupported';
                 const strings = args as string[];
                 return new Promise(resolveResult => {
                     // argv only; rendered Steam text cannot become shell source.
@@ -82,7 +82,7 @@ export class Host {
         throw new Error(`Unsupported method or invalid arguments: ${method}`);
     }
     private async focus(appid: number): Promise<string> {
-        if (!Bun.which('luajit')) return 'unknown';
+        if (!Bun.which('luajit', { PATH: process.env.PATH })) return 'unknown';
         try {
             const entries = await readdir('/proc');
             const paths = await Promise.all(entries.filter(id => /^\d+$/.test(id)).map(async id => {
