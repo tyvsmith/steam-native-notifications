@@ -13,7 +13,7 @@ const line = (message: string) => `[2026-09-07 21:14:03] [steam-native-notificat
 // written verbatim by one of these, or tools/capture is grepping for a line
 // nobody produces.
 const PRODUCERS = [
-	'frontend/index.tsx',
+	'frontend/runtime.ts',
 	'frontend/steamurl.ts',
 	'frontend/clickbridge.ts',
 	'frontend/replay.ts',
