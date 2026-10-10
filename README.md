@@ -117,3 +117,11 @@ each backend load); Millennium's loader lines are in
 `~/.steam/steam/logs/console-linux.txt` under `me.tysmith.steam-native-notifications`.
 Every stage of a click logs one line, and every failure mode names itself —
 the vocabulary table is in `docs/architecture.md`.
+
+## Experimental RT3 client without Millennium
+
+The `experimental/rt3-standalone-cdp` branch adds a native Linux Bun host over
+Steam CEF DevTools. Build with `bun run build:standalone`; see
+[setup and validation limits](docs/experiments/rt3-standalone.md). Live RT3
+notification delivery remains unverified. The normal Millennium plugin remains
+available.

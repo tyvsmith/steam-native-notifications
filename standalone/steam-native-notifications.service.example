@@ -1,0 +1,14 @@
+[Unit]
+Description=Experimental Steam RT3 native notifications
+
+[Service]
+# Replace both paths with the absolute paths to Bun and your checkout.
+Type=simple
+WorkingDirectory=/absolute/path/to/steam-native-notifications
+ExecStart=/absolute/path/to/bun standalone/daemon.ts --port 8080
+Restart=on-failure
+RestartSec=5
+UMask=0077
+
+[Install]
+WantedBy=default.target

@@ -18,11 +18,15 @@ records how the routing catalog and protobuf schema were restored from
 `docs/platforms.md` is the platform support matrix (the paths and calls
 that differ per OS, and the delivery plan where nothing delivers yet).
 
+The experimental native Linux RT3 host reuses this frontend through a CDP
+binding adapter; the normal Millennium entrypoint still supplies its settings
+panel. See [standalone setup and limits](experiments/rt3-standalone.md).
+
 ## The pipeline
 
 ```
 Steam renders a toast (its own CEF popup window)
-  frontend/index.tsx      hook g_PopupManager, wait for paint, read the DOM
+  frontend/runtime.ts     hook g_PopupManager, wait for paint, read the DOM
   frontend/notification.ts decode Steam's attached notification
   frontend/routes.ts      derive a durable fallback from the decoded fields
   frontend/replay.ts      walk the toast's fiber tree, stash its click handler

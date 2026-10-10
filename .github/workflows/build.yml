@@ -31,6 +31,8 @@ jobs:
       # Lua backend + notify-action seams (notify-send/gdbus shimmed), and
       # the frontend's toast decode + click chooser, compiled offline.
       - run: bun run test
+      - run: bun run build:standalone
+      - run: bun run test:standalone
 
       # -o overrides millennium.toml's output_path=auto, which would install
       # into $HOME/.local/share/millennium/plugins; the file is <dir>/<id>.star

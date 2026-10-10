@@ -5,3 +5,4 @@ __pycache__/
 *.pyc
 .omc/
 .millennium/lsp/
+dist/

@@ -3,7 +3,10 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "target": "ES2020",
-    "lib": ["ES2023", "DOM"],
+    "lib": [
+      "ES2023",
+      "DOM"
+    ],
     "jsx": "react-jsx",
     "declaration": false,
     "forceConsistentCasingInFileNames": true,
@@ -29,6 +32,7 @@
   },
   "include": [
     "frontend",
+    "standalone/**/*.ts",
     "tools/**/*.ts"
   ],
   "exclude": [

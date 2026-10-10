@@ -20,7 +20,7 @@ const logLine = ffi<[string], string>('Log');
 /** Never throws: diagnostics must not take the notification path down. */
 export function dlog(line: string): void {
 	try {
-		void logLine(line);
+		void Promise.resolve(logLine(line)).catch(() => {});
 	} catch {
 		/* the log is best-effort by design */
 	}
