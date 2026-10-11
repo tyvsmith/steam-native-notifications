@@ -1,0 +1,53 @@
+import { expect, test } from 'bun:test';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { ConfigStore } from './config-store';
+import { startSettingsServer } from './settings-server';
+async function fixture(run: (s: ReturnType<typeof startSettingsServer>, call: (path: string, body?: unknown, headers?: Record<string,string>, method?: string) => Promise<Response>, root: string) => Promise<void>) {
+    const root = await mkdtemp(join(tmpdir(), 'snn-settings-')); const store = new ConfigStore(join(root, 'config.json')); let samples = 0;
+    const s = startSettingsServer({ store, status: async () => [{ host: 'standalone', present: false, state: 'unavailable' }], sample: async () => ({ stage: 'executed', count: ++samples }) });
+    const call = (path: string, body?: unknown, headers?: Record<string,string>, method?: string) => fetch(s.origin + path, { method: method ?? (body === undefined ? 'GET' : 'POST'), headers: { authorization: 'Bearer '+new URL(s.url).hash.slice(1), ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...headers }, body: body === undefined ? undefined : JSON.stringify(body) });
+    try { await run(s, call, root); } finally { s.stop(); await rm(root, { recursive:true, force:true }); }
+}
+test('loopback API rejects unauthorized, origins, hosts, methods and invalid shapes', async () => fixture(async (s, call) => {
+    expect((await fetch(s.origin+'/api/state')).status).toBe(401);
+    expect((await call('/api/state', undefined, { origin:'https://evil.example' })).status).toBe(403);
+    expect((await call('/api/state', undefined, { host:'localhost:'+new URL(s.url).port })).status).toBe(403);
+    expect((await call('/api/state', undefined, {}, 'DELETE')).status).toBe(405);
+    expect((await call('/api/config', { notifyOutsideGame:'yes' })).status).toBe(400);
+    expect((await call('/api/config', { devMode:true })).status).toBe(400);
+    expect((await call('/api/config', { devFire:true })).status).toBe(400);
+    expect((await call('/api/config', { notificationCenterOnlyInGame:true })).status).toBe(400);
+    expect((await call('/api/sample', 1)).status).toBe(400);
+    expect((await call('/api/sample', {} , { 'content-type':'text/plain' })).status).toBe(415);
+    expect((await call('/api/state?token=anything')).status).toBe(400);
+    const malformed = await fetch(s.origin+'/api/config', { method:'POST', headers:{ authorization:'Bearer '+new URL(s.url).hash.slice(1), 'content-type':'application/json'}, body:'{' }); expect(malformed.status).toBe(400);
+    const huge = await fetch(s.origin+'/api/config', { method:'POST', headers:{ authorization:'Bearer '+new URL(s.url).hash.slice(1), 'content-type':'application/json'}, body:JSON.stringify({ x:'a'.repeat(9000) }) }); expect(huge.status).toBe(413);
+}));
+test('offline edits/reset preserve unrelated and unsupported preferences, retain last valid, safe fixed sample and close', async () => fixture(async (s, call, root) => {
+    await writeFile(join(root,'config.json'), JSON.stringify({ unrelated:'keep', notificationCenterOnlyInGame:true, devMode:true }));
+    const state = await (await call('/api/state')).json(); expect(state.hosts[0].present).toBe(false); expect(state.build.version).toBeTruthy();
+    expect((await call('/api/config',{ notifyOutsideGame:false, devFire:true })).status).toBe(200);
+    const persisted = JSON.parse(await readFile(join(root,'config.json'),'utf8')); expect(persisted.unrelated).toBe('keep'); expect(persisted.devFire).toBe(true);
+    expect((await call('/api/reset',{})).status).toBe(200);
+    const reset = JSON.parse(await readFile(join(root,'config.json'),'utf8')); expect(reset.notificationCenterOnlyInGame).toBe(true); expect(reset.devMode).toBe(true); expect(reset.notifyOutsideGame).toBe(true);
+    await writeFile(join(root,'config.json'),'{bad'); const invalid = await (await call('/api/state')).json(); expect(invalid.config.error).toContain('Invalid'); expect(invalid.config.values.notifyOutsideGame).toBe(true); expect((await call('/api/config',{notifyOutsideGame:false})).status).toBe(400);
+    expect((await (await call('/api/sample',{})).json()).stage).toBe('executed');
+    expect((await call('/api/sample',{command:'eval'})).status).toBe(400);
+    expect((await call('/api/close',{})).status).toBe(200); await s.closed; await expect(fetch(s.origin)).rejects.toThrow();
+}));
+test('idle session closes and bundled assets have strict CSP', async () => {
+    const s = startSettingsServer({idleMs:40}); const response=await fetch(s.origin); expect(response.headers.get('content-security-policy')).toContain("frame-ancestors 'none'"); expect(await response.text()).toContain('Notification settings'); await s.closed;
+});
+test('UI writes propagate to actual standalone Host settings', async () => fixture(async (_s, call, root) => {
+    const { Host } = await import('./host'); const host = new Host(join(root,'cache'),join(root,'config.json'),root); await host.initialize();
+    expect((await host.settings()).notifyOutsideGame).toBe(true);
+    await call('/api/config',{notifyOutsideGame:false}); expect((await host.settings()).notifyOutsideGame).toBe(false);
+    await call('/api/config',{showSteamInGame:false}); expect((await host.settings()).showSteamInGame).toBe(false);
+}));
+
+test('older or unavailable frontend rejects sample with clear failure', async () => {
+ const s=startSettingsServer({sample:async()=>{throw Error('Frontend build mismatch; fully restart Steam.')}});
+ try {const r=await fetch(s.origin+'/api/sample',{method:'POST',headers:{authorization:'Bearer '+new URL(s.url).hash.slice(1),'content-type':'application/json'},body:'{}'});expect(r.status).toBe(400);expect((await r.json()).error).toContain('restart Steam');}finally{s.stop();}
+});

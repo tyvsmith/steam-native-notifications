@@ -20,14 +20,14 @@ function PresentationSection({ inGame, windows }: { inGame: boolean; windows: bo
 			<DialogBodyText>{inGame
 				? 'For notifications Steam sends to the game overlay. This can continue after alt-tabbing.'
 				: 'For notifications Steam sends to the desktop.'}</DialogBodyText>
-			<ToggleField label={SETTINGS_SCHEMA.notifyOutsideGame.label}
-				description={SETTINGS_SCHEMA.notifyOutsideGame.description}
+			<ToggleField label={SETTINGS_SCHEMA[inGame ? 'notifyInGame' : 'notifyOutsideGame'].label}
+				description={SETTINGS_SCHEMA[inGame ? 'notifyInGame' : 'notifyOutsideGame'].description}
 				checked={native} onChange={setNative} />
-			<ToggleField label={SETTINGS_SCHEMA.showSteamOutsideGame.label}
-				description={SETTINGS_SCHEMA.showSteamOutsideGame.description}
+			<ToggleField label={SETTINGS_SCHEMA[inGame ? 'showSteamInGame' : 'showSteamOutsideGame'].label}
+				description={SETTINGS_SCHEMA[inGame ? 'showSteamInGame' : 'showSteamOutsideGame'].description}
 				checked={steam} onChange={setSteam} />
-			{windows && native && <ToggleField label={SETTINGS_SCHEMA.notificationCenterOnlyOutsideGame.label}
-				description={SETTINGS_SCHEMA.notificationCenterOnlyOutsideGame.description}
+			{windows && native && <ToggleField label={SETTINGS_SCHEMA[inGame ? 'notificationCenterOnlyInGame' : 'notificationCenterOnlyOutsideGame'].label}
+				description={SETTINGS_SCHEMA[inGame ? 'notificationCenterOnlyInGame' : 'notificationCenterOnlyOutsideGame'].description}
 				checked={history} onChange={setHistory} />}
 			{!native && !steam && <DialogBodyText>Notifications are off for this context</DialogBodyText>}
 		</DialogControlsSection>
