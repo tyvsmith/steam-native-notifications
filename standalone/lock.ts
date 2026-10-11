@@ -1,6 +1,8 @@
 import { closeSync, openSync, writeFileSync, constants, fstatSync } from 'node:fs';
 import { join } from 'node:path';
 import { dlopen, FFIType } from 'bun:ffi';
+const daemonLocks = new WeakSet<() => Promise<void>>();
+export function ownsDaemonLock(release: (() => Promise<void>) | undefined): boolean { return !!release && daemonLocks.has(release); }
 /** Kernel lock survives neither exit nor crash; never delete the lock inode.
  * O_CLOEXEC prevents notification helpers inheriting daemon ownership. */
 export async function acquireDaemonLock(runtime: string): Promise<() => Promise<void>> {
@@ -11,7 +13,9 @@ export async function acquireDaemonLock(runtime: string): Promise<() => Promise<
         throw new Error('Another standalone daemon holds the runtime lock; stop it before starting this daemon.');
     }
     writeFileSync(fd, String(process.pid));
-    return async () => { closeSync(fd); libc.close(); };
+    const release = async () => { if (!daemonLocks.delete(release)) return; closeSync(fd); libc.close(); };
+    daemonLocks.add(release);
+    return release;
 }
 
 /** Bounded cross-process settings lock, released by the kernel after a crash. */

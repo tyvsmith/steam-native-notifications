@@ -280,13 +280,14 @@ export function startNativeNotifications(): () => void {
 	void loadUrlTemplates().then((summary) => dlog(`url templates: ${summary}`));
 	trackOverlayFocus();
 	installHook();
-	startDevFirePoll();
+	const stopDevFire = startDevFirePoll();
 	startClickBridge();
 	// Linux and Windows return the durable envelope through the canonical
 	// steam://steam-native-notifications/notification/<payload> URL.
 	const steamUrl = registerSteamUrlClicks();
 
 	return () => {
+		stopDevFire();
 		try {
 			steamUrl?.unregister();
 		} catch {

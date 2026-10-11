@@ -65,3 +65,26 @@ Bun: `/home/ty/.local/share/mise/installs/bun/1.4.3/bin/bun`.
 - No blockers for Task 3. Full Steam restart is required when eventually installing the new frontend/backend.
 
 Implementation commit: `1126680` (common control, developer tools, persistence and verification/report). Commit signing was disabled for this commit only because the signing agent was unavailable in this environment.
+
+## Task 2 review corrections
+
+Resolved all four findings from `task-2-review.md` in a scoped follow-up:
+
+1. **Crash recovery:** the daemon supplies its actually held exclusive kernel-lock release handle to `startControl(..., { exclusiveLock })`. A private WeakSet tracks held daemon locks, so a caller cannot enable recovery with an arbitrary flag/function. Existing paths are reclaimed only when they are current-user mode0600 sockets, the bounded live probe reports ECONNREFUSED, the real lock remains held, and a second stat confirms the same inode/device/owner/type/mode. Live, foreign, ordinary-file, uncertain and replacement paths remain untouched. The earlier crash-left socket limitation is superseded by automatic verified recovery. A subprocess SIGKILL fixture proves lock release, stale-path retention, protected refusal without exclusivity, successful recovery, live-listener preservation and replacement-file preservation.
+2. **Host isolation:** standalone `TakeDevCommand` always returns empty and never opens/deletes Millennium's `.dev-fire`. Standalone mutations exclusively use private control. The actual standalone Host and actual Lua backend module run against one temporary shared cache in the regression fixture; standalone polling leaves the explicitly Millennium-targeted envelope intact and Millennium consumes it.
+3. **Late replay:** developer execution rechecks deadline, settings gate and frontend generation/activity after awaited surface discovery, immediately before invoking the replay handler. The poll now returns a disposer, and runtime teardown invalidates that generation and removes its control function. Delayed-expiry and teardown-during-discovery fixtures both prove zero replay invocations.
+4. **Overlay results:** missing GetOverlayBrowserInfo fails explicitly, rejected API calls propagate their error through the correlated result, and successful calls return the actual measured info. Diagnostic logs remain, without swallowing awaited errors.
+
+API refinement: `startControl(handler, path?, options?: { exclusiveLock?: () => Promise<void> })`; recovery requires a still-held release handle returned by `acquireDaemonLock`. `startDevFirePoll(): () => void` now supplies its lifecycle disposer. Other Task 3 API signatures are unchanged.
+
+Affected verification with Bun 1.4.3:
+
+- `bun run typecheck`: passed.
+- `bun test standalone/control.test.ts` (isolated socket escalation): **7 passed**, including real child SIGKILL/restart recovery.
+- `bun test standalone/devfire-execution.test.ts standalone/host-isolation.test.ts`: **4 passed**, including delayed expiry, frontend teardown, missing/rejected/successful overlay API, and both real backend adapter queue seams.
+- `bun run build:standalone`: passed, regenerated build identity and emitted bundle metadata.
+- `bun test standalone/browser.test.ts standalone/host.test.ts`: **13 passed**, actual browser bundle plus affected standalone host behavior.
+- Isolated Millennium pack to `dist`: passed, **94.86 kB**.
+- `git diff --check`: passed.
+
+No live Steam, services, settings, desktop changes or pushes. Unaffected broad suites were not repeated. Follow-up implementation commit is supplied in the coordinator response.

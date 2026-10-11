@@ -155,7 +155,7 @@ async function main(): Promise<void> {
     const release = await acquireDaemonLock(runtime);
     let stopControl: (() => Promise<void>) | undefined;
     try {
-        stopControl = await startControl(controlHandler(host));
+        stopControl = await startControl(controlHandler(host), undefined, { exclusiveLock: release });
         let running = true;
         let client: CDP | undefined;
         for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, () => { running = false; client?.close(); host.stop(); });

@@ -1,3 +1,4 @@
+import { ownsDaemonLock } from './lock';
 import { dlopen, FFIType, ptr } from 'bun:ffi';
 import { closeSync } from 'node:fs';
 import { createServer, createConnection, type Socket } from 'node:net';
@@ -34,12 +35,30 @@ function bindOwnedSocket(path: string): number {
     } catch (e) { if (fd >= 0) closeSync(fd); throw e; }
     finally { libc.close(); }
 }
-export async function startControl(handler: (request: ControlRequest) => Promise<unknown>, path = controlPath()): Promise<() => Promise<void>> {
+async function reclaimStaleSocket(path: string, release?: () => Promise<void>): Promise<void> {
+    let candidate;
+    try { candidate = await lstat(path); } catch (e: any) { if (e.code === 'ENOENT') return; throw e; }
+    if (!ownsDaemonLock(release) || !candidate.isSocket() || candidate.uid !== process.getuid?.() || (candidate.mode & 0o777) !== 0o600) throw new Error('Control socket already exists; refusing to replace it');
+    // A connection refusal is evidence of a dead listener; timeout/other failures
+    // are inconclusive. Only recover while the daemon's kernel lock is held.
+    const stale = await new Promise<boolean>(resolve => {
+        const socket = createConnection(path); let settled = false;
+        const finish = (value: boolean) => { if (settled) return; settled = true; clearTimeout(timer); socket.destroy(); resolve(value); };
+        const timer = setTimeout(() => finish(false), 300);
+        socket.on('connect', () => finish(false));
+        socket.on('error', (error: NodeJS.ErrnoException) => finish(error.code === 'ECONNREFUSED'));
+    });
+    if (!stale || !ownsDaemonLock(release)) throw new Error('Control socket is live or its ownership cannot be verified');
+    const current = await lstat(path);
+    if (!current.isSocket() || current.uid !== candidate.uid || current.mode !== candidate.mode || current.dev !== candidate.dev || current.ino !== candidate.ino) throw new Error('Control socket changed during recovery; refusing replacement');
+    await unlink(path);
+}
+export async function startControl(handler: (request: ControlRequest) => Promise<unknown>, path = controlPath(), options: { exclusiveLock?: () => Promise<void> } = {}): Promise<() => Promise<void>> {
     const dir = join(path, '..');
     await ownedDirectory(join(dir, '..'));
     await mkdir(dir, { mode: 0o700 }).catch((e: any) => { if (e.code !== 'EEXIST') throw e; });
     await ownedDirectory(dir); await chmod(dir, 0o700);
-    try { await lstat(path); throw new Error('Control socket already exists; refusing to replace it'); } catch (e: any) { if (e.code !== 'ENOENT') throw e; }
+    await reclaimStaleSocket(path, options.exclusiveLock);
     const sockets = new Set<Socket>(); let active = true; let queue = Promise.resolve();
     const server = createServer(socket => {
         if (sockets.size >= 64) { socket.destroy(); return; }

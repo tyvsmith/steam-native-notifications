@@ -37,3 +37,29 @@ test('shutdown preserves a replacement file at the socket path', async () => {
     const { path } = await fixture(async () => null); await unlink(path); await writeFile(path, 'replacement');
     await stops.pop()!(); expect(await readFile(path, 'utf8')).toBe('replacement');
 });
+
+test('SIGKILL stale socket recovers only under the real exclusive daemon lock; live paths survive', async () => {
+    const { acquireDaemonLock } = await import('./lock');
+    const dir = await mkdtemp(join(tmpdir(), 'snn-crash-')); dirs.push(dir); const cache = join(dir, 'cache'); await mkdir(cache);
+    const path = join(dir, 'private/control.sock');
+    const program = `import { acquireDaemonLock } from ${JSON.stringify(join(import.meta.dir, 'lock.ts'))}; import { startControl } from ${JSON.stringify(join(import.meta.dir, 'control.ts'))}; const release = await acquireDaemonLock(${JSON.stringify(cache)}); await startControl(async () => 'child', ${JSON.stringify(path)}, { exclusiveLock: release }); console.log('ready');`;
+    const child = Bun.spawn([process.execPath, '-e', program], { stdout: 'pipe', stderr: 'pipe' });
+    try {
+        const reader = child.stdout.getReader(); const ready = await reader.read(); reader.releaseLock(); expect(new TextDecoder().decode(ready.value)).toContain('ready');
+        child.kill('SIGKILL'); await child.exited;
+        const stale = await stat(path); expect(stale.isSocket()).toBe(true);
+        await expect(startControl(async () => null, path)).rejects.toThrow('already exists');
+        const release = await acquireDaemonLock(cache);
+        try {
+            const stop = await startControl(async () => 'recovered', path, { exclusiveLock: release });
+            try {
+                expect(await controlCall('status', undefined, { path })).toBe('recovered');
+                await expect(startControl(async () => null, path, { exclusiveLock: release })).rejects.toThrow('live');
+                expect(await controlCall('status', undefined, { path })).toBe('recovered');
+            } finally { await stop(); }
+            await writeFile(path, 'replacement');
+            await expect(startControl(async () => null, path, { exclusiveLock: release })).rejects.toThrow('already exists');
+            expect(await readFile(path, 'utf8')).toBe('replacement');
+        } finally { await release(); }
+    } finally { child.kill(); await child.exited; }
+});

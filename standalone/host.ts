@@ -55,7 +55,7 @@ export class Host {
             case 'FocusSteam': return 'unsupported'; // Linux focus is performed inside Steam's existing dispatcher.
             case 'TakeSampleCommand': if (args.length) break; return ''; // samples arrive through private control
             case 'TakeClick': if (args.length) break; return this.consume('.click');
-            case 'TakeDevCommand': if (args.length) break; return (await this.settings()).devFire ? this.consume('.dev-fire') : '';
+            case 'TakeDevCommand': if (args.length) break; return ''; // Millennium owns .dev-fire; standalone uses private control exclusively.
             case 'GameHostFocus': {
                 const appid = args[0];
                 if (args.length !== 1 || typeof appid !== 'number' || !Number.isInteger(appid) || appid <= 0 || appid > 0xffffffff) return 'unknown';

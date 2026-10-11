@@ -25,6 +25,8 @@ const takeSampleCommand = hostMethod('TakeSampleCommand');
 
 const DEV_POLL_MS = 3000;
 const startedAt = Date.now();
+let generation = 0;
+let active = false;
 
 /**
  * The server notification store is not a window global; it is found by webpack
@@ -93,31 +95,40 @@ function injectServerNotification(type: number, body: unknown): void {
  * left with the catalog; this one stays because "does an overlay exist" is
  * the question the replay path's known limit turns on.
  */
-async function runOverlayProbe(probe: { call?: string }): Promise<void> {
-	try {
-		if (probe.call !== 'info') {
-			dlog(`overlay probe: unknown call ${String(probe.call)}`);
-			return;
-		}
-		const sc: any = Reflect.get(globalThis, 'SteamClient');
-		const info = await sc?.Overlay?.GetOverlayBrowserInfo?.();
-		dlog(`overlay-info: ${safeJson(info)}`.slice(0, 1500));
-	} catch (e) {
-		// Fired with `void` from the poll: a rejection here would otherwise
-		// escape as an unhandled rejection with no log line.
-		dlog(`overlay probe failed: ${(e as Error)?.message ?? e}`);
-	}
+async function runOverlayProbe(probe: { call?: string }): Promise<unknown> {
+    try {
+        if (probe.call !== 'info') throw new Error(`Unknown overlay probe: ${String(probe.call)}`);
+        const sc: any = Reflect.get(globalThis, 'SteamClient');
+        if (typeof sc?.Overlay?.GetOverlayBrowserInfo !== 'function') throw new Error('Overlay browser info API is unavailable');
+        const info = await sc.Overlay.GetOverlayBrowserInfo();
+        dlog(`overlay-info: ${safeJson(info)}`.slice(0, 1500));
+        return info;
+    } catch (e) {
+        dlog(`overlay probe failed: ${(e as Error)?.message ?? e}`);
+        throw e;
+    }
+}
+function assertLiveRequest(envelope: DevEnvelope, epoch: number, sample: boolean): void {
+    if (!active || epoch !== generation) throw new Error('Developer frontend session is no longer active');
+    if (!envelope || typeof envelope.id !== 'string' || !Number.isSafeInteger(envelope.deadline) || !Number.isSafeInteger(envelope.createdAt) || envelope.deadline <= Date.now() || envelope.createdAt < startedAt) throw new Error('Developer request expired or predates this Steam frontend');
+    if (!sample && !settings().devFire) throw new Error('Developer commands are disabled');
 }
 
 export async function executeDevCommand(envelope: DevEnvelope, sample = false): Promise<unknown> {
-    if (!envelope || typeof envelope.id !== 'string' || !Number.isSafeInteger(envelope.deadline) || !Number.isSafeInteger(envelope.createdAt) || envelope.deadline <= Date.now() || envelope.createdAt < startedAt) throw new Error('Developer request expired or predates this Steam frontend');
-    if (!sample && !settings().devFire) throw new Error('Developer commands are disabled');
+    const epoch = generation;
+    assertLiveRequest(envelope, epoch, sample);
     const cmd = validateDevCommand(sample ? { call: 'TestFriendOnline', args: [] } : envelope.command);
     let value: unknown = null;
-    if ('overlay' in cmd) { await runOverlayProbe(cmd.overlay); }
+    if ('overlay' in cmd) { value = await runOverlayProbe(cmd.overlay); }
     else if ('replay' in cmd) {
         if (cmd.replay.call === 'inspect') value = inspectReplayStash();
-        else { const surface = await currentClickSurface(); if (!surface) throw new Error('Current capture surface unknown'); value = invokeReplayHandler(cmd.replay.name, surface.focusedAppId); if (!value) throw new Error('Replay was refused or no matching handler exists'); }
+        else {
+            const surface = await currentClickSurface();
+            assertLiveRequest(envelope, epoch, sample);
+            if (!surface) throw new Error('Current capture surface unknown');
+            value = invokeReplayHandler(cmd.replay.name, surface.focusedAppId);
+            if (!value) throw new Error('Replay was refused or no matching handler exists');
+        }
     } else if ('server' in cmd) { injectServerNotification(cmd.server.type, cmd.server.body); }
     else {
         const store: any = Reflect.get(globalThis, 'NotificationStore');
@@ -128,12 +139,15 @@ export async function executeDevCommand(envelope: DevEnvelope, sample = false): 
     }
     return { id: envelope.id, stage: 'executed', value: value ?? null, measurement: 'Execution completed; capture, delivery and banner visibility are unmeasured' };
 }
-export function startDevFirePoll(): void {
+export function startDevFirePoll(): () => void {
+    const epoch = ++generation;
+    active = true;
     (globalThis as any).__snnDevControl = async (envelope: DevEnvelope, sample = false) => {
         try { return { ok: true, value: await executeDevCommand(envelope, sample) }; }
         catch (e: any) { return { ok: false, error: e.message }; }
     };
-    window.setInterval(async () => {
+    const timer = window.setInterval(async () => {
+        if (!active || generation !== epoch) return;
         try {
             const sampleRaw = await takeSampleCommand();
             const sample = parseCallableJson<any>(sampleRaw, null);
@@ -151,4 +165,8 @@ export function startDevFirePoll(): void {
             dlog(`dev-fire: result ${safeJson({ id: envelope.id, ...result })}`);
         } catch (e: any) { dlog(`dev-fire failed: ${e.message}`); }
     }, DEV_POLL_MS);
+    return () => {
+        window.clearInterval(timer);
+        if (generation === epoch) { active = false; generation++; delete (globalThis as any).__snnDevControl; }
+    };
 }

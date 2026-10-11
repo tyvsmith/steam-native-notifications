@@ -39,11 +39,12 @@ test('identity selects MostRecent and preserves exact Steam IDs', async () => {
     await writeFile(join(root, 'config/loginusers.vdf'), '"users" { "76561198000000001" { "MostRecent" "0" } "76561198000000002" { "MostRecent" "1" } }');
     expect(JSON.parse(await host.dispatch('Identity', [])).steamid64).toBe('76561198000000002');
 });
-test('dev command is disabled by default and consumed once after opt-in', async () => {
+test('Millennium command queue remains untouched even after standalone dev opt-in', async () => {
     const { root, host } = await fixture(); const command = join(host.runtime, '.dev-fire'); await writeFile(command, '{"call":"test"}');
     expect(await host.dispatch('TakeDevCommand', [])).toBe('');
     await writeFile(join(root, 'settings.json'), '{"devFire":true}');
-    expect(await host.dispatch('TakeDevCommand', [])).toBe('{"call":"test"}');
+    expect(await host.dispatch('TakeDevCommand', [])).toBe('');
+    expect(await readFile(command, 'utf8')).toBe('{"call":"test"}');
     expect(await host.dispatch('TakeDevCommand', [])).toBe('');
 });
 test('standalone logs do not truncate Millennium plugin logs', async () => {
