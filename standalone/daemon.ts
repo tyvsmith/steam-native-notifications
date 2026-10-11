@@ -3,6 +3,10 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { CDP, endpoint, targetSocket } from './cdp';
 import { Host, requestPayload } from './host';
+import { inspectEndpoint } from './diagnostics';
+import { discoverSteam, setupPaths } from './paths';
+import { acquireDaemonLock } from './lock';
+import { healthExpression } from './health';
 
 export async function attach(client: CDP, bundle: string, host: Host, alive: () => boolean = () => true, initialContexts: number[] = []): Promise<void> {
     let context: number | undefined;
@@ -61,6 +65,13 @@ export async function attach(client: CDP, bundle: string, host: Host, alive: () 
                 previousConfig = values;
             }
         }
+        let ready = false;
+        if (injected && context !== undefined) {
+            const probe = await client.call('Runtime.evaluate', { contextId: context, returnByValue: true, awaitPromise: true,
+                expression: healthExpression(2 ** 52 + Math.floor(Math.random() * 1000000000)) });
+            ready = probe.result?.value === true && injected && context !== undefined;
+        }
+        await host.readiness(ready ? 'ready' : 'waiting-for-context');
         await Bun.sleep(1000);
         if (disconnected) throw new Error('Steam CDP disconnected');
     }
@@ -88,13 +99,13 @@ export async function connectSteamContext(targets: any[], port: number, connect 
                         if (event.method === 'Runtime.executionContextDestroyed') contexts.delete(event.params.executionContextId);
                     };
                     await candidate.call('Runtime.enable');
-                    let matched = false;
+                    const matched: number[] = [];
                     for (const id of contexts) {
                         const probe = await candidate.call('Runtime.evaluate', { contextId: id, returnByValue: true,
                             expression: 'Boolean(globalThis.g_PopupManager && globalThis.SteamClient)' });
-                        if (probe.result?.value === true && contexts.has(id)) matched = true;
+                        if (probe.result?.value === true && contexts.has(id)) matched.push(id);
                     }
-                    if (matched) { ready.push({ client: candidate, contexts: [...contexts] }); candidate = undefined; }
+                    if (matched.length) { ready.push({ client: candidate, contexts: matched }); candidate = undefined; }
                 } catch { /* a dying or not-yet-ready target will be rediscovered */ }
                 finally { candidate?.close(); }
             }
@@ -117,29 +128,32 @@ async function main(): Promise<void> {
         options[key] = process.argv[i + 1]!;
     }
     const port = Number(options['--port'] ?? '8080');
-    const base = endpoint(port);
+    endpoint(port);
     const runtime = join(process.env.XDG_CACHE_HOME ?? join(homedir(), '.cache'), 'steam-native-notifications');
     const config = options['--config'] ?? join(process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'), 'steam-native-notifications/standalone.json');
-    const host = new Host(runtime, config, options['--steam-dir'] ?? join(homedir(), '.steam/steam'));
-    const bundle = await readFile(resolve(import.meta.dir, '../dist/standalone/frontend.js'), 'utf8');
+    const host = new Host(runtime, config, await discoverSteam(setupPaths(), options['--steam-dir']));
+    let bundle: string;
+    try { bundle = await readFile(resolve(import.meta.dir, '../dist/standalone/frontend.js'), 'utf8'); }
+    catch { throw new Error('Missing standalone build; run bun install --frozen-lockfile && bun run build:standalone in this checkout.'); }
     await host.initialize();
-    let running = true;
-    let client: CDP | undefined;
-    for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, () => { running = false; client?.close(); host.stop(); });
-    let previousFailure = '';
-    while (running) {
-        try {
-            const response = await fetch(`${base}/json/list`, { signal: AbortSignal.timeout(2000), redirect: 'error' });
-            if (!response.ok) throw new Error(`Discovery HTTP ${response.status}`);
-            const targets = await response.json();
-            if (!Array.isArray(targets)) throw new Error('Invalid CDP target list');
-            const selected = await connectSteamContext(targets, port);
-            client = selected.client; previousFailure = '';
-            await attach(client, bundle, host, () => running, selected.contexts);
-        } catch (error: any) {
-            if (running && error.message !== previousFailure) { previousFailure = error.message; console.error(`Waiting for Steam: ${error.message}`); await host.log(`standalone: waiting: ${error.message}`); }
-        } finally { client?.close(); client = undefined; }
-        if (running) await Bun.sleep(2000);
-    }
+    const release = await acquireDaemonLock(runtime);
+    try {
+        let running = true;
+        let client: CDP | undefined;
+        for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, () => { running = false; client?.close(); host.stop(); });
+        let previousFailure = '';
+        while (running) {
+            try {
+                const inspection = await inspectEndpoint(port);
+                if (inspection.kind !== 'steam') throw new Error(inspection.message);
+                const selected = await connectSteamContext(inspection.targets!, port);
+                client = selected.client; previousFailure = '';
+                await attach(client, bundle, host, () => running, selected.contexts);
+            } catch (error: any) {
+                if (running && error.message !== previousFailure) { previousFailure = error.message; console.error(`Waiting for Steam: ${error.message}`); await host.log(`standalone: waiting: ${error.message}`); }
+            } finally { client?.close(); client = undefined; await host.readiness('disconnected'); }
+            if (running) await Bun.sleep(2000);
+        }
+    } finally { await release(); }
 }
 if (import.meta.main) await main();

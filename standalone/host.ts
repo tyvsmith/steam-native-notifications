@@ -1,8 +1,8 @@
-import { appendFile, mkdir, readFile, readdir, realpath, unlink } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, readdir, realpath, unlink, writeFile, rename } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { PRESENTATION_DEFAULTS } from '../frontend/presentation';
-export const CONFIG_DEFAULTS = { ...PRESENTATION_DEFAULTS, showSteamOutsideGame: true, devMode: false, devFire: false };
+export const CONFIG_DEFAULTS = { ...PRESENTATION_DEFAULTS, devMode: false, devFire: false };
 export function configValues(raw: unknown): Record<string, boolean> {
     const values: Record<string, boolean> = { ...CONFIG_DEFAULTS };
     if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
@@ -31,6 +31,11 @@ export class Host {
     async log(line: string): Promise<void> {
         await appendFile(join(this.runtime, 'standalone.log'), `${new Date().toISOString()} ${line.replace(/[\r\n]/g, ' ').slice(0, 4096)}\n`, { mode: 0o600 });
     }
+    async readiness(state: string): Promise<void> {
+        const path = join(this.runtime, 'standalone-status.json');
+        await writeFile(path + '.tmp', JSON.stringify({ state, pid: process.pid, at: Date.now(), steam: this.steam }), { mode: 0o600 });
+        await rename(path + '.tmp', path);
+    }
     async settings(): Promise<Record<string, boolean>> {
         try { return configValues(JSON.parse(await readFile(this.config, 'utf8'))); }
         catch (error: any) {
@@ -44,6 +49,7 @@ export class Host {
     }
     async dispatch(method: string, args: unknown[]): Promise<string> {
         switch (method) {
+            case 'Health': if (args.length) break; return 'ok';
             case 'Platform': if (args.length) break; return 'linux';
             case 'Log': if (args.length !== 1 || typeof args[0] !== 'string') break; await this.log(args[0]); return 'ok';
             case 'Identity': {
@@ -70,7 +76,7 @@ export class Host {
                 return new Promise(resolveResult => {
                     // argv only; rendered Steam text cannot become shell source.
                     const child = spawn('sh', [join(this.root, 'tools/notify-action'), ...strings.slice(0, 5)], {
-                        stdio: 'ignore', env: { ...process.env, XDG_CACHE_HOME: resolve(this.runtime, '..'), LD_LIBRARY_PATH: '', LD_PRELOAD: '' },
+                        stdio: 'ignore', env: { ...process.env, XDG_CACHE_HOME: resolve(this.runtime, '..'), SNN_STEAM_DIR: this.steam, LD_LIBRARY_PATH: '', LD_PRELOAD: '' },
                     });
                     this.children.add(child);
                     child.once('error', () => { this.children.delete(child); resolveResult('unsupported'); });

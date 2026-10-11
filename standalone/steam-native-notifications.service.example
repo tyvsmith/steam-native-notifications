@@ -1,14 +1,17 @@
+# Reference only; prefer bun standalone/setup.ts install for absolute paths,
+# ownership, XDG roots, desktop autostart and current session environment import.
 [Unit]
 Description=Experimental Steam RT3 native notifications
+PartOf=graphical-session.target
+After=graphical-session-pre.target
 
 [Service]
-# Replace both paths with the absolute paths to Bun and your checkout.
 Type=simple
 WorkingDirectory=/absolute/path/to/steam-native-notifications
-ExecStart=/absolute/path/to/bun standalone/daemon.ts --port 8080
+ExecStart=/absolute/path/to/bun /absolute/path/to/steam-native-notifications/standalone/daemon.ts --steam-dir /absolute/native/Steam
 Restart=on-failure
 RestartSec=5
 UMask=0077
 
 [Install]
-WantedBy=default.target
+WantedBy=graphical-session.target

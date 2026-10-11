@@ -14,9 +14,11 @@ test('RPC validates IDs, methods, array arguments and size', () => {
     expect(requestPayload('{"id":1,"method":"Platform","args":[]}').id).toBe(1);
     for (const payload of ['{}', '{"id":-1,"method":"Notify","args":[]}', '{"id":1,"method":"Notify","args":{}}', 'x'.repeat(65537)]) expect(() => requestPayload(payload)).toThrow();
 });
-test('configuration defaults preserve Steam and reject malformed booleans', () => {
+test('configuration defaults replace desktop Steam and retain in-game defaults and reject malformed booleans', () => {
     expect(configValues({ showSteamOutsideGame: false, devFire: 'true', unknown: true })).toEqual({ ...configValues({}), showSteamOutsideGame: false });
-    expect(configValues({}).showSteamOutsideGame).toBe(true);
+    expect(configValues({}).showSteamOutsideGame).toBe(false);
+    expect(configValues({}).showSteamInGame).toBe(true);
+    expect(configValues({}).devFire).toBe(false);
 });
 test('host refuses unknown methods and malformed delivery arguments', async () => {
     const { host } = await fixture();
@@ -69,4 +71,17 @@ test('native delivery honors changed PATH and passes shell metacharacters throug
         expect(args).toContain(title); expect(args?.join(' ')).toContain('`false`;');
         expect(await Bun.file(marker).exists()).toBe(false);
     } finally { host.stop(); }
+});
+
+test('nonstandard Steam artwork root takes precedence without modifying shared Steam settings', async () => {
+    const { root, host } = await fixture();
+    const art = join(root, 'custom-steam/appcache/librarycache/1073390/art.png');
+    await mkdir(join(art, '..'), { recursive: true }); await writeFile(art, 'artwork');
+    await writeFile(join(host.runtime, 'steam-dir'), '/preexisting-millennium-root');
+    const child = Bun.spawn(['sh', join(import.meta.dir, '../tools/notify-action'), '--resolve-icon', 'https://steamloopback.host/assets/1073390/art.png'], {
+        env: { ...process.env, XDG_CACHE_HOME: root, SNN_STEAM_DIR: join(root, 'custom-steam') }, stdout: 'pipe', stderr: 'pipe',
+    });
+    expect((await new Response(child.stdout).text()).trim()).toBe(art);
+    expect(await child.exited).toBe(0);
+    expect(await readFile(join(host.runtime, 'steam-dir'), 'utf8')).toBe('/preexisting-millennium-root');
 });

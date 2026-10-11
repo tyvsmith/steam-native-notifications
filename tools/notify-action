@@ -53,6 +53,8 @@ CACHE="$RUNTIME_DIR/icons"
 # sees it, then the macOS data directory. The first with a library cache
 # wins; none means every game icon falls back to the theme.
 steam_dir_candidates() {
+	# Standalone passes its discovered native root without modifying shared cache settings.
+	[ -n "${SNN_STEAM_DIR:-}" ] && printf '%s\n' "$SNN_STEAM_DIR"
 	published=""
 	if [ -r "$RUNTIME_DIR/steam-dir" ]; then
 		IFS= read -r published <"$RUNTIME_DIR/steam-dir" || :

@@ -20,7 +20,11 @@ that differ per OS, and the delivery plan where nothing delivers yet).
 
 The experimental native Linux RT3 host reuses this frontend through a CDP
 binding adapter; the normal Millennium entrypoint still supplies its settings
-panel. See [standalone setup and limits](experiments/rt3-standalone.md).
+panel. Persistent standalone setup uses an owned CEF marker and source-backed
+user service with dynamic desktop session environment; it never edits launchers
+or restarts Steam. Existing shared marker/settings are preserved. The standalone
+backend uses a per-cache kernel lock and live binding RPC health heartbeat.
+See [standalone setup and limits](experiments/rt3-standalone.md).
 
 ## The pipeline
 
