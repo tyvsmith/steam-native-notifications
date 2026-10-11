@@ -28,3 +28,11 @@ Bun 1.4.3 at `/home/ty/.local/share/mise/installs/bun/1.4.3/bin/bun`:
 Coverage: missing bearer, wrong Host/Origin, methods/query strings, content types, malformed/oversized bodies, unsupported/developer writes, offline persistence/reset/unknown-key preservation, invalid external edits/last-valid refusal, actual Host live refresh, safe sample payload refusal, explicit stale frontend failure, startup/shutdown/idle/CSP. Existing config tests prove independent process serialization.
 
 Coordinator browser check identified a reload authentication bug; fixed with per-origin tab sessionStorage and added actual script bootstrap/reload/close regression. Build hash prominently shows 12 characters with full hash in hover diagnostics. Final server suite: 5 passed; parity suite: 4 passed. Actual interactive browser save/reload/status/sample rechecks are delegated to coordinator's available CUA; no live Steam/desktop/service modifications, pushes, or notifications occurred here. Other platforms are outside standalone target. Real Steam sample/delivery remains live validation rather than fixture evidence.
+
+## Task 3 review correction, round 1
+
+Resolved medium idle-lifecycle finding: authenticated state polling and asset reads no longer renew the inactivity timer. Valid explicit configuration changes, reset requests and sample requests renew it. Session copy names those actions; close and Ctrl+C still stop immediately. Regression uses a 100 ms session with ongoing authenticated state polls and proves shutdown, plus a valid-write fixture proving renewed lifetime.
+
+Sample results now show plain user-facing measured evidence: completed execution explicitly leaves capture/delivery/banner visibility unconfirmed, queued requests leave execution/delivery unconfirmed, and errors explain inability to run. Request IDs/stages/raw JSON are shown only in a collapsed developer details element when out-of-band devMode is enabled. Actual settings script VM test exercises executed, queued, failure and developer detail behavior.
+
+Affected verification: typecheck passed; settings parity/script suite **5 passed**; isolated loopback server suite **7 passed** (39 assertions). No running coordinator fixture or live configuration was touched/restarted. Standalone build/typecheck rerun passed before this correction commit.

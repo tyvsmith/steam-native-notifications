@@ -51,3 +51,14 @@ test('older or unavailable frontend rejects sample with clear failure', async ()
  const s=startSettingsServer({sample:async()=>{throw Error('Frontend build mismatch; fully restart Steam.')}});
  try {const r=await fetch(s.origin+'/api/sample',{method:'POST',headers:{authorization:'Bearer '+new URL(s.url).hash.slice(1),'content-type':'application/json'},body:'{}'});expect(r.status).toBe(400);expect((await r.json()).error).toContain('restart Steam');}finally{s.stop();}
 });
+
+test('authenticated passive state polls do not extend idle lease', async () => {
+ const s=startSettingsServer({idleMs:100,status:async()=>[],store:new ConfigStore(join(tmpdir(),'snn-idle-'+crypto.randomUUID()+'.json'))});
+ const authorization='Bearer '+new URL(s.url).hash.slice(1);let polls=0;
+ const timer=setInterval(()=>{void fetch(s.origin+'/api/state',{headers:{authorization}}).then(()=>{polls++;}).catch(()=>{});},10);
+ try {await Promise.race([s.closed,Bun.sleep(500).then(()=>{throw Error('Polling extended idle session');})]);expect(polls).toBeGreaterThan(2);}finally{clearInterval(timer);s.stop();}
+});
+test('valid user settings action renews idle lease', async () => {
+ const root=await mkdtemp(join(tmpdir(),'snn-activity-'));const s=startSettingsServer({idleMs:180,status:async()=>[],store:new ConfigStore(join(root,'config.json'))});let closed=false;s.closed.then(()=>{closed=true;});
+ try {await Bun.sleep(100);const r=await fetch(s.origin+'/api/config',{method:'POST',headers:{authorization:'Bearer '+new URL(s.url).hash.slice(1),'content-type':'application/json'},body:'{"notifyOutsideGame":false}'});expect(r.status).toBe(200);await Bun.sleep(110);expect(closed).toBe(false);await s.closed;}finally{s.stop();await rm(root,{recursive:true,force:true});}
+});

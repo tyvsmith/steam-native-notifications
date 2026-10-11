@@ -21,9 +21,8 @@ export function startSettingsServer(options: SettingsServerOptions = {}) {
         const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'" };
         if (request.method === 'GET' && ['/','/settings.js','/settings.css'].includes(url.pathname)) return new Response(url.pathname === '/' ? settingsHtml : url.pathname.endsWith('.js') ? settingsScript : settingsStyle, { headers: { ...headers, 'Content-Type': url.pathname === '/' ? 'text/html; charset=utf-8' : url.pathname.endsWith('.js') ? 'text/javascript' : 'text/css' } });
         if (request.headers.get('authorization') !== `Bearer ${token}`) return json({ error: 'Unauthorized' }, 401);
-        touch();
         try {
-            if (request.method === 'GET' && url.pathname === '/api/state') return json({ config: await store.read(), schema: SETTINGS_SCHEMA, platform: 'linux', build: BUILD_IDENTITY, hosts: await (options.status ?? hostStatus)(), session: 'Closes after 30 minutes idle, Close settings, or Ctrl+C.' });
+            if (request.method === 'GET' && url.pathname === '/api/state') return json({ config: await store.read(), schema: SETTINGS_SCHEMA, platform: 'linux', build: BUILD_IDENTITY, hosts: await (options.status ?? hostStatus)(), session: 'Closes after 30 minutes without a settings change, reset, or sample request; Close settings or Ctrl+C also exits.' });
             if (request.method !== 'POST') return json({ error: 'Unknown endpoint' }, 404);
             if (request.headers.get('content-type') !== 'application/json') return json({ error: 'Expected application/json' }, 415);
             const body = await request.text(); if (body.length > 8192) return json({ error: 'Request too large' }, 413);
@@ -31,11 +30,11 @@ export function startSettingsServer(options: SettingsServerOptions = {}) {
             if (url.pathname === '/api/config') {
                 const patch = validateSettingsPatch(input); const current = await store.read();
                 for (const key of Object.keys(patch) as SettingKey[]) if (!settingSupported(key, 'linux') || key === 'devMode' || (SETTINGS_SCHEMA[key].developer && !current.values.devMode)) return json({ error: `Setting unavailable: ${key}` }, 400);
-                return json(await store.update(patch));
+                touch(); return json(await store.update(patch));
             }
             if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).length) return json({ error: 'Expected empty object' }, 400);
-            if (url.pathname === '/api/reset') { const current = await store.read(); const patch = Object.fromEntries(Object.entries(DEFAULTS).filter(([key]) => key !== 'devMode' && settingSupported(key as SettingKey, 'linux'))); return json(await store.update({ ...patch, devMode: current.values.devMode })); }
-            if (url.pathname === '/api/sample') return json(await (options.sample ?? sample)('standalone'));
+            if (url.pathname === '/api/reset') { touch(); const current = await store.read(); const patch = Object.fromEntries(Object.entries(DEFAULTS).filter(([key]) => key !== 'devMode' && settingSupported(key as SettingKey, 'linux'))); return json(await store.update({ ...patch, devMode: current.values.devMode })); }
+            if (url.pathname === '/api/sample') { touch(); return json(await (options.sample ?? sample)('standalone')); }
             if (url.pathname === '/api/close') { setTimeout(stop, 50); return json({ closed: true }); }
             return json({ error: 'Unknown endpoint' }, 404);
         } catch (error) { return json({ error: error instanceof Error ? error.message : 'Operation unavailable' }, 400); }
