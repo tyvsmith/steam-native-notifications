@@ -12,7 +12,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     # The job runs repository scripts (bun install, bun run test); keep the
     # token they can reach read-only regardless of the caller's grant.
     permissions:
@@ -20,6 +20,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
 
       # tools/test-backend runs backend/main.lua with Millennium stubbed.
       - name: Install test runtimes
@@ -33,6 +35,8 @@ jobs:
       - run: bun run test
       - run: bun run build:standalone
       - run: bun run test:standalone
+      - run: bun tools/build-release.ts
+      - run: bun tools/test-packaged.ts
 
       # -o overrides millennium.toml's output_path=auto, which would install
       # into $HOME/.local/share/millennium/plugins; the file is <dir>/<id>.star
@@ -61,4 +65,13 @@ jobs:
         with:
           path: dist/me.tysmith.steam-native-notifications.star
           archive: false
+          if-no-files-found: error
+
+      - if: inputs.upload
+        uses: actions/upload-artifact@v7
+        with:
+          name: snn-linux-x64
+          path: |
+            dist/releases/*.tar.gz
+            dist/releases/*.sha256
           if-no-files-found: error

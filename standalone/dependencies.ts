@@ -1,0 +1,2 @@
+import {dlopen} from 'bun:ffi';
+export function dependencies(){const required=Object.fromEntries(['notify-send','gdbus','curl'].map(name=>[name,!!Bun.which(name)]));let wayland=false;try{const lib=dlopen('libwayland-client.so.0',{});lib.close();wayland=true;}catch{}const luajit=!!Bun.which('luajit');return {required,optional:{luajit,libwayland:wayland},delivery:Object.values(required).every(Boolean)?'available':'missing-dependencies',focus:luajit&&wayland?'available':'degraded-unknown'};}

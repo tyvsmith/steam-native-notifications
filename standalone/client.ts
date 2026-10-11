@@ -1,9 +1,9 @@
+import { runtimeAsset } from './runtime-paths';
 import { BUILD_IDENTITY, parseCallableJson, type HostKind } from '../shared/host';
 import { DEFAULTS, normalizeSettings, validateSettingsPatch } from '../shared/settings';
 import { validateDevCommand } from '../shared/dev-command';
 import { mepCall } from '../tools/lib/mep';
 import { captureReport } from '../tools/lib/cli/capture-millennium';
-import { join } from 'node:path';
 import { PLUGIN_ID, writeDevFire, writeCommandFile } from '../tools/lib/snn';
 import { configStore, type ConfigSnapshot } from './config-store';
 import { controlCall } from './control';
@@ -58,5 +58,5 @@ export async function sample(selection: HostSelection = 'auto'): Promise<unknown
 export async function capture(count = 8, selection: HostSelection = 'auto'): Promise<unknown> {
     if (!Number.isSafeInteger(count) || count < 0 || count > 100) throw new Error('Capture count must be 0–100');
     const host = await selectHost(selection); if (host === 'standalone') return controlCall('capture', count);
-    return { host, status: (await hostStatus()).find(s => s.host === host), lines: await captureReport(join(import.meta.dir, '../tools/capture'), count), evidence: 'Historical logs; hook freshness and banner visibility unmeasured' };
+    return { host, status: (await hostStatus()).find(s => s.host === host), lines: await captureReport(runtimeAsset('tools/capture'), count), evidence: 'Historical logs; hook freshness and banner visibility unmeasured' };
 }

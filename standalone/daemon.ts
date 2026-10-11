@@ -1,8 +1,9 @@
+import { runtimeAsset } from './runtime-paths';
 import { startControl } from './control';
 import { controlHandler } from './control-host';
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { CDP, endpoint, targetSocket } from './cdp';
 import { Host, requestPayload } from './host';
 import { inspectEndpoint } from './diagnostics';
@@ -132,7 +133,7 @@ export async function connectSteamContext(targets: any[], port: number, connect 
     throw new Error('Steam shared context is not ready');
 }
 
-async function main(): Promise<void> {
+export async function daemonMain(): Promise<void> {
     if (process.argv.includes('--help')) {
         console.log('Usage: bun standalone/daemon.ts [--port N] [--config FILE] [--steam-dir DIR]\nLinux experimental RT3 host. Steam must already expose its loopback DevTools port.'); return;
     }
@@ -149,7 +150,7 @@ async function main(): Promise<void> {
     const config = options['--config'] ?? join(process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'), 'steam-native-notifications/standalone.json');
     const host = new Host(runtime, config, await discoverSteam(setupPaths(), options['--steam-dir']));
     let bundle: string;
-    try { bundle = await readFile(resolve(import.meta.dir, '../dist/standalone/frontend.js'), 'utf8'); }
+    try { bundle = await readFile(runtimeAsset('dist/standalone/frontend.js'), 'utf8'); }
     catch { throw new Error('Missing standalone build; run bun install --frozen-lockfile && bun run build:standalone in this checkout.'); }
     await host.initialize();
     const release = await acquireDaemonLock(runtime);
@@ -174,4 +175,4 @@ async function main(): Promise<void> {
         }
     } finally { await stopControl?.(); await release(); }
 }
-if (import.meta.main) await main();
+if (import.meta.main) await daemonMain();

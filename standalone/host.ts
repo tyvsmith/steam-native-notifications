@@ -1,3 +1,4 @@
+import { runtimeRoot } from './runtime-paths';
 import { configStore, type ConfigStore } from './config-store';
 import { appendFile, mkdir, readFile, readdir, realpath, unlink, writeFile, rename } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
@@ -14,7 +15,7 @@ export function requestPayload(payload: string): { id: number; method: string; a
 }
 export class Host {
     private children = new Set<ReturnType<typeof spawn>>();
-    private root = resolve(import.meta.dir, '..');
+    private root = runtimeRoot();
     readonly store: ConfigStore;
     live: any = { state: 'disconnected', frontendBuild: null, hook: 'unknown' };
     frontendCommand?: (envelope: any, sample: boolean) => Promise<unknown>;

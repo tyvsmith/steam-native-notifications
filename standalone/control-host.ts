@@ -1,3 +1,5 @@
+import { dependencies } from './dependencies';
+import { runtimeAsset } from './runtime-paths';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { BUILD_IDENTITY } from '../shared/host';
@@ -14,7 +16,7 @@ export function controlHandler(host: Host) {
                     state: degraded ? 'degraded' : host.live.state,
                     action: degraded ? 'Restart Steam to load the installed frontend; check hook diagnostics if capture remains unavailable' : null,
                     pid: process.pid, configPath: host.config, config: await host.store.read(),
-                    dependencies: Object.fromEntries(['notify-send', 'gdbus', 'luajit'].map(name => [name, !!Bun.which(name)])),
+                    dependencies: dependencies(),
                     capabilities: { settingsWrite: true, sample: compatible && !!host.frontendCommand, developerCommands: compatible && !!host.frontendCommand } };
             }
             case 'capture': { const count = request.payload ?? 8; if (!Number.isSafeInteger(count) || (count as number) < 0 || (count as number) > 100) throw new Error('Capture count must be 0–100'); let log = ''; try { log = await readFile(join(host.runtime, 'standalone.log'), 'utf8'); } catch {} return { host: 'standalone', live: host.live, lines: log.trim().split('\n').slice(-(count as number) || log.length).slice(0, count as number).map(line => line.slice(0, 320)), evidence: 'Historical log; banner visibility is unmeasured' }; }
@@ -33,4 +35,4 @@ export function controlHandler(host: Host) {
         }
     };
 }
-async function installedBuild(): Promise<unknown> { try { return JSON.parse(await readFile(join(import.meta.dir, '../dist/standalone/build.json'), 'utf8')); } catch { return null; } }
+async function installedBuild(): Promise<unknown> { try { return JSON.parse(await readFile(runtimeAsset('dist/standalone/build.json'), 'utf8')); } catch { return null; } }

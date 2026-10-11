@@ -14,7 +14,7 @@ export function systemdQuote(value: string): string {
     if (/[\r\n\0]/.test(value)) throw new Error('Paths/environment cannot contain control characters');
     return '"' + value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/%/g, '%%') + '"';
 }
-function desktopQuote(value: string): string {
+export function desktopQuote(value: string): string {
     if (/[\r\n\0]/.test(value)) throw new Error('Paths cannot contain control characters');
     // Desktop Entry parsing occurs before Exec quoting: backslashes require two levels.
     return '"' + value.replace(/\\/g, '\\\\\\\\').replace(/["`$]/g, '\\\\$&').replace(/%/g, '%%') + '"';
@@ -189,7 +189,7 @@ export async function otherDaemons(managedPid: number, proc = '/proc'): Promise<
     }
     return found;
 }
-async function main() {
+export async function setupMain() {
     if (process.platform !== 'linux') throw new Error('Native Linux only');
     const [command, ...args] = process.argv.slice(2);
     if (!command || command === '--help') { console.log('Usage: bun standalone/setup.ts install|status [--steam-dir DIR]\nUninstall: bun standalone/setup.ts uninstall [--remove-owned-marker] (default preserves shared debugging)\nSession: internal desktop autostart; imports current desktop environment and restarts only our daemon.\nPersistent marker uses port 8080; no Steam launchers, binaries or selection markers are edited.'); return; }
@@ -229,4 +229,4 @@ async function main() {
         }
     } finally { await rm(lock, { recursive: true }); }
 }
-if (import.meta.main) main().catch(error => { console.error(error.message); process.exitCode = 1; });
+if (import.meta.main) setupMain().catch(error => { console.error(error.message); process.exitCode = 1; });
