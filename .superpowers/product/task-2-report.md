@@ -64,4 +64,4 @@ Bun: `/home/ty/.local/share/mise/installs/bun/1.4.3/bin/bun`.
 - Capture/replay/click pipeline semantics and delivery policy were not redesigned. Developer results prove execution only; capture/delivery/banner visibility stay unmeasured without correlated evidence.
 - No blockers for Task 3. Full Steam restart is required when eventually installing the new frontend/backend.
 
-Implementation commit: recorded in coordinator handoff after committing. Commit signing was disabled for this commit only because the signing agent was unavailable in this environment.
+Implementation commit: `1126680` (common control, developer tools, persistence and verification/report). Commit signing was disabled for this commit only because the signing agent was unavailable in this environment.
