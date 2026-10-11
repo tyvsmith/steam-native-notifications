@@ -1,9 +1,9 @@
 import { afterEach, expect, test } from 'bun:test';
-import { mkdtemp, mkdir, readFile, writeFile, rm, symlink, lstat } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, rm, symlink, lstat, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { CONFIG_DEFAULTS } from './host';
-import { setupPaths, discoverSteam, install, loadState, uninstall, importSession, serviceText, systemdQuote, autostartText, activate, otherDaemons } from './setup';
+import { setupPaths, discoverSteam, install, loadState, uninstall, importSession, serviceText, systemdQuote, autostartText, activate, activateSession, otherDaemons } from './setup';
 import { acquireDaemonLock } from './lock';
 const dirs: string[] = [];
 afterEach(async () => { for (const dir of dirs.splice(0)) await rm(dir, { recursive: true, force: true }); });
@@ -161,4 +161,51 @@ test('kernel lock automatically releases after an isolated daemon process exits'
         await expect(acquireDaemonLock(paths.home)).rejects.toThrow('Another standalone');
     } finally { child.kill(); await child.exited; }
     await (await acquireDaemonLock(paths.home))();
+});
+
+test('missing owned unit refuses uninstall before commands/removal and reinstall restores safe recovery', async () => {
+    const { paths, steam, root, marker } = await fixture();
+    const state = await install(paths, root, process.execPath, steam);
+    const retained = [paths.state, paths.config, paths.autostart, marker];
+    const before = await Promise.all(retained.map(path => readFile(path, 'utf8')));
+    await rm(paths.unit);
+    const commands: string[][] = [];
+    const run = async (args: string[]) => { commands.push(args); return ''; };
+    await expect(uninstall(state, run, true)).rejects.toThrow('rerun setup install to restore the managed unit, then retry uninstall');
+    expect(commands).toEqual([]);
+    expect(await Promise.all(retained.map(path => readFile(path, 'utf8')))).toEqual(before);
+    const restored = await install(paths, root, process.execPath, steam);
+    expect(await Bun.file(paths.unit).exists()).toBe(true);
+    await uninstall(restored, run, true);
+    expect(commands[0]).toEqual(['disable', '--now', 'steam-native-notifications-standalone.service']);
+});
+test('session activation refuses missing, modified, replaced and unowned units before environment import/restart', async () => {
+    const env = { WAYLAND_DISPLAY: 'session-display', DBUS_SESSION_BUS_ADDRESS: 'unix:path=/session/bus', XDG_RUNTIME_DIR: '/session' };
+    for (const alteration of ['missing', 'modified', 'replaced', 'unowned']) {
+        const { paths, steam, root, marker } = await fixture();
+        const state = await install(paths, root, process.execPath, steam);
+        const retained = [paths.state, paths.config, paths.autostart, marker];
+        const before = await Promise.all(retained.map(path => readFile(path, 'utf8')));
+        if (alteration === 'missing') await rm(paths.unit);
+        else if (alteration === 'modified') await writeFile(paths.unit, 'changed service');
+        else if (alteration === 'replaced') {
+            const replacement = join(paths.home, 'replacement-unit');
+            await writeFile(replacement, await readFile(paths.unit, 'utf8'));
+            await rename(replacement, paths.unit);
+        } else state.files.find(file => file.path === paths.unit)!.owned = false;
+        const commands: string[][] = [];
+        await expect(activateSession(state, async args => { commands.push(args); return ''; }, env)).rejects.toThrow();
+        expect(commands).toEqual([]);
+        expect(await Promise.all(retained.map(path => readFile(path, 'utf8')))).toEqual(before);
+    }
+});
+test('intact owned unit permits session environment import followed by daemon restart', async () => {
+    const { paths, steam, root } = await fixture();
+    const state = await install(paths, root, process.execPath, steam);
+    const commands: string[][] = [];
+    await activateSession(state, async args => { commands.push(args); return ''; }, {
+        WAYLAND_DISPLAY: 'session-display', DBUS_SESSION_BUS_ADDRESS: 'unix:path=/session/bus', XDG_RUNTIME_DIR: '/session',
+    });
+    expect(commands.map(args => args[0])).toEqual(['unset-environment', 'import-environment', 'restart']);
+    expect(commands[2]).toEqual(['restart', 'steam-native-notifications-standalone.service']);
 });

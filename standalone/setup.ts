@@ -84,6 +84,17 @@ export async function importSession(run: Runner, env: NodeJS.ProcessEnv = proces
     if (absent.length) await run(['unset-environment', ...absent]);
     await run(['import-environment', ...present]);
 }
+async function requireManagedUnit(state: InstallState): Promise<void> {
+    const unit = state.files.find(file => file.path === state.paths.unit);
+    if (!unit?.owned) throw new Error('Service file is unowned; refusing to manage another service.');
+    if (!await exists(unit.path)) throw new Error('Managed unit is missing; rerun setup install to restore the managed unit, then retry uninstall or session activation.');
+    if (!await unchanged(unit)) throw new Error('Service file changed or was replaced; refusing to manage another service. Restore the installed file before retrying.');
+}
+export async function activateSession(state: InstallState, run: Runner, env: NodeJS.ProcessEnv = process.env): Promise<void> {
+    await requireManagedUnit(state);
+    await importSession(run, env);
+    await run(['restart', UNIT]);
+}
 export async function install(paths: Paths, root: string, bun: string, steam: string): Promise<InstallState> {
     await requireBuild(root);
     let state = await loadState(paths.state);
@@ -119,7 +130,10 @@ export async function install(paths: Paths, root: string, bun: string, steam: st
 export async function uninstall(state: InstallState, run: Runner, removeMarker = false): Promise<string[]> {
     const preserved: string[] = [];
     const unit = state.files.find(file => file.path === state.paths.unit);
-    if (unit?.owned && await unchanged(unit)) await run(['disable', '--now', UNIT]);
+    if (unit?.owned) {
+        await requireManagedUnit(state); // refuse missing/changed ownership before any command or file removal
+        await run(['disable', '--now', UNIT]);
+    }
     else if (await exists(state.paths.unit)) throw new Error('Service file changed or is unowned; refusing to stop/remove another service. Restore the installed file before uninstalling.');
     for (const file of state.files) {
         // Shared debugging may have gained another consumer. Marker removal is explicit even if owned.
@@ -210,7 +224,7 @@ async function main() {
         } else {
             const state = await loadState(statePath);
             if (!state) { console.log('No managed setup found; nothing changed.'); return; }
-            if (command === 'session') { await importSession(systemctl); await systemctl(['restart', UNIT]); }
+            if (command === 'session') await activateSession(state, systemctl);
             else console.log('Uninstalled. Preserved: ' + (await uninstall(state, systemctl, removeMarker)).join(', ') + '\nInjected hooks persist until Steam exits; no Steam process was changed.');
         }
     } finally { await rm(lock, { recursive: true }); }
