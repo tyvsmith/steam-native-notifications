@@ -1,27 +1,15 @@
 import { pluginConfig, subscribePluginConfig } from 'millennium';
-import { PRESENTATION_DEFAULTS, type PresentationSettings } from './presentation';
+import { createSettingsHost } from '../shared/host';
+import { DEFAULTS, isSettingKey, type Settings } from '../shared/settings';
+export { DEFAULTS } from '../shared/settings';
+export type { Settings } from '../shared/settings';
+export { parseCallableJson } from '../shared/host';
 
-export interface Settings extends PresentationSettings {
-	/**
-	 * Dev: accept commands from tools/fire (devfire.ts). A name-and-args door
-	 * into Steam's notification stores for anything that can write the command
-	 * file in the plugin's cache directory, so it ships off.
-	 */
-	devFire: boolean;
-	/**
-	 * Shows the developer toggles in the settings panel. Deliberately has no
-	 * toggle of its own: set it out-of-band (tools/mep plugin.config.set, or
-	 * ~/.config/millennium/config.json while Steam is down) so normal users
-	 * never see the development surface.
-	 */
-	devMode: boolean;
-}
-
-export const DEFAULTS: Settings = {
-	...PRESENTATION_DEFAULTS,
-	devFire: false,
-	devMode: false,
-};
+export const settingsHost = createSettingsHost({
+    getAll: () => pluginConfig.getAll(),
+    set: 'set' in pluginConfig ? (key, value) => pluginConfig.set(key, value as any) : undefined,
+    subscribe: subscribePluginConfig,
+});
 
 /**
  * Read by the toast handler on every notification, so a toggle takes effect
@@ -38,24 +26,8 @@ export function settings(): Settings {
 
 /** Keep removal and malformed-value behavior aligned with the panel defaults. */
 function absorb(key: string, value: unknown): void {
-	if (Object.prototype.hasOwnProperty.call(DEFAULTS, key)) {
+	if (isSettingKey(key)) {
 		current = { ...current, [key]: typeof value === 'boolean' ? value : DEFAULTS[key as keyof Settings] };
-	}
-}
-
-/**
- * A backend return may arrive JSON-encoded (a Lua string wrapped in literal
- * quote characters) or already decoded, depending on the transport; unwrap
- * whichever shape arrives into the object it represents.
- */
-export function parseCallableJson<T>(raw: unknown, fallback: T): T {
-	if (typeof raw !== 'string') return (raw as T) ?? fallback;
-	try {
-		const once = JSON.parse(raw);
-		if (typeof once === 'string') return JSON.parse(once) as T;
-		return once as T;
-	} catch {
-		return fallback;
 	}
 }
 
@@ -69,11 +41,11 @@ let subscribed = false;
 export async function loadSettings(): Promise<Settings> {
 	if (!subscribed) {
 		subscribed = true;
-		subscribePluginConfig((key, value) => absorb(key, value));
+		settingsHost.subscribe((key, value) => absorb(key, value));
 	}
 	for (let attempt = 0; attempt < 5; attempt++) {
 		try {
-			const all = await pluginConfig.getAll<Record<string, unknown>>();
+			const all = await settingsHost.read();
 			if (all && typeof all === 'object') {
 				for (const [key, value] of Object.entries(all)) absorb(key, value);
 				return current;

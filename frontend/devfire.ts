@@ -1,4 +1,5 @@
-import { ffi, findModuleExport } from 'millennium';
+import { findModuleExport } from 'millennium';
+import { hostMethod } from './host';
 import { dlog, safeJson } from './log';
 import { parseCallableJson, settings } from './settings';
 import { inspectReplayStash, invokeReplayHandler } from './replay';
@@ -18,7 +19,7 @@ import { currentClickSurface } from './overlay';
  * setting -- checked per tick, so the settings toggle takes effect without a
  * restart, and a disabled gate costs one boolean read every 3s.
  */
-const takeDevCommand = ffi<[], string>('TakeDevCommand');
+const takeDevCommand = hostMethod('TakeDevCommand');
 
 const DEV_POLL_MS = 3000;
 

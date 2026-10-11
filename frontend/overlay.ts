@@ -1,4 +1,5 @@
-import { ffi, findModuleExport } from 'millennium';
+import { findModuleExport } from 'millennium';
+import { hostMethod } from './host';
 import { dlog, safeJson } from './log';
 
 /**
@@ -17,7 +18,7 @@ import { dlog, safeJson } from './log';
  * steam://openexternalforpid parser builds.
  */
 let overlayStore: any;
-const gameHostFocus = ffi<[number], string>('GameHostFocus');
+const gameHostFocus = hostMethod('GameHostFocus');
 
 /**
  * Live game-focus state, from the client's own signal. Steam places toasts by

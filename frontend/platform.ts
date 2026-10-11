@@ -1,7 +1,7 @@
-import { ffi } from 'millennium';
+import { hostMethod } from './host';
 import type { Platform } from './presentation';
 
-const queryPlatform = ffi<[], string>('Platform');
+const queryPlatform = hostMethod('Platform');
 const PLATFORM_TIMEOUT_MS = 1500;
 let pending: Promise<Platform> | undefined;
 

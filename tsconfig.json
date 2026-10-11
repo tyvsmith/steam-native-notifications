@@ -32,6 +32,7 @@
   },
   "include": [
     "frontend",
+    "shared",
     "standalone/**/*.ts",
     "tools/**/*.ts"
   ],

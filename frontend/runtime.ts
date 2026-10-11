@@ -1,4 +1,5 @@
-import { ffi } from 'millennium';
+import { hostMethod } from './host';
+import { BUILD_IDENTITY } from '../shared/host';
 import { CLICK_PAYLOAD_PREFIX, captureAppIdFromToastName, encodeClickEnvelope, focusKindFor, newClickToken } from './click';
 import { typeName } from './generated/notifications';
 import { setIdentity } from './identity';
@@ -55,8 +56,8 @@ const TOAST_PREFIX = 'notificationtoasts_';
  * in no defined order -- summary and body once arrived swapped -- which is
  * why everything used to travel as one JSON string.)
  */
-const notify = ffi<[string, string, string, string, string, string], string>('Notify');
-const identity = ffi<[], string>('Identity');
+const notify = hostMethod('Notify');
+const identity = hostMethod('Identity');
 
 /**
  * The popup window exists before it has painted, so a single settle delay is a
@@ -269,6 +270,7 @@ function installHook(attempt: number = 0): void {
 }
 
 export function startNativeNotifications(): () => void {
+	(globalThis as any).__snnFrontendBuild = BUILD_IDENTITY;
 	void loadSettings();
 	void loadPlatform();
 	void loadIdentity();

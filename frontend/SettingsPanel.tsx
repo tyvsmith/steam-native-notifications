@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { DialogBodyText, DialogControlsSection, DialogControlsSectionHeader, ToggleField, usePluginConfig } from 'millennium';
 import { DEFAULTS, type Settings } from './settings';
+import { SETTINGS_SCHEMA } from '../shared/settings';
 import { loadPlatform } from './platform';
 import type { Platform } from './presentation';
 
@@ -19,14 +20,14 @@ function PresentationSection({ inGame, windows }: { inGame: boolean; windows: bo
 			<DialogBodyText>{inGame
 				? 'For notifications Steam sends to the game overlay. This can continue after alt-tabbing.'
 				: 'For notifications Steam sends to the desktop.'}</DialogBodyText>
-			<ToggleField label="Show OS notifications"
-				description="Send a copy to your operating system. Banners follow your system notification settings."
+			<ToggleField label={SETTINGS_SCHEMA.notifyOutsideGame.label}
+				description={SETTINGS_SCHEMA.notifyOutsideGame.description}
 				checked={native} onChange={setNative} />
-			<ToggleField label="Show Steam notifications"
-				description="Keep Steam's own notification toast visible."
+			<ToggleField label={SETTINGS_SCHEMA.showSteamOutsideGame.label}
+				description={SETTINGS_SCHEMA.showSteamOutsideGame.description}
 				checked={steam} onChange={setSteam} />
-			{windows && native && <ToggleField label="Save to Notification Center only"
-				description="Save notifications without showing a Windows banner, even when Do Not Disturb is off."
+			{windows && native && <ToggleField label={SETTINGS_SCHEMA.notificationCenterOnlyOutsideGame.label}
+				description={SETTINGS_SCHEMA.notificationCenterOnlyOutsideGame.description}
 				checked={history} onChange={setHistory} />}
 			{!native && !steam && <DialogBodyText>Notifications are off for this context</DialogBodyText>}
 		</DialogControlsSection>
@@ -48,8 +49,8 @@ export function SettingsPanel() {
 			<PresentationSection inGame={true} windows={platform === 'windows'} />
 			{devMode && <DialogControlsSection>
 				<DialogControlsSectionHeader>Developer options</DialogControlsSectionHeader>
-				<ToggleField label="Developer: accept test commands from tools/fire"
-					description="Lets the tools/fire script in the plugin repository push synthesized notifications through Steam's own pipeline."
+				<ToggleField label={SETTINGS_SCHEMA.devFire.label}
+					description={SETTINGS_SCHEMA.devFire.description}
 					checked={devFire} onChange={setDevFire} />
 			</DialogControlsSection>}
 		</>

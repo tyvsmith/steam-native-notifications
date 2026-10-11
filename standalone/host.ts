@@ -1,18 +1,10 @@
 import { appendFile, mkdir, readFile, readdir, realpath, unlink, writeFile, rename } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
-import { PRESENTATION_DEFAULTS } from '../frontend/presentation';
-export const CONFIG_DEFAULTS = { ...PRESENTATION_DEFAULTS, devMode: false, devFire: false };
-export function configValues(raw: unknown): Record<string, boolean> {
-    const values: Record<string, boolean> = { ...CONFIG_DEFAULTS };
-    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-        for (const key of Object.keys(values)) {
-            const value = (raw as Record<string, unknown>)[key];
-            if (typeof value === 'boolean') values[key] = value;
-        }
-    }
-    return values;
-}
+import { DEFAULTS, normalizeSettings } from '../shared/settings';
+import { BUILD_IDENTITY, hostCapabilities } from '../shared/host';
+export const CONFIG_DEFAULTS = DEFAULTS;
+export const configValues = normalizeSettings;
 export function requestPayload(payload: string): { id: number; method: string; args: unknown[] } {
     if (payload.length > 65536) throw new Error('RPC payload too large');
     const request = JSON.parse(payload);
@@ -33,7 +25,7 @@ export class Host {
     }
     async readiness(state: string): Promise<void> {
         const path = join(this.runtime, 'standalone-status.json');
-        await writeFile(path + '.tmp', JSON.stringify({ state, pid: process.pid, at: Date.now(), steam: this.steam }), { mode: 0o600 });
+        await writeFile(path + '.tmp', JSON.stringify({ state, pid: process.pid, at: Date.now(), steam: this.steam, build: BUILD_IDENTITY, capabilities: hostCapabilities('standalone', 'linux') }), { mode: 0o600 });
         await rename(path + '.tmp', path);
     }
     async settings(): Promise<Record<string, boolean>> {

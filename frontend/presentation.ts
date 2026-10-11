@@ -1,22 +1,6 @@
-export interface PresentationSettings {
-	notifyOutsideGame: boolean;
-	notifyInGame: boolean;
-	showSteamOutsideGame: boolean;
-	showSteamInGame: boolean;
-	notificationCenterOnlyOutsideGame: boolean;
-	notificationCenterOnlyInGame: boolean;
-}
-
-export const PRESENTATION_DEFAULTS: PresentationSettings = {
-	notifyOutsideGame: true,
-	notifyInGame: true,
-	showSteamOutsideGame: false,
-	showSteamInGame: true,
-	notificationCenterOnlyOutsideGame: false,
-	notificationCenterOnlyInGame: false,
-};
-
-export type Platform = 'windows' | 'linux' | 'macos' | 'unknown';
+import type { PresentationSettings, Platform } from '../shared/settings';
+export { PRESENTATION_DEFAULTS } from '../shared/settings';
+export type { PresentationSettings, Platform } from '../shared/settings';
 
 /** Presentation follows Steam's capture surface, which can lag after alt-tab. */
 export function presentationFor(settings: PresentationSettings, captureAppId: number | null, platform: Platform) {

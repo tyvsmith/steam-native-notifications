@@ -1,4 +1,4 @@
-import { ffi } from 'millennium';
+import { hostMethod } from './host';
 import { decodeClickPayload, deliveryMode, surfaceMatches, type ClickEnvelope, type FocusKind } from './click';
 import { dlog } from './log';
 import { canReplayHandler, invokeReplayHandler } from './replay';
@@ -24,8 +24,8 @@ import {
  * handler replay while the capture surface still matches, then fall back to the
  * restored catalog against the live click surface.
  */
-const takeClick = ffi<[], string>('TakeClick');
-const focusSteam = ffi<[string], string>('FocusSteam');
+const takeClick = hostMethod('TakeClick');
+const focusSteam = hostMethod('FocusSteam');
 
 const CLICK_POLL_MS = 1000;
 /**
