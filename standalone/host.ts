@@ -1,3 +1,4 @@
+import { configStore, type ConfigStore } from './config-store';
 import { appendFile, mkdir, readFile, readdir, realpath, unlink, writeFile, rename } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -14,7 +15,10 @@ export function requestPayload(payload: string): { id: number; method: string; a
 export class Host {
     private children = new Set<ReturnType<typeof spawn>>();
     private root = resolve(import.meta.dir, '..');
-    constructor(readonly runtime: string, readonly config: string, readonly steam: string) {}
+    readonly store: ConfigStore;
+    live: any = { state: 'disconnected', frontendBuild: null, hook: 'unknown' };
+    frontendCommand?: (envelope: any, sample: boolean) => Promise<unknown>;
+    constructor(readonly runtime: string, readonly config: string, readonly steam: string) { this.store = configStore(config); }
     async initialize(): Promise<void> {
         await mkdir(this.runtime, { recursive: true, mode: 0o700 });
         // Separate log: a standalone daemon must not truncate Millennium's evidence.
@@ -24,17 +28,12 @@ export class Host {
         await appendFile(join(this.runtime, 'standalone.log'), `${new Date().toISOString()} ${line.replace(/[\r\n]/g, ' ').slice(0, 4096)}\n`, { mode: 0o600 });
     }
     async readiness(state: string): Promise<void> {
+        this.live.state = state;
         const path = join(this.runtime, 'standalone-status.json');
         await writeFile(path + '.tmp', JSON.stringify({ state, pid: process.pid, at: Date.now(), steam: this.steam, build: BUILD_IDENTITY, capabilities: hostCapabilities('standalone', 'linux') }), { mode: 0o600 });
         await rename(path + '.tmp', path);
     }
-    async settings(): Promise<Record<string, boolean>> {
-        try { return configValues(JSON.parse(await readFile(this.config, 'utf8'))); }
-        catch (error: any) {
-            if (error.code !== 'ENOENT') await this.log(`standalone: invalid settings; safe defaults: ${error.message}`);
-            return configValues({});
-        }
-    }
+    async settings(): Promise<Record<string, boolean>> { return (await this.store.read()).values; }
     private async consume(name: string): Promise<string> {
         try { const path = join(this.runtime, name); const value = await readFile(path, 'utf8'); await unlink(path); return value; }
         catch { return ''; }
@@ -54,6 +53,7 @@ export class Host {
                 } catch { return '{}'; }
             }
             case 'FocusSteam': return 'unsupported'; // Linux focus is performed inside Steam's existing dispatcher.
+            case 'TakeSampleCommand': if (args.length) break; return ''; // samples arrive through private control
             case 'TakeClick': if (args.length) break; return this.consume('.click');
             case 'TakeDevCommand': if (args.length) break; return (await this.settings()).devFire ? this.consume('.dev-fire') : '';
             case 'GameHostFocus': {

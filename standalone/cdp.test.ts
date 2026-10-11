@@ -44,7 +44,7 @@ test('attach waits for the default Steam context, bridges RPC, and reinjects aft
         return {};
     } };
     const methods: string[] = [];
-    const host: any = { readiness: async () => {}, settings: async () => ({ devFire: false }), log: async (line: string) => { logs.push(line); }, dispatch: async (method: string) => { methods.push(method); return 'linux'; } };
+    const host: any = { live: { state: 'disconnected' }, readiness: async () => {}, settings: async () => ({ devFire: false }), log: async (line: string) => { logs.push(line); }, dispatch: async (method: string) => { methods.push(method); return 'linux'; } };
     await attach(client, '/* fixture bundle */', host, () => running);
     expect(injections).toBe(2); expect(methods).toEqual(['Platform']);
     expect(logs.length).toBe(2);
@@ -92,7 +92,7 @@ test('reload during awaited injection cannot mark a destroyed context attached',
         }
         return {};
     } };
-    const host: any = { readiness: async () => {}, settings: async () => ({}), log: async () => {}, dispatch: async () => 'ok' };
+    const host: any = { live: { state: 'disconnected' }, readiness: async () => {}, settings: async () => ({}), log: async () => {}, dispatch: async () => 'ok' };
     await attach(client, '/* race bundle */', host, () => running);
     expect(ids).toEqual([1, 2]);
 }, 4000);

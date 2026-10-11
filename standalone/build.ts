@@ -1,3 +1,4 @@
+import { BUILD_IDENTITY } from '../shared/host';
 import { resolve } from 'node:path';
 const result = await Bun.build({
     entrypoints: [resolve(import.meta.dir, 'browser.ts')],
@@ -9,3 +10,5 @@ const result = await Bun.build({
 });
 if (!result.success) { for (const log of result.logs) console.error(log); process.exit(1); }
 console.log(`Standalone frontend: ${result.outputs[0]?.path}`);
+
+await Bun.write(resolve(import.meta.dir, '../dist/standalone/build.json'), JSON.stringify(BUILD_IDENTITY));

@@ -1,3 +1,4 @@
+import { validateDevCommand, type DevEnvelope } from '../shared/dev-command';
 import { findModuleExport } from 'millennium';
 import { hostMethod } from './host';
 import { dlog, safeJson } from './log';
@@ -20,8 +21,10 @@ import { currentClickSurface } from './overlay';
  * restart, and a disabled gate costs one boolean read every 3s.
  */
 const takeDevCommand = hostMethod('TakeDevCommand');
+const takeSampleCommand = hostMethod('TakeSampleCommand');
 
 const DEV_POLL_MS = 3000;
+const startedAt = Date.now();
 
 /**
  * The server notification store is not a window global; it is found by webpack
@@ -57,8 +60,7 @@ function findServerNotificationStore(): any {
 function injectServerNotification(type: number, body: unknown): void {
 	const store = findServerNotificationStore();
 	if (!store) {
-		dlog('dev-fire: server notification store not found');
-		return;
+		throw new Error('Server notification store not found');
 	}
 	const id = Date.now() % 1_000_000_000;
 	const now = Math.floor(Date.now() / 1000);
@@ -107,49 +109,46 @@ async function runOverlayProbe(probe: { call?: string }): Promise<void> {
 	}
 }
 
+export async function executeDevCommand(envelope: DevEnvelope, sample = false): Promise<unknown> {
+    if (!envelope || typeof envelope.id !== 'string' || !Number.isSafeInteger(envelope.deadline) || !Number.isSafeInteger(envelope.createdAt) || envelope.deadline <= Date.now() || envelope.createdAt < startedAt) throw new Error('Developer request expired or predates this Steam frontend');
+    if (!sample && !settings().devFire) throw new Error('Developer commands are disabled');
+    const cmd = validateDevCommand(sample ? { call: 'TestFriendOnline', args: [] } : envelope.command);
+    let value: unknown = null;
+    if ('overlay' in cmd) { await runOverlayProbe(cmd.overlay); }
+    else if ('replay' in cmd) {
+        if (cmd.replay.call === 'inspect') value = inspectReplayStash();
+        else { const surface = await currentClickSurface(); if (!surface) throw new Error('Current capture surface unknown'); value = invokeReplayHandler(cmd.replay.name, surface.focusedAppId); if (!value) throw new Error('Replay was refused or no matching handler exists'); }
+    } else if ('server' in cmd) { injectServerNotification(cmd.server.type, cmd.server.body); }
+    else {
+        const store: any = Reflect.get(globalThis, 'NotificationStore');
+        const fn = store?.[cmd.call];
+        if (typeof fn !== 'function') throw new Error(`NotificationStore.${cmd.call} is unavailable`);
+        dlog(`dev-fire: NotificationStore.${cmd.call}(${safeJson(cmd.args)})`);
+        value = await fn.apply(store, cmd.args);
+    }
+    return { id: envelope.id, stage: 'executed', value: value ?? null, measurement: 'Execution completed; capture, delivery and banner visibility are unmeasured' };
+}
 export function startDevFirePoll(): void {
-	window.setInterval(async () => {
-		if (!settings().devFire) return;
-		try {
-			const raw = await takeDevCommand();
-			const cmd = parseCallableJson<{
-				call?: string;
-				args?: unknown[];
-				server?: { type: number; body?: unknown };
-				overlay?: { call?: string };
-				replay?: { call?: string; name?: string };
-			} | null>(raw, null);
-			if (!cmd) return;
-			if (cmd.overlay) {
-				void runOverlayProbe(cmd.overlay);
-				return;
-			}
-			// Replay diagnostics: inspect the handler stash, or invoke a stashed
-			// handler without a desktop click. Neither throws.
-			if (cmd.replay) {
-				if (cmd.replay.call === 'inspect') inspectReplayStash();
-				else if (cmd.replay.call === 'invoke') {
-					const surface = await currentClickSurface();
-					if (surface) invokeReplayHandler(cmd.replay.name, surface.focusedAppId);
-					else dlog('replay: invoke refused: current surface unknown');
-				} else dlog(`replay: unknown call ${String(cmd.replay.call)}`);
-				return;
-			}
-			if (cmd.server && typeof cmd.server.type === 'number') {
-				injectServerNotification(cmd.server.type, cmd.server.body);
-				return;
-			}
-			if (!cmd.call) return;
-			const store: any = Reflect.get(globalThis, 'NotificationStore');
-			const fn = store?.[cmd.call];
-			if (typeof fn !== 'function') {
-				dlog(`dev-fire: NotificationStore.${cmd.call} is not a function`);
-				return;
-			}
-			dlog(`dev-fire: NotificationStore.${cmd.call}(${safeJson(cmd.args ?? [])})`);
-			fn.apply(store, Array.isArray(cmd.args) ? cmd.args : []);
-		} catch (e) {
-			dlog(`dev-fire failed: ${(e as Error)?.message ?? e}`);
-		}
-	}, DEV_POLL_MS);
+    (globalThis as any).__snnDevControl = async (envelope: DevEnvelope, sample = false) => {
+        try { return { ok: true, value: await executeDevCommand(envelope, sample) }; }
+        catch (e: any) { return { ok: false, error: e.message }; }
+    };
+    window.setInterval(async () => {
+        try {
+            const sampleRaw = await takeSampleCommand();
+            const sample = parseCallableJson<any>(sampleRaw, null);
+            if (sample && typeof sample.id === 'string' && Number.isSafeInteger(sample.deadline)) {
+                const result = await (globalThis as any).__snnDevControl(sample, true);
+                dlog(`dev-fire: sample result ${safeJson({ id: sample.id, ...result })}`);
+            }
+            if (!settings().devFire) return;
+            const raw = await takeDevCommand();
+            const parsed = parseCallableJson<any>(raw, null);
+            if (!parsed) return;
+            if (!parsed.command) throw new Error('Legacy developer command lacks expiry; rerun tools/fire from the current build');
+            const envelope: DevEnvelope = parsed;
+            const result = await (globalThis as any).__snnDevControl(envelope);
+            dlog(`dev-fire: result ${safeJson({ id: envelope.id, ...result })}`);
+        } catch (e: any) { dlog(`dev-fire failed: ${e.message}`); }
+    }, DEV_POLL_MS);
 }

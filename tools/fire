@@ -2,6 +2,7 @@
 // Fire a test notification through Steam's own toast pipeline, and drive the
 // plugin's dev diagnostics. Every command writes a file the plugin's dev poll
 // consumes within ~3s, gated on the devFire developer toggle.
+// Common options: --host auto|millennium|standalone --json.
 //
 // Client toasts (Steam's own NotificationStore Test* methods; args are JSON --
 // bare numbers and null pass through, quote strings):

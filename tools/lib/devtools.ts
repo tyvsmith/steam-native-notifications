@@ -83,6 +83,7 @@ function findBigInt(v: unknown): bigint | null {
 export function planFire(argv: string[]): FirePlan {
 	if (argv.length === 0 || argv[0] === '-h' || argv[0] === '--help') return { kind: 'usage' };
 	const [head, ...rest] = argv;
+	if (head === 'TestIncomingVoiceChat') return { kind: 'error', message: 'TestIncomingVoiceChat is blocked: fake calls wedge Steam until restart' };
 
 	if (head === '--wishlist') {
 		const appid = rest[0] || '1073390';

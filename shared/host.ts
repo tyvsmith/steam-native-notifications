@@ -11,7 +11,7 @@ export function hostCapabilities(kind: HostKind, platform: Platform): HostCapabi
 }
 export interface HostMethods {
     Notify: [string, string, string, string, string, string]; Identity: []; Platform: []; Log: [string];
-    GameHostFocus: [number]; TakeDevCommand: []; TakeClick: []; FocusSteam: [string];
+    GameHostFocus: [number]; TakeDevCommand: []; TakeSampleCommand: []; TakeClick: []; FocusSteam: [string];
 }
 export type HostMethod = keyof HostMethods;
 export interface RuntimeHost { call<M extends HostMethod>(method: M, ...args: HostMethods[M]): Promise<string> }
@@ -49,8 +49,10 @@ export function createSettingsHost(transport: SettingsTransport): SettingsHost {
             let patch: Partial<Settings>;
             try { patch = validateSettingsPatch(raw); } catch (error) { return { ok: false, code: 'invalid', message: String(error) }; }
             if (!transport.set) return { ok: false, code: 'unsupported', message: 'Settings writes are unavailable through this transport' };
-            for (const [key, value] of Object.entries(patch)) await transport.set(key, value);
-            return { ok: true, value: normalizeSettings(await transport.getAll()) };
+            try {
+                for (const [key, value] of Object.entries(patch)) await transport.set(key, value);
+                return { ok: true, value: normalizeSettings(await transport.getAll()) };
+            } catch (error) { return { ok: false, code: 'unavailable', message: `Settings write failed: ${String(error)}` }; }
         },
         subscribe: transport.subscribe,
     };

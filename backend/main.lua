@@ -473,6 +473,13 @@ function TakeDevCommand()
     return consume(join(RUNTIME_DIR, ".dev-fire"))
 end
 
+--- Fixed sample door: frontend ignores any supplied method/arguments.
+---@ffi
+---@return string
+function TakeSampleCommand()
+    return consume(join(RUNTIME_DIR, ".sample"))
+end
+
 --- Legacy/test click handoff: production helpers launch or store the canonical
 --- Steam notification URL, which frontend/steamurl.ts validates before shared
 --- dispatch. This consume-once input remains for compatibility and focused

@@ -289,6 +289,14 @@ os.getenv = function(name)
 	return real_getenv(name)
 end
 
+-- Fixed sample is consumed once without invoking any arbitrary method.
+local sample_file = io.open(tmp_cache .. "/steam-native-notifications/.sample", "w")
+sample_file:write('{"id":"sample-fixture","deadline":123}')
+sample_file:close()
+local sample_ok, sample_taken = pcall(TakeSampleCommand)
+check("TakeSampleCommand reads fixed sample envelope", sample_ok and sample_taken:find("sample-fixture", 1, true) ~= nil, tostring(sample_taken))
+check("TakeSampleCommand consumes once", TakeSampleCommand() == "")
+
 -- TakeDevCommand: consume-once semantics against the runtime cache directory
 -- (created by on_load above), the same place tools/fire writes.
 local fire = assert(io.open(tmp_cache .. "/steam-native-notifications/.dev-fire", "w"))

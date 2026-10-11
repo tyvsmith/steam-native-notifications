@@ -264,11 +264,12 @@ export function parseStamp(line: string): Date | null {
  * consume-once read never sees a partial command. UTF-8 without a BOM and
  * an LF newline: the backend hands the bytes to the frontend's JSON parse.
  */
-export function writeDevFire(command: object): void {
+export function writeDevFire(command: object): void { writeCommandFile(command, 'dev'); }
+export function writeCommandFile(command: object, kind: 'dev' | 'sample'): void {
 	const dir = runtimeDir();
 	mkdirSync(dir, { recursive: true });
-	const target = join(dir, '.dev-fire');
-	const tmp = `${target}.${process.pid}.tmp`;
+	const target = join(dir, kind === 'sample' ? '.sample' : '.dev-fire');
+	const tmp = `${target}.${process.pid}.${crypto.randomUUID()}.tmp`;
 	writeFileSync(tmp, `${JSON.stringify(command)}\n`, { encoding: 'utf8' });
 	renameSync(tmp, target);
 }

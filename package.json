@@ -22,7 +22,8 @@
     "build:standalone": "bun tools/gen-proto.mjs && bun tools/gen-build-identity.ts && tsc --noEmit && bun standalone/build.ts",
     "setup:standalone": "bun standalone/setup.ts",
     "start:standalone": "bun standalone/daemon.ts",
-    "test:standalone": "bun test standalone/*.test.ts"
+    "test:standalone": "bun test standalone/*.test.ts && bun test ./standalone/client.contract-test.ts",
+    "snn": "bun standalone/cli.ts"
   },
   "devDependencies": {
     "@steambrew/starlight": "^1.1.4",

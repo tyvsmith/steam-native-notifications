@@ -51,3 +51,19 @@ test('narrow webpack lookup resolves store without loading unrelated factories',
     const found = f.context.module.exports.findModuleExport((e: any) => typeof e?.OnGameOverlayActivateRequested === 'function' && typeof e?.OnSteamURLOpenExternalForPID === 'function');
     expect(found).toBe(store); expect(unrelated).toBe(0);
 });
+
+test('shared developer execution gates unsafe/disabled/expired/restarted requests; fixed sample ignores supplied command', async () => {
+    const f = await fixture(); let fired = 0;
+    f.context.NotificationStore = { TestFriendOnline() { fired++; }, TestFriendMessage() { throw new Error('fixture failure'); } };
+    const request = (command: any) => ({ id: crypto.randomUUID(), createdAt: Date.now(), deadline: Date.now() + 1000, command });
+    const execute = f.context.__snnDevControl;
+    expect((await execute(request({ call: 'TestFriendOnline', args: [] }))).error).toContain('disabled');
+    expect((await execute(request({ call: 'anything', args: [] }), true)).value.stage).toBe('executed'); expect(fired).toBe(1);
+    f.context.__snnConfig({ devFire: true });
+    expect((await execute(request({ call: 'TestIncomingVoiceChat', args: [] }))).error).toContain('blocked');
+    expect((await execute(request({ call: 'eval', args: [] }))).error).toContain('Unsupported');
+    expect((await execute({ ...request({ call: 'TestFriendOnline', args: [] }), deadline: 1 })).error).toContain('expired');
+    expect((await execute({ ...request({ call: 'TestFriendOnline', args: [] }), createdAt: 1 }, true)).error).toContain('predates');
+    expect((await execute(request({ call: 'TestFriendMessage', args: [] }))).error).toContain('fixture failure');
+    expect((await execute(request({ call: 'TestFriendOnline', args: [] }))).value.stage).toBe('executed'); expect(fired).toBe(2);
+});

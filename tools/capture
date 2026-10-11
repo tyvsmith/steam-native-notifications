@@ -5,6 +5,7 @@
 //
 // Usage: tools/capture [n]      n = how many notification lines to show (default 8)
 //        (on Windows: bun tools/capture [n])
+// Common options: --host auto|millennium|standalone --json.
 //
 // Log sources. The plugin's own diagnostics go to plugin.log in the runtime
 // directory (tools/lib/snn.ts): Millennium buffers a packed (.star) plugin's

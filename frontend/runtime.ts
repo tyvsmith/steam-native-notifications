@@ -255,6 +255,7 @@ function installHook(attempt: number = 0): void {
 		if (attempt < MANAGER_RETRY_LIMIT) {
 			setTimeout(() => installHook(attempt + 1), MANAGER_RETRY_MS);
 		} else {
+			(globalThis as any).__snnHookState = 'failed';
 			dlog('g_PopupManager never appeared; bridge inactive');
 		}
 		return;
@@ -263,8 +264,10 @@ function installHook(attempt: number = 0): void {
 	try {
 		registrations.push(mgr.AddPopupCreatedCallback(onPopupCreated));
 		registrations.push(mgr.AddPopupDestroyedCallback(onPopupDestroyed));
+		(globalThis as any).__snnHookState = 'installed';
 		dlog('hook installed');
 	} catch (e) {
+		(globalThis as any).__snnHookState = 'failed';
 		dlog(`hook failed: ${(e as Error)?.message ?? e}`);
 	}
 }
