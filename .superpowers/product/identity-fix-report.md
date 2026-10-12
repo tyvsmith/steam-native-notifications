@@ -25,3 +25,7 @@ Millennium artifact: `dist/me.tysmith.steam-native-notifications.star`.
 SHA256: `3bcbda98199ed2ab470e7e527ed3db4b649a199eedf503e37fba0a5d99aa2c70`.
 
 No live actions, installation/settings/service/Steam changes, pushes or subagents. Currently installed af build remains active. Coordinator owns final review/upgrade, main frontend refresh and clean Git confirmation. No remaining blocker for this generator correction; final experimental CI upload behavior awaits its future run.
+
+## CI regression follow-up
+
+Added an explicit `bun test tools/gen-build-identity.test.ts` step immediately after typecheck in the reusable build workflow. This closes the review's nonblocking coverage gap. Only workflow/report files changed; package.json and identity source inputs remain unchanged, so the verified 684e743fee6c release and checksum above remain current. Inspected the exact workflow diff and ran git diff --check; no tests were repeated and no live actions or push occurred.
