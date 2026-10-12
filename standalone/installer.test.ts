@@ -14,3 +14,50 @@ test('malformed duplicate and unowned v1 ownership refused without runner calls'
 test('every managed switch prefix recovers previous installation after interruption',async()=>{for(let prefix=0;prefix<=6;prefix++){const f=await fixture();try{const old=await installPackage(f.p,await f.release(),f.steam,run);const q=packagePaths(f.p);const targets=[f.p.unit,f.p.autostart,q.desktop,q.active,q.bin,f.p.state];const replacements:any[]=[];let captured=false;await expect(installPackage(f.p,await f.release(),undefined,async args=>{if(args[0]==='daemon-reload'){if(!captured){captured=true;for(const path of targets){const stat=await lstat(path);replacements.push({path,link:stat.isSymbolicLink(),value:stat.isSymbolicLink()?await readlink(path):await readFile(path)});}}throw new Error('interruption fixture');}return '';})).rejects.toThrow('recovery pending');for(const r of replacements.slice(0,prefix)){if(r.link){await unlink(r.path);await symlink(r.value,r.path);}else await writeFile(r.path,r.value);}expect(await recover(f.p,run)).toBe(true);expect(await readlink(q.active)).toBe(old.active);await installPackage(f.p,await f.release(),undefined,run);}finally{await rm(f.home,{recursive:true,force:true});}}});
 
 test('uninstall refuses changed unit, desktop, links and unowned assets before service calls; preserves settings and marker',async()=>{const f=await fixture();try{const state=await installPackage(f.p,await f.release(),f.steam,run);const q=packagePaths(f.p);const targets=[f.p.unit,f.p.autostart,q.desktop,join(state.active,'tools/notify-action')];for(const path of targets){const bytes=await readFile(path);await writeFile(path,'modified');let calls=0;await expect(packageCommand('uninstall',[],f.p,async()=>{calls++;return '';})).rejects.toThrow();expect(calls).toBe(0);await writeFile(path,bytes);}await writeFile(join(state.active,'foreign'),'unowned');await expect(packageCommand('uninstall',[],f.p,run)).rejects.toThrow('Unexpected');await unlink(join(state.active,'foreign'));await unlink(q.bin);await symlink('/foreign/snn',q.bin);await expect(packageCommand('uninstall',[],f.p,run)).rejects.toThrow('Modified/unowned link');await unlink(q.bin);await symlink(join(q.active,'snn'),q.bin);const bytes=' {"unknown":true,"devFire":true}\n';await writeFile(f.p.config,bytes);await packageCommand('uninstall',[],f.p,run);expect(await readFile(f.p.config,'utf8')).toBe(bytes);expect(await readFile(join(f.steam,'.cef-enable-remote-debugging'),'utf8')).toBe('');}finally{await rm(f.home,{recursive:true,force:true});}});
+
+async function pendingRecovery(f:Awaited<ReturnType<typeof fixture>>, fresh=false) {
+    const old=fresh?undefined:await installPackage(f.p,await f.release(),f.steam,run);
+    await expect(installPackage(f.p,await f.release(),f.steam,async args=>{
+        if(args[0]==='restart'||(fresh&&args[0]==='disable'))throw new Error('fixture manager unavailable'); return '';
+    })).rejects.toThrow('recovery pending');
+    return old;
+}
+test('fresh install failure disables while unit exists and repeated extracted recovery converges',async()=>{
+    const f=await fixture();try{
+        let disabled=0;
+        const strict=async(args:string[])=>{if(args[0]==='restart')throw new Error('activation failed');if(args[0]==='disable'){expect((await lstat(f.p.unit)).isFile()).toBe(true);disabled++;}return '';};
+        await expect(installPackage(f.p,await f.release(),f.steam,strict)).rejects.toThrow('activation failed');
+        expect(disabled).toBe(1);expect(await recover(f.p,run)).toBe(false);
+        await pendingRecovery(f,true);
+        let interrupted=false;await expect(recover(f.p,async args=>{if(args[0]==='disable'&&!await Bun.file(f.p.unit).exists())throw new Error('Unit does not exist');return '';},async step=>{if(step==='recovery-manager-journaled'&&!interrupted){interrupted=true;throw new Error('crash after stop journal');}})).rejects.toThrow('crash after stop journal');
+        expect(await packageCommand('recover',[],f.p,run)).toEqual({recovered:true});
+        expect(await recover(f.p,run)).toBe(false);await installPackage(f.p,await f.release(),f.steam,run);
+    }finally{await rm(f.home,{recursive:true,force:true});}
+});
+test('every recovery durable boundary including refreshed publication and partial/finished cleanup is retryable',async()=>{
+    for(const fresh of [false,true]) {
+        let boundaries=0;const baseline=await fixture();try{await pendingRecovery(baseline,fresh);await recover(baseline.p,run,async()=>{boundaries++;});}finally{await rm(baseline.home,{recursive:true,force:true});}
+        for(let stop=1;stop<=boundaries;stop++) {
+            const f=await fixture();try{const old=await pendingRecovery(f,fresh);let step=0;
+                await expect(recover(f.p,run,async()=>{if(++step===stop)throw new Error('injected recovery interruption');})).rejects.toThrow('injected recovery interruption');
+                expect(await recover(f.p,run)).toBe(true);expect(await recover(f.p,run)).toBe(false);
+                if(old)expect(await readlink(packagePaths(f.p).active)).toBe(old.active);
+                await installPackage(f.p,await f.release(),f.steam,run);
+            }finally{await rm(f.home,{recursive:true,force:true});}
+        }
+    }
+});
+test('every uninstall durable boundary including partial file/directory cleanup resumes via recover or uninstall',async()=>{
+    let boundaries=0;const baseline=await fixture();try{await installPackage(baseline.p,await baseline.release(),baseline.steam,run);await packageCommand('uninstall',[],baseline.p,run,async()=>{boundaries++;});}finally{await rm(baseline.home,{recursive:true,force:true});}
+    for(let stop=1;stop<=boundaries;stop++) {
+        const f=await fixture();try{await installPackage(f.p,await f.release(),f.steam,run);const config=' {"unknown":"preserve","devFire":true}\n';await writeFile(f.p.config,config);let step=0;
+            await expect(packageCommand('uninstall',[],f.p,run,async()=>{if(++step===stop)throw new Error('injected uninstall interruption');})).rejects.toThrow('injected uninstall interruption');
+            if(stop%2)await packageCommand('uninstall',[],f.p,run);else expect(await recover(f.p,run)).toBe(true);
+            expect(await recover(f.p,run)).toBe(false);expect(await readFile(f.p.config,'utf8')).toBe(config);expect(await readFile(join(f.steam,'.cef-enable-remote-debugging'),'utf8')).toBe('');
+            await installPackage(f.p,await f.release(),f.steam,run);
+        }finally{await rm(f.home,{recursive:true,force:true});}
+    }
+});
+test('pending cleanup preserves modified and foreign assets and refuses before unlinking owned files',async()=>{
+    const f=await fixture();try{await installPackage(f.p,await f.release(),f.steam,run);await expect(packageCommand('uninstall',[],f.p,run,async step=>{if(step==='uninstall-journaled')throw new Error('pause cleanup');})).rejects.toThrow('pause cleanup');const t=JSON.parse(await readFile(packagePaths(f.p).tx,'utf8'));const root=t.releases[0];await writeFile(join(root,'foreign'),'preserve');await expect(recover(f.p,run)).rejects.toThrow('Unowned cleanup');expect(await readFile(join(root,'foreign'),'utf8')).toBe('preserve');await unlink(join(root,'foreign'));const path=join(root,'tools/notify-action');await writeFile(path,'modified');await expect(recover(f.p,run)).rejects.toThrow('Modified cleanup');expect(await readFile(path,'utf8')).toBe('modified');expect((await lstat(f.p.unit)).isFile()).toBe(true);}finally{await rm(f.home,{recursive:true,force:true});}
+});

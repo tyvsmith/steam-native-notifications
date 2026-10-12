@@ -58,3 +58,31 @@ Live installation/runtime, desktop entry visibility, Steam frontend reload and U
 Interrupted setup directory lock requires explicit removal after confirming no setup process remains; it uses the same state.lock name as source setup to prevent overlapping source/product mutation. A crash before transaction persistence may leave an unreferenced stage/version directory: it is never claimed/deleted automatically and identical identity collision refuses; inspect/remove it manually. This case and retryable recovery commands are documented. Version directories are not removed while ordinary upgrade/rollback occurs. All shared preferences and marker are preserved on uninstall, including created config, to avoid deleting useful preferences.
 
 Integrity checks do not authenticate publishers. No auto-release download or OS package installation. Native Linux only; Flatpak unsupported. Checks establish fixture/artifact behavior, not live Steam or other-platform behavior.
+
+## Task 4 review corrections — 2026-10-12
+
+Resolved all four findings in task-4-review.md; the artifact below supersedes the earlier package.
+
+1. Fresh-install recovery disables/stops the validated new unit before restoring its absent snapshot. Manager completion is journaled before any unit removal, allowing repeat recovery after unit deletion without a nonexistent-unit disable. Strict runner and real compiled command fixtures model systemctl failure when the unit is missing, first-install restart failure and subsequent extracted recovery.
+2. Refreshed old-state bytes are permitted in the durable transaction before atomic state publication. Recovery accepts original, desired installation and expressly permitted refreshed bytes; publication-before-snapshot-commit interruptions converge without manual journal edits. Subsequent installation succeeds.
+3. Recovery records a fully validated cleanup plan before removing a release. Each regular file has device/inode/checksum ownership, and directories are bounded to that release. Resumption validates all remaining entries, accepts already absent planned files/directories and refuses unknown or changed assets. No recursive deletion remains in transactional release cleanup. Interruption midway through deletion or after release disappearance before transaction unlink resumes safely.
+4. Uninstall persists its owned snapshots (including inode identity), release removal plans and manager phase before mutation. Repeated uninstall or recover from an extracted executable resumes after unit/bin/active/state unlink or partial release deletion. Every remaining target is checked before service or removal commands. Settings and marker remain preserved.
+
+`recover(paths,runner,checkpoint?)` and `packageCommand(command,args,paths?,runner?,checkpoint?)` expose an optional fixture-only observer for actual durable boundaries; no environment or public CLI option enables it. Failure injection runs after every recovery restoration, manager phase, refreshed-state permission/publication/snapshot commit, cleanup-plan publication, file deletion, directory deletion and pre-transaction unlink; uninstall injection covers journal creation, manager operation/publication, every managed unlink, each file/directory deletion and final reload. Both fresh and previous-install recovery are covered. Partial removal safety includes changed/foreign asset preservation.
+
+Verification with pinned Bun1.4.3:
+
+- Focused installer suite: **12 passed, 479 assertions**; all durable recovery/removal/uninstall interruption prefixes and all original migration/upgrade/rollback tests.
+- `bun run typecheck` and final `bun run build:release`: passed; regenerated frontend identity, compiled Linuxx64 baseline, manifest/inventory/checksums/tar and readelf GLIBC2.17 requirement.
+- Final compiled `tools/test-packaged.ts`: passed, now additionally models first-install restart failure and missing-unit disable failure, requires automatic recovery to clear its journal, then runs extracted recover and successful install. Existing no-Bun PATH/arbitrary cwd/spaces/stable link/embedded settings HTTP/uninstall preservation checks remain.
+- Source setup compatibility: **16 passed, 85 assertions**, `/tmp/task4-review-source-setup.log`.
+- Full standalone regression: **80 passed, 793 assertions plus 3 contract scenarios/25 assertions**, `/tmp/task4-review-standalone.log` (isolated fixture socket escalation).
+- Final local Millennium pack passed, 94.89kB; `git diff --check` passed. Unaffected backend/tool broad suite was not repeated; its earlier passing evidence remains.
+
+Final replacement version 0.1.0/protocol1 identity: `7f1a5440452322203a8e6fcca372d154f43e36faf3c7f1e01f312c26a96f4320`.
+
+Extracted release: `/home/ty/Documents/Codex/2026-10-10/task-4/product-build/dist/releases/snn-0.1.0-7f1a54404523-linux-x64`.
+
+Tarball: `dist/releases/snn-0.1.0-7f1a54404523-linux-x64.tar.gz`; companion `.tar.gz.sha256`; SHA256 `9f825c9a9b5f038b80b0f15e56758a5fbab2b70e30fc0fe3f30fdb93990fb026`.
+
+Coordinator install command uses this new extracted directory with the previously selected canonical native Steam directory. Interrupted uninstall recovery can use `"/explicit/extracted/release/snn" recover` when the stable entrypoint has been removed. No live operations, Steam commands, pushes, releases, tags or subagents were performed. Coordinator scoped review and live validation remain outstanding.
