@@ -2,7 +2,6 @@ import { capture, fire, hostStatus } from './client';
 import { settingsCommand } from './settings-server';
 import { planFire } from '../tools/lib/devtools';
 import { parseCommonOptions, printResult, printError } from './cli-options';
-export { parseCommonOptions } from './cli-options';
 import { dependencies } from './dependencies';
 import { BUILD_IDENTITY } from '../shared/host';
 import { selectHost } from './client';

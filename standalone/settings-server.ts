@@ -1,4 +1,4 @@
-import { panelPatch, panelDefaults } from './settings-policy';
+import { preferencePatch, preferenceDefaults } from '../shared/settings-policy';
 import { BUILD_IDENTITY } from '../shared/host';
 import { SETTINGS_SCHEMA } from '../shared/settings';
 import { configStore, type ConfigStore } from './config-store';
@@ -29,11 +29,11 @@ export function startSettingsServer(options: SettingsServerOptions = {}) {
             const body = await request.text(); if (body.length > 8192) return json({ error: 'Request too large' }, 413);
             let input: any; try { input = JSON.parse(body); } catch { return json({ error: 'Malformed JSON' }, 400); }
             if (url.pathname === '/api/config') {
-                const patch = panelPatch(input, (await store.read()).values);
+                const patch = preferencePatch(input, (await store.read()).values, 'linux');
                 touch(); return json(await store.update(patch));
             }
             if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).length) return json({ error: 'Expected empty object' }, 400);
-            if (url.pathname === '/api/reset') { touch(); return json(await store.update(panelDefaults())); }
+            if (url.pathname === '/api/reset') { touch(); return json(await store.update(preferenceDefaults('linux'))); }
             if (url.pathname === '/api/sample') { touch(); return json(await (options.sample ?? sample)('standalone')); }
             if (url.pathname === '/api/close') { setTimeout(stop, 50); return json({ closed: true }); }
             return json({ error: 'Unknown endpoint' }, 404);

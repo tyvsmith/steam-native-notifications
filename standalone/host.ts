@@ -1,5 +1,5 @@
 import { controlHandler } from './control-host';
-import { panelPatch, panelDefaults } from './settings-policy';
+import { preferencePatch, preferenceDefaults } from '../shared/settings-policy';
 import { runtimeRoot } from './runtime-paths';
 import { configStore, type ConfigStore } from './config-store';
 import { rotatingLog } from './log';
@@ -51,10 +51,10 @@ export class Host {
                     hook: this.live.hook, build: BUILD_IDENTITY });
             case 'PanelPatch':
                 if (args.length !== 1) break;
-                return JSON.stringify(await this.store.update(panelPatch(args[0], (await this.store.read()).values), Date.now() + 4000));
+                return JSON.stringify(await this.store.update(preferencePatch(args[0], (await this.store.read()).values, 'linux'), Date.now() + 4000));
             case 'PanelReset':
                 if (args.length) break;
-                return JSON.stringify(await this.store.update(panelDefaults(), Date.now() + 4000));
+                return JSON.stringify(await this.store.update(preferenceDefaults('linux'), Date.now() + 4000));
             case 'PanelSample':
                 if (args.length) break;
                 return JSON.stringify(await controlHandler(this)({ id: crypto.randomUUID(), operation: 'sample', deadline: Date.now() + 4000 }));

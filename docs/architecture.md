@@ -18,13 +18,31 @@ records how the routing catalog and protobuf schema were restored from
 `docs/platforms.md` is the platform support matrix (the paths and calls
 that differ per OS, and the delivery plan where nothing delivers yet).
 
-The experimental native Linux RT3 host reuses this frontend through a CDP
-binding adapter; the normal Millennium entrypoint still supplies its settings
-panel. Persistent standalone setup uses an owned CEF marker and source-backed
-user service with dynamic desktop session environment; it never edits launchers
-or restarts Steam. Existing shared marker/settings are preserved. The standalone
-backend uses a per-cache kernel lock and live binding RPC health heartbeat.
-See [standalone setup and limits](experiments/rt3-standalone.md).
+## Standalone RT3 host
+
+The native Linux x64 standalone package runs without Millennium or a separate
+Bun installation. Both hosts share notification capture, localized text,
+presentation, replay, durable routes and the Linux notification helper.
+
+| Boundary | Millennium | Standalone |
+|---|---|---|
+| Frontend loading and RPC | plugin loader and FFI | loopback CEF CDP and binding adapter |
+| Preferences | per-key plugin config | serialized atomic JSON store |
+| Settings UI | plugin panel | native Steam settings page and external browser editor |
+| Developer commands | MEP discovery and expiring file queue | private Unix socket and correlated frontend execution |
+| Installation | packed `.star` | versioned executable, user service and desktop entries |
+
+`shared/settings-policy.ts` owns visibility, context descriptions and preference
+reset rules. Renderers and storage stay with their hosts. An optional Steam panel
+failure does not stop notification capture or the external editor.
+
+The packaged installer verifies daemon PID/build readiness before completing
+activation, preserves stopped/disabled service state, and records recoverable
+file ownership. Source setup remains for development and migration. Neither
+installer changes Steam launchers or starts/stops Steam. Existing settings and
+the shared CEF marker are preserved. See [installation](standalone-release.md),
+[development setup](experiments/rt3-standalone.md), and
+[validated behavior and remaining gates](experiments/rt3-validation.md).
 
 ## The pipeline
 
