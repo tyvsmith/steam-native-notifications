@@ -2,7 +2,7 @@ import { preferencePatch, preferenceDefaults } from '../shared/settings-policy';
 import { BUILD_IDENTITY } from '../shared/host';
 import { SETTINGS_SCHEMA } from '../shared/settings';
 import { configStore, type ConfigStore } from './config-store';
-import { hostStatus, sample, type HostSelection } from './client';
+import { hostStatus, sample, type HostSelection } from '../tools/lib/host-client';
 import { settingsHtml, settingsScript, settingsStyle } from './settings-assets';
 export interface SettingsServerOptions { store?: ConfigStore; host?: HostSelection; status?: typeof hostStatus; sample?: typeof sample; idleMs?: number }
 /** Per-command capability session; no daemon/config lock is held by its lifetime. */

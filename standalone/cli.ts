@@ -1,12 +1,12 @@
 import { daemonMain } from './daemon';
 import { packageCommand } from './installer';
-import { capture, fire, hostStatus } from './client';
+import { capture, fire, hostStatus } from '../tools/lib/host-client';
 import { settingsCommand } from './settings-server';
 import { planFire } from '../tools/lib/devtools';
-import { parseCommonOptions, printResult, printError } from './cli-options';
+import { parseCommonOptions, printResult, printError } from '../tools/lib/cli-options';
 import { dependencies } from './dependencies';
 import { BUILD_IDENTITY } from '../shared/host';
-import { selectHost } from './client';
+import { selectHost } from '../tools/lib/host-client';
 async function runClientCommand(options: ReturnType<typeof parseCommonOptions>): Promise<void> {
     const { host, hostExplicit, json, args } = options;
     let result: unknown;

@@ -29,12 +29,22 @@ presentation, replay, durable routes and the Linux notification helper.
 | Frontend loading and RPC | plugin loader and FFI | loopback CEF CDP and binding adapter |
 | Preferences | per-key plugin config | serialized atomic JSON store |
 | Settings UI | plugin panel | native Steam settings page and external browser editor |
-| Developer commands | MEP discovery and expiring file queue | private Unix socket and correlated frontend execution |
+| Developer commands | MEP discovery, expiring file queue and correlated frontend replies | private Unix socket and correlated frontend execution |
 | Installation | packed `.star` | versioned executable, user service and desktop entries |
 
 `shared/settings-policy.ts` owns visibility, context descriptions and preference
 reset rules. Renderers and storage stay with their hosts. An optional Steam panel
 failure does not stop notification capture or the external editor.
+
+`tools/lib/host-client.ts` owns host selection and common command dispatch;
+`tools/lib/cli-options.ts` owns shared argument parsing. Millennium readiness
+requires a fresh challenge reply with the expected frontend build, an installed
+hook and live command control. Backend availability alone leaves actions disabled.
+Command receipts carry the request ID and distinguish execution from an
+unacknowledged queue. They do not prove capture or visible desktop delivery.
+Both Steam panels offer a fixed sample and confirmed reset; all editors share
+visibility, reset policy and sample-result wording.
+
 
 The packaged installer verifies daemon PID/build readiness before completing
 activation, preserves stopped/disabled service state, and records recoverable

@@ -3,8 +3,8 @@ import { createContext, runInContext } from 'node:vm';
 import { resolve } from 'node:path';
 async function fixture() {
     const seams: Record<string, string> = {
-        './host': "export const hostMethod = () => async () => '';",
-        './settings': "export const settings = () => ({devFire:true}); export const parseCallableJson = (raw,fallback) => fallback;",
+        './host': "export const hostMethod = name => async () => globalThis.pending?.[name] || '';",
+        './settings': "export const settings = () => ({devFire:globalThis.enabled !== false}); export const parseCallableJson = (raw,fallback) => {try{return JSON.parse(raw)}catch{return fallback}};",
         './log': "export const dlog = () => {}; export const safeJson = JSON.stringify;",
         './overlay': "export const currentClickSurface = () => globalThis.surface();",
         './replay': "export const inspectReplayStash = () => {}; export const invokeReplayHandler = () => { globalThis.invoked++; return true; };",
@@ -15,11 +15,11 @@ async function fixture() {
         build.onLoad({ filter: /.*/, namespace: 'fixture' }, args => ({ contents: seams[args.path]!, loader: 'js' }));
     } }] });
     if (!built.success) throw new Error(built.logs.join('\n'));
-    const context: any = createContext({ Date, setTimeout, setInterval: () => 1, clearInterval: () => {}, invoked: 0, SteamClient: {}, module: { exports: {} }, surface: async () => ({ focusedAppId: 0 }) }); context.window = context;
+    const context: any = createContext({ Date, setTimeout, setInterval: (fn: any) => { context.tick = fn; return 1; }, clearInterval: () => {}, invoked: 0, SteamClient: {}, module: { exports: {} }, surface: async () => ({ focusedAppId: 0 }) }); context.window = context;
     runInContext(await built.outputs[0]!.text(), context); const api = context.module.exports;
-    const stop = api.startDevFirePoll();
+    const receipts: any[] = []; const stop = api.startDevFirePoll(async (id: string, result: any) => { receipts.push({id,result}); });
     const request = (command: any, ms = 1000) => ({ id: 'fixture', createdAt: Date.now(), deadline: Date.now() + ms, command });
-    return { context, api, stop, request };
+    return { context, api, stop, request, receipts };
 }
 test('replay expires during awaited surface discovery without invoking a handler', async () => {
     const f = await fixture(); f.context.surface = async () => { await Bun.sleep(40); return { focusedAppId: 0 }; };
@@ -40,5 +40,20 @@ test('overlay diagnostics propagate missing/rejected API and return measured suc
         const failed = await f.context.__snnDevControl(request()); expect(failed.ok).toBe(false); expect(failed.error).toContain('fixture rejected');
         f.context.SteamClient.Overlay.GetOverlayBrowserInfo = async () => ({ browsers: [123] });
         const success = await f.context.__snnDevControl(request()); expect(success.ok).toBe(true); expect(success.value.stage).toBe('executed'); expect(success.value.value).toEqual({ browsers: [123] });
+    } finally { f.stop(); }
+});
+test('Millennium poll acknowledges fixed samples with developer commands disabled', async () => {
+    const f = await fixture(); let invoked = 0;
+    f.context.enabled = false;
+    f.context.NotificationStore = { TestFriendOnline: () => { invoked++; } };
+    const envelope = f.request({ call: 'TestIncomingVoiceChat', args: [] });
+    f.context.pending = { TakeSampleCommand: JSON.stringify(envelope) };
+    try {
+        await f.context.tick();
+        expect(invoked).toBe(1);
+        expect(f.receipts[0].id).toBe(envelope.id);
+        expect(f.receipts[0].result.value.stage).toBe('executed');
+        f.context.pending.TakeSampleCommand = JSON.stringify({ ...envelope, deadline: Date.now() - 1 });
+        await f.context.tick(); expect(invoked).toBe(1); expect(f.receipts[1].result.ok).toBe(false);
     } finally { f.stop(); }
 });

@@ -2,7 +2,7 @@ import { beforeEach, expect, mock, test } from 'bun:test';
 
 // Exercise the real popup lifecycle and settings panel with only host APIs replaced.
 const store: Record<string, unknown> = {};
-let updateSetting: (key: string, value: unknown) => void;
+const settingListeners = new Set<(key: string, value: unknown) => void>();
 let onPopup: (popup: any) => void;
 let sequence = 0;
 let notifyReply: () => Promise<string> = async () => 'ok';
@@ -14,9 +14,11 @@ let platformState: unknown = 'unknown';
 let resolvePlatform!: (value: string) => void;
 const platformReply = new Promise<string>((resolve) => { resolvePlatform = resolve; });
 
+mock.module('../frontend/millennium-diagnostics', () => ({ startMillenniumDiagnostics: () => () => {}, reportCommandResult: async () => {} }));
 mock.module('react/jsx-runtime', () => ({ jsx: element, jsxs: element, Fragment: 'fragment' }));
 mock.module('react', () => ({
-	useState: () => [platformState, (value: unknown) => { platformState = value; }],
+	useState: (initial: unknown) => [typeof initial === 'object' ? settings() : initial === 'unknown' ? platformState : initial, (value: unknown) => { if (initial === 'unknown') platformState = value; }],
+	useRef: (initial: unknown) => ({ current: initial }),
 	useEffect: (callback: () => void) => { effect = callback; },
 }));
 mock.module('millennium', () => ({
@@ -25,10 +27,11 @@ mock.module('millennium', () => ({
 	DialogControlsSection: 'section',
 	DialogControlsSectionHeader: 'header',
 	DialogBodyText: 'text',
+	DialogButton: 'button',
 	ToggleField: 'toggle',
 	usePluginConfig: (key: string) => [store[key], async (value: unknown) => set(key, value)],
-	pluginConfig: { getAll: async () => ({ ...store }) },
-	subscribePluginConfig: (callback: typeof updateSetting) => { updateSetting = callback; },
+	pluginConfig: { getAll: async () => ({ ...store }), set: async (key: string, value: unknown) => set(key, value) },
+	subscribePluginConfig: (callback: (key: string, value: unknown) => void) => { settingListeners.add(callback); return () => settingListeners.delete(callback); },
 	findModuleExport: (): undefined => undefined,
 	ffi: (name: string) => (...args: string[]) => {
 		if (name === 'Notify') { notifications.push(args); return notifyReply(); }
@@ -49,7 +52,7 @@ const { default: plugin } = await import('../frontend/index');
 plugin();
 await loadSettings();
 
-function set(key: string, value: unknown) { store[key] = value; updateSetting(key, value); }
+function set(key: string, value: unknown) { store[key] = value; for (const listener of settingListeners) listener(key, value); }
 async function flush() { for (let i = 0; i < 20; i++) await Promise.resolve(); }
 function toast(surface: 'desktop' | 'game' | 'unknown' = 'desktop') {
 	let closed = 0;
@@ -62,6 +65,7 @@ function toast(surface: 'desktop' | 'game' | 'unknown' = 'desktop') {
 	return { closed: () => closed, name, win };
 }
 function nodes(node: any): any[] {
+	if (Array.isArray(node)) return node.flatMap(nodes);
 	if (!node || typeof node !== 'object') return [];
 	if (typeof node.type === 'function') return nodes(node.type(node.props));
 	return [node, ...[node.props?.children].flat().flatMap(nodes)];
@@ -167,12 +171,14 @@ test('panel groups desktop before game and shows all six Windows controls', () =
 	]);
 });
 
-test('disabling OS hides only its history control without clearing its preference', () => {
+test('disabling OS hides only its history control without clearing its preference', async () => {
 	set('notificationCenterOnlyOutsideGame', true);
 	toggles()[0].props.onChange(false);
+	await flush();
 	expect(toggles()).toHaveLength(5);
 	expect(store.notificationCenterOnlyOutsideGame).toBe(true);
 	toggles()[0].props.onChange(true);
+	await flush();
 	expect(toggles()[2].props.checked).toBe(true);
 });
 

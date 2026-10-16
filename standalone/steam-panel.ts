@@ -1,3 +1,4 @@
+import { sampleMessage } from '../shared/command-result';
 import { visibleSettings, settingsWarning, SETTINGS_CONTEXT } from '../shared/settings-policy';
 import { ffi, pluginConfig, subscribePluginConfig } from './adapter';
 import { SETTINGS_SCHEMA, type SettingKey, type Settings } from '../shared/settings';
@@ -43,7 +44,7 @@ function panel(React: typeof import('react'), controls: ReturnType<typeof discov
                 if (!active.current) return;
                 if (method === 'PanelSample') {
                     if (result?.ok === false) throw new Error(result.error || 'Sample unavailable');
-                    setMessage('Sample requested through Steam. Check your desktop notification.');
+                    setMessage(sampleMessage(result));
                 } else { setState(previous => previous && ({ ...previous, config: result })); setMessage(method === 'PanelReset' ? 'Defaults restored.' : 'Saved.'); }
                 setConfirmReset(false);
             } catch (e) { if (active.current) setError(e instanceof Error ? e.message : 'Operation failed'); }

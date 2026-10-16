@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { parseCommonOptions } from './cli-options';
+import { parseCommonOptions } from './lib/cli-options';
 test('host and output options have the same meaning before and after commands', () => {
     for (const command of ['doctor', 'status', 'settings', 'capture']) {
         expect(parseCommonOptions(['--host', 'standalone', '--json', command])).toEqual(parseCommonOptions([command, '--json', '--host', 'standalone']));

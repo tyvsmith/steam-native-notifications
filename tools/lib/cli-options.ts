@@ -1,4 +1,4 @@
-import type { HostSelection } from './client';
+import type { HostSelection } from './host-client';
 export function parseCommonOptions(argv: string[]) {
     let host: HostSelection = 'auto'; let hostExplicit = false; let json = false;
     const args: string[] = [];

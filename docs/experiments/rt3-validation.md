@@ -37,3 +37,15 @@ version 0.1.0, Bun 1.4.3, native Linux RT3 on Hyprland.
 
 Fixtures, protocol invocation and helper acknowledgement do not replace these
 visible user journeys. This is a local test candidate, not a release-readiness claim.
+
+## Pending convergence regression
+
+The host-neutral tools, Millennium panel actions, correlated Millennium status
+and execution replies, and shared sample wording require live regression after
+the current game session. Build and package fixtures do not establish live FFI
+compatibility. Do not install or restart Steam until that session is finished.
+
+- verify Millennium settings visibility, external updates, sample and reset/cancel
+- verify fresh readiness, stale-build refusal, command success/failure and expiry
+- recheck standalone panel/editor, host selection and notification delivery
+- record exact installed, backend and frontend builds for each host separately
