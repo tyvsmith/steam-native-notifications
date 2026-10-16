@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { runInNewContext } from 'node:vm';
-import { healthExpression, heartbeatReady } from './health';
+import { healthExpression } from './health';
 function fixture(response = 'ok') {
     const forwarded: unknown[][] = [];
     const original = (...args: unknown[]) => forwarded.push(args);
@@ -25,14 +25,4 @@ test('health refuses incomplete bridge, bad response and dead backend; timeout r
     expect(context.__snnReply).toBe(original);
     context.__snnStandaloneStarted = false;
     expect(await runInNewContext(healthExpression(2 ** 52), context)).toBe(false);
-});
-
-test('readiness requires recent responsive heartbeat, matching Steam root and live daemon; stale/future logs cannot pass', () => {
-    const heartbeat = { state: 'ready', steam: '/Steam', pid: 123, at: 10000 };
-    expect(heartbeatReady(heartbeat, '/Steam', 12000, () => true)).toBe(true);
-    for (const bad of [{ at: 0 }, { at: 13000 }, { at: '10000' }, { state: 'disconnected' }, { steam: '/other' }, { pid: -1 }, { pid: NaN }]) {
-        expect(heartbeatReady({ ...heartbeat, ...bad }, '/Steam', 12000, () => true)).toBe(false);
-    }
-    expect(heartbeatReady(heartbeat, '/Steam', 12000, () => false)).toBe(false);
-    expect(heartbeatReady(undefined, '/Steam', 12000, () => true)).toBe(false);
 });

@@ -38,8 +38,8 @@ failure does not stop notification capture or the external editor.
 
 The packaged installer verifies daemon PID/build readiness before completing
 activation, preserves stopped/disabled service state, and records recoverable
-file ownership. Source setup remains for development and migration. Neither
-installer changes Steam launchers or starts/stops Steam. Existing settings and
+file ownership. Development uses the same CLI and package installer. The
+installer never changes Steam launchers or starts/stops Steam. Existing settings and
 the shared CEF marker are preserved. See [installation](standalone-release.md),
 [development setup](experiments/rt3-standalone.md), and
 [validated behavior and remaining gates](experiments/rt3-validation.md).

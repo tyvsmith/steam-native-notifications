@@ -3,11 +3,11 @@ import { preferencePatch, preferenceDefaults } from '../shared/settings-policy';
 import { runtimeRoot } from './runtime-paths';
 import { configStore, type ConfigStore } from './config-store';
 import { rotatingLog } from './log';
-import { mkdir, readFile, readdir, realpath, unlink, writeFile, rename } from 'node:fs/promises';
+import { mkdir, readFile, readdir, realpath, unlink } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { DEFAULTS, normalizeSettings } from '../shared/settings';
-import { BUILD_IDENTITY, hostCapabilities } from '../shared/host';
+import { BUILD_IDENTITY } from '../shared/host';
 export const CONFIG_DEFAULTS = DEFAULTS;
 export const configValues = normalizeSettings;
 export function requestPayload(payload: string): { id: number; method: string; args: unknown[] } {
@@ -33,9 +33,7 @@ export class Host {
     async log(line: string): Promise<void> { await this.writeLog(line); }
     async readiness(state: string): Promise<void> {
         this.live.state = state;
-        const path = join(this.runtime, 'standalone-status.json');
-        await writeFile(path + '.tmp', JSON.stringify({ state, pid: process.pid, at: Date.now(), steam: this.steam, build: BUILD_IDENTITY, capabilities: hostCapabilities('standalone', 'linux') }), { mode: 0o600 });
-        await rename(path + '.tmp', path);
+
     }
     async settings(): Promise<Record<string, boolean>> { return (await this.store.read()).values; }
     private async consume(name: string): Promise<string> {

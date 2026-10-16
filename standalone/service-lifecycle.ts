@@ -1,6 +1,5 @@
 import { controlCall } from './control';
 import { UNIT } from './paths';
-import type { Runner } from './setup';
 export interface ServiceState { enabled: boolean; active: boolean }
 export async function serviceState(run: Runner): Promise<ServiceState> {
     const raw = await run(['show', UNIT, '--property=UnitFileState,ActiveState']);
@@ -29,4 +28,32 @@ export async function waitForService(run: Runner, buildId: string, probe = () =>
         await Bun.sleep(Math.min(200, Math.max(0, deadline - Date.now())));
     } while (Date.now() < deadline);
     throw new Error(`Daemon readiness timed out: ${reason}`);
+}
+
+export const SESSION_KEYS = ['DISPLAY', 'WAYLAND_DISPLAY', 'DBUS_SESSION_BUS_ADDRESS', 'XDG_RUNTIME_DIR', 'XDG_CURRENT_DESKTOP', 'XDG_SESSION_TYPE', 'PATH'];
+export function systemdQuote(value: string): string {
+    if (/[\r\n\0]/.test(value)) throw new Error('Paths/environment cannot contain control characters');
+    return '"' + value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/%/g, '%%') + '"';
+}
+export function desktopQuote(value: string): string {
+    if (/[\r\n\0]/.test(value)) throw new Error('Paths cannot contain control characters');
+    // Desktop Entry parsing occurs before Exec quoting: backslashes require two levels.
+    return '"' + value.replace(/\\/g, '\\\\\\\\').replace(/["`$]/g, '\\\\$&').replace(/%/g, '%%') + '"';
+}
+export type Runner = (args: string[]) => Promise<string>;
+export const systemctl: Runner = async args => {
+    const child = Bun.spawn(['systemctl', '--user', ...args], { stdout: 'pipe', stderr: 'pipe' });
+    const timer = setTimeout(() => child.kill(), 10000);
+    try {
+        const [out, err, code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
+        if (code !== 0) throw new Error(`systemctl --user ${args.join(' ')} failed: ${err.trim() || out.trim()}. Run setup from your logged-in desktop session.`);
+        return out.trim();
+    } finally { clearTimeout(timer); }
+};
+export async function importSession(run: Runner, env: NodeJS.ProcessEnv = process.env): Promise<void> {
+    if (!env.XDG_RUNTIME_DIR || !env.DBUS_SESSION_BUS_ADDRESS || (!env.DISPLAY && !env.WAYLAND_DISPLAY)) throw new Error('Missing desktop session environment. Run setup/session from a terminal in your graphical session.');
+    const present = SESSION_KEYS.filter(key => env[key]);
+    const absent = SESSION_KEYS.filter(key => !env[key]);
+    if (absent.length) await run(['unset-environment', ...absent]);
+    await run(['import-environment', ...present]);
 }

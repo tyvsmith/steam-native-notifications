@@ -19,7 +19,6 @@ version 0.1.0, Bun 1.4.3, native Linux RT3 on Hyprland.
 - typecheck and normal backend/frontend regression suite passed; Millennium pack written to `dist`, without installing it
 - standalone tests: 101 passed, plus 3 isolated host contract tests
 - compiled smoke passed with no Bun on PATH, arbitrary working directory and paths containing spaces; exercised install, responsive daemon waiting for Steam, equivalent doctor option orders, editor assets and uninstall
-- cross-version compiled checks used the previous `b02d5458cd17` executable for install, upgrade, rollback, re-upgrade and uninstall; runtime manifest format 1 remains compatible, with docs beside the runtime directory in the archive
 - installer fixtures covered all enabled/active combinations, wrong PID/build/protocol, missing socket, immediate failure, readiness rollback and repeated interruption recovery
 - desktop-file-validate and systemd-analyze --user verify accepted the installed entries
 - live upgrade preserved preferences and reported verified daemon activation; stale injected frontend correctly disabled sample/developer capabilities until Steam restarted

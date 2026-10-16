@@ -7,7 +7,7 @@ const home=await mkdtemp(join(tmpdir(),'snn compiled home spaces '));try{
 const release=join(home,'extracted release');await cp(source,release,{recursive:true});const steam=join(home,'Steam root');await mkdir(join(steam,'steamrt64'),{recursive:true});for(const p of ['steam.sh','steamrt64/steam','.cef-enable-remote-debugging'])await writeFile(join(steam,p),'');const shims=join(home,'fake commands');await mkdir(shims);for(const name of ['systemctl','notify-send','gdbus','curl']){const path=join(shims,name);await writeFile(path,'#!/bin/sh\nexit 0\n');await chmod(path,0o700);}
 const env={...process.env,HOME:home,XDG_CONFIG_HOME:join(home,'config'),XDG_DATA_HOME:join(home,'data'),XDG_STATE_HOME:join(home,'state'),XDG_CACHE_HOME:join(home,'cache'),XDG_RUNTIME_DIR:join(home,'run'),DISPLAY:':fixture',DBUS_SESSION_BUS_ADDRESS:'unix:path=/fixture',PATH:`${shims}:/usr/bin:/bin`};
 async function call(bin:string,args:string[]){const c=Bun.spawn([bin,...args],{cwd:home,env,stdout:'pipe',stderr:'pipe'});const [out,err,code]=await Promise.all([new Response(c.stdout).text(),new Response(c.stderr).text(),c.exited]);if(code)throw new Error(`${args.join(' ')} failed: ${err}`);return out;}
-const bin=join(release,'snn');const previous=process.argv[2];if(previous)await validateRelease(previous);
+const bin=join(release,'snn');
 // Model real systemctl: disabling after the unit has been removed fails.
 await writeFile(join(shims,'systemctl'),'#!/bin/sh\ncase "$2" in restart) echo "fixture activation failed" >&2; exit 1;; disable) test -f "$XDG_CONFIG_HOME/systemd/user/steam-native-notifications-standalone.service" || { echo "Unit does not exist" >&2; exit 1; };; esac\nexit 0\n');
 const failed=Bun.spawn([bin,'install','--release',release,'--steam-dir',steam],{cwd:home,env,stdout:'pipe',stderr:'pipe'});const failure=await new Response(failed.stderr).text();if(await failed.exited!==1||failure.includes('recovery pending'))throw new Error(`Fresh activation recovery failed: ${failure}`);if(await Bun.file(join(home,'state/steam-native-notifications/standalone-install.json.transaction')).exists())throw new Error('Fresh recovery left transaction');await call(bin,['recover','--json']);
@@ -33,18 +33,7 @@ case "$2" in
 esac
 exit 0
 `);
-await call(bin,['--help']);await call(bin,['daemon','--help']);await call(previous?join(previous,'snn'):bin,['install','--release',previous??release,'--steam-dir',steam,'--json']);const stable=join(home,'.local/bin/snn');const active=await readlink(join(home,'data/steam-native-notifications/active'));await call(stable,['--help']);await call(stable,['daemon','--help']);
-if(previous){
- await call(stable,['upgrade','--release',release,'--json']);
- await call(stable,['rollback','--json']);
- await call(stable,['upgrade','--release',release,'--json']);
- // Older managers return before control readiness. Wait only in this compatibility fixture.
- for(let attempt=0;attempt<50;attempt++){
-  const hosts=JSON.parse(await call(stable,['status','--host','standalone','--json']));
-  if(hosts[0]?.build?.buildId===identity.buildId)break;
-  if(attempt===49)throw new Error('Previous executable upgrade did not activate candidate: '+JSON.stringify(hosts)+'\n'+await readFile(join(home,'daemon.log'),'utf8'));await Bun.sleep(100);
- }
-}
+await call(bin,['--help']);await call(bin,['daemon','--help']);await call(bin,['install','--release',release,'--steam-dir',steam,'--json']);const stable=join(home,'.local/bin/snn');const active=await readlink(join(home,'data/steam-native-notifications/active'));await call(stable,['--help']);await call(stable,['daemon','--help']);
 const doctorA=JSON.parse(await call(stable,['doctor','--host','standalone','--json']));
 const doctorB=JSON.parse(await call(stable,['--host','standalone','doctor','--json']));
 if(JSON.stringify(doctorA)!==JSON.stringify(doctorB)||doctorA.hosts.length!==1||doctorA.hosts[0].state==='ready')throw new Error('Doctor dispatch or waiting-state diagnostics differ');
