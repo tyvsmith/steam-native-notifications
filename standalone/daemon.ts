@@ -2,7 +2,6 @@ import { runtimeAsset } from './runtime-paths';
 import { startControl } from './control';
 import { controlHandler } from './control-host';
 import { readFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CDP, endpoint, targetSocket } from './cdp';
 import { Host, requestPayload } from './host';
@@ -76,7 +75,7 @@ export async function attach(client: CDP, bundle: string, host: Host, alive: () 
                 expression: healthExpression(2 ** 52 + Math.floor(Math.random() * 1000000000)) });
             ready = probe.result?.value === true && injected && context !== undefined && epoch === generation;
             const info = await client.call('Runtime.evaluate', { contextId: context, returnByValue: true,
-                expression: '({frontendBuild:globalThis.__snnFrontendBuild ?? null,hook:globalThis.__snnHookState ?? "unknown",control:typeof globalThis.__snnDevControl === "function"})' });
+                expression: '({frontendBuild:globalThis.__snnFrontendBuild ?? null,hook:globalThis.__snnHookState ?? "unknown",panel:globalThis.__snnPanelState ?? "unavailable",control:typeof globalThis.__snnDevControl === "function"})' });
             if (epoch === generation) Object.assign(host.live, info.result?.value ?? {});
             if (epoch !== generation || context === undefined) { ready = false; continue; }
             host.frontendCommand = async (envelope, sample) => {
@@ -146,9 +145,10 @@ export async function daemonMain(): Promise<void> {
     }
     const port = Number(options['--port'] ?? '8080');
     endpoint(port);
-    const runtime = join(process.env.XDG_CACHE_HOME ?? join(homedir(), '.cache'), 'steam-native-notifications');
-    const config = options['--config'] ?? join(process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'), 'steam-native-notifications/standalone.json');
-    const host = new Host(runtime, config, await discoverSteam(setupPaths(), options['--steam-dir']));
+    const paths = setupPaths();
+    const runtime = join(paths.cacheHome, 'steam-native-notifications');
+    const config = options['--config'] ?? paths.config;
+    const host = new Host(runtime, config, await discoverSteam(paths, options['--steam-dir']), join(paths.stateHome, 'steam-native-notifications'));
     let bundle: string;
     try { bundle = await readFile(runtimeAsset('dist/standalone/frontend.js'), 'utf8'); }
     catch { throw new Error('Missing standalone build; run bun install --frozen-lockfile && bun run build:standalone in this checkout.'); }

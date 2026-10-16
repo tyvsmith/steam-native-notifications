@@ -272,7 +272,7 @@ function installHook(attempt: number = 0): void {
 	}
 }
 
-export function startNativeNotifications(): () => void {
+export function startNativeNotifications(report?: (id: string, result: unknown) => Promise<void>): () => void {
 	(globalThis as any).__snnFrontendBuild = BUILD_IDENTITY;
 	void loadSettings();
 	void loadPlatform();
@@ -280,7 +280,7 @@ export function startNativeNotifications(): () => void {
 	void loadUrlTemplates().then((summary) => dlog(`url templates: ${summary}`));
 	trackOverlayFocus();
 	installHook();
-	const stopDevFire = startDevFirePoll();
+	const stopDevFire = startDevFirePoll(report);
 	startClickBridge();
 	// Linux and Windows return the durable envelope through the canonical
 	// steam://steam-native-notifications/notification/<payload> URL.

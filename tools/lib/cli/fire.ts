@@ -1,7 +1,7 @@
 import { planFire } from '../devtools';
 import { usageFromHeader } from '../snn';
-import { fire } from '../../../standalone/client';
-import { parseCommonOptions } from '../../../standalone/cli';
+import { fire } from '../host-client';
+import { parseCommonOptions } from '../cli-options';
 export async function main(entry: string): Promise<void> {
     try {
         const options = parseCommonOptions(process.argv.slice(2)); const plan = planFire(options.args);

@@ -11,8 +11,32 @@ const bin=join(release,'snn');
 // Model real systemctl: disabling after the unit has been removed fails.
 await writeFile(join(shims,'systemctl'),'#!/bin/sh\ncase "$2" in restart) echo "fixture activation failed" >&2; exit 1;; disable) test -f "$XDG_CONFIG_HOME/systemd/user/steam-native-notifications-standalone.service" || { echo "Unit does not exist" >&2; exit 1; };; esac\nexit 0\n');
 const failed=Bun.spawn([bin,'install','--release',release,'--steam-dir',steam],{cwd:home,env,stdout:'pipe',stderr:'pipe'});const failure=await new Response(failed.stderr).text();if(await failed.exited!==1||failure.includes('recovery pending'))throw new Error(`Fresh activation recovery failed: ${failure}`);if(await Bun.file(join(home,'state/steam-native-notifications/standalone-install.json.transaction')).exists())throw new Error('Fresh recovery left transaction');await call(bin,['recover','--json']);
-await writeFile(join(shims,'systemctl'),'#!/bin/sh\nexit 0\n');
+await mkdir(env.XDG_RUNTIME_DIR,{mode:0o700});
+await writeFile(join(shims,'systemctl'),`#!/bin/sh
+case "$2" in
+ restart)
+  if test -f "$HOME/daemon.pid"; then
+   old=$(cat "$HOME/daemon.pid"); kill "$old" 2>/dev/null || true
+   remaining=70
+   while kill -0 "$old" 2>/dev/null; do
+    case "$(ps -o stat= -p "$old")" in Z*|"") break;; esac
+    test "$remaining" -gt 0 || exit 1
+    remaining=$((remaining - 1)); sleep 0.1
+   done
+  fi
+  "$HOME/.local/bin/snn" daemon --steam-dir "$HOME/Steam root" --port 1 >"$HOME/daemon.log" 2>&1 &
+  echo $! > "$HOME/daemon.pid";;
+ show)
+  echo UnitFileState=enabled; echo ActiveState=active; echo SubState=running
+  echo "MainPID=$(cat "$HOME/daemon.pid")";;
+ disable|stop) if test -f "$HOME/daemon.pid"; then kill "$(cat "$HOME/daemon.pid")" 2>/dev/null || true; fi;;
+esac
+exit 0
+`);
 await call(bin,['--help']);await call(bin,['daemon','--help']);await call(bin,['install','--release',release,'--steam-dir',steam,'--json']);const stable=join(home,'.local/bin/snn');const active=await readlink(join(home,'data/steam-native-notifications/active'));await call(stable,['--help']);await call(stable,['daemon','--help']);
+const doctorA=JSON.parse(await call(stable,['doctor','--host','standalone','--json']));
+const doctorB=JSON.parse(await call(stable,['--host','standalone','doctor','--json']));
+if(JSON.stringify(doctorA)!==JSON.stringify(doctorB)||doctorA.hosts.length!==1||doctorA.hosts[0].state==='ready')throw new Error('Doctor dispatch or waiting-state diagnostics differ');
 const settings=Bun.spawn([stable,'settings','--no-open'],{cwd:home,env,stdout:'pipe',stderr:'pipe'});try{const reader=settings.stdout.getReader();let output='';const until=Date.now()+5000;while(!output.includes('http://')&&Date.now()<until){const {value,done}=await reader.read();if(done)break;output+=new TextDecoder().decode(value);}const url=output.match(/http:\/\/127\.0\.0\.1:\d+\/[^\s]*/)?.[0];if(!url)throw new Error('Compiled settings URL absent');const response=await fetch(url);if(!response.ok||!(await response.text()).includes('Steam'))throw new Error('Embedded settings HTML unavailable');const origin=new URL(url).origin;for(const asset of ['settings.css','settings.js'])if(!(await fetch(`${origin}/${asset}`)).ok)throw new Error(`Embedded ${asset} unavailable`);}finally{settings.kill('SIGTERM');await settings.exited;}
 await writeFile(join(home,'config/steam-native-notifications/standalone.json'),' {"unknown":42,"devFire":false}\n');const bytes=await readFile(join(home,'config/steam-native-notifications/standalone.json'));await call(stable,['uninstall','--json']);if(!(await readFile(join(home,'config/steam-native-notifications/standalone.json'))).equals(bytes))throw new Error('Settings changed');console.log(`Compiled smoke passed: no Bun PATH, arbitrary cwd, spaces, install/stable invocation/uninstall, active ${active}`);
-}finally{await rm(home,{recursive:true,force:true});}
+}finally{try{process.kill(Number(await readFile(join(home,'daemon.pid'),'utf8')),'SIGTERM');}catch{}await rm(home,{recursive:true,force:true});}

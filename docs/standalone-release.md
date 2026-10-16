@@ -4,12 +4,45 @@ Bun 1.4.3 compiles the dispatcher for Linux x64 baseline CPUs. Releases include 
 
 Build: `bun run build:release`. CI builds and tests on Ubuntu 22.04 with pinned Bun 1.4.3, also packs the Millennium .star, and enforces package/TOML version equality. Release tags must match that version. workflow_dispatch defaults to dry_run and publishes nothing. ELF GLIBC symbol requirements are recorded in the manifest; current compiler requires GLIBC 2.17, but supported/tested distro floor is Ubuntu 22.04 (glibc 2.35). Other older distributions are unverified. Required dependencies are notify-send, gdbus and curl plus standard POSIX shell utilities. LuaJIT and libwayland-client.so.0 are optional; without either focus discovery is degraded/unknown. Native Steam is required; Flatpak is unsupported.
 
-Extract the supplied tarball and verify its companion checksum. From a graphical terminal run `./snn install --release "$PWD" --steam-dir "/path/to/Steam"`. This validates all manifest assets, preserves configuration bytes and marker ownership, and migrates unchanged source-setup ownership journals directly. No Steam processes or launch flags are changed. The owned settings application appears in the desktop applications menu. New configuration disables developer commands.
+Extract the supplied tarball and verify its companion checksum. From a graphical terminal run `./snn install --release "$PWD" --steam-dir "/path/to/Steam"`. This validates all manifest assets, preserves configuration bytes and marker ownership. No Steam processes or launch flags are changed. The owned settings application appears in the desktop applications menu. New configuration disables developer commands.
 
 The installation uses `$XDG_DATA_HOME/steam-native-notifications/versions/<version>-<build-id>` and an atomic active link. `~/.local/bin/snn` points to active/snn. Units receive fixed XDG paths and acquire current desktop session environment through the hidden autostart's `snn session`. Run `snn settings`, `snn status`, `snn doctor` or `snn capture`. `--json` provides structured results; exit status is 0 on success and 1 on failure. No config CLI is exposed.
 
 Upgrade: `snn upgrade --release /explicit/extracted/release`. Rollback: `snn rollback`. Every shipped asset must match its manifest, and unowned or modified files/links refuse mutation. Old releases are retained for rollback. Upgrade and rollback change the daemon and installed bundle; the already injected Steam frontend remains older until the user fully exits and launches Steam. Status reports that mismatch instead of treating a heartbeat as freshness.
 
-Before changing managed files, a mode0600 transaction records exact old bytes/links and permitted replacement hashes. Activation failure stops/disables a newly created service before removing its unit, or restores and restarts the previous daemon. Refreshed inode fingerprints are recorded as permitted transaction bytes before the state is published. A validated removal plan records each owned release file and directory before cleanup; interrupted cleanup accepts already absent entries and verifies every remaining entry, so removal resumes without requiring a complete manifest. After an interruption, `snn recover` restores the recorded previous installation; modified transaction targets are preserved and recovery refuses. If a setup process was killed its directory lock may remain: verify no setup process remains, remove the named `.lock` directory, then recover. Failures during recovery retain the transaction so recovery can be retried. A crash before the transaction can leave an unreferenced staged/version directory; it is never automatically claimed or deleted. Inspect its manifest and remove it manually before retrying the identical release. This deliberately favors preserving unknown files over automatic cleanup.
+Before changing managed files, a mode0600 transaction records exact old bytes/links and permitted replacement hashes. Type=exec detects execution failure. Activation completes only after a private control reply matches the service MainPID, candidate build and protocol. Waiting for Steam or an older injected frontend is acceptable. Upgrades and rollbacks preserve enabled/active state; a stopped service stays stopped and reports staged with startup unverified. Activation failure stops/disables a newly created service before removing its unit, or restores the prior files and enabled/active state. Refreshed inode fingerprints are recorded as permitted transaction bytes before the state is published. A validated removal plan records each owned release file and directory before cleanup; interrupted cleanup accepts already absent entries and verifies every remaining entry, so removal resumes without requiring a complete manifest. After an interruption, `snn recover` restores the recorded previous installation; modified transaction targets are preserved and recovery refuses. If a setup process was killed its directory lock may remain: verify no setup process remains, remove the named `.lock` directory, then recover. Failures during recovery retain the transaction so recovery can be retried. A crash before the transaction can leave an unreferenced staged/version directory; it is never automatically claimed or deleted. Inspect its manifest and remove it manually before retrying the identical release. This deliberately favors preserving unknown files over automatic cleanup.
 
 Uninstall: `snn uninstall`. Uninstall records its manager and owned-removal plan before mutation. After interruption, repeat `snn uninstall` or run `snn recover` from an explicitly extracted release executable if the stable entrypoint has been removed. Both commands resume the recorded removal, including partially deleted version directories. All managed files, links and retained release manifests are validated before stopping the managed service. Uninstall preserves all settings (including modified preferences) and the shared CEF marker. Modified managed assets refuse the operation before service commands; restore the owned artifact first. Injected hooks remain until Steam exits. Checksums establish integrity, not publisher authenticity; installs accept only explicitly supplied local packages and never download releases or OS dependencies.
+
+
+## Settings and diagnostics
+
+- open Steam Settings → Native Notifications, below the final sidebar separator, or run `snn settings` for the standalone browser editor
+- use `snn --host standalone doctor --json` for standalone diagnostics; options also work after the command
+- omit the host on `status` to see both hosts; explicit `--host auto` refuses ambiguous command targets
+- use Millennium's existing settings panel for that host; its backend status alone does not prove frontend readiness
+- run `snn dev fire TestDownloadComplete 1073390` only after enabling developer commands; the fixed sample does not require developer opt-in
+- keep execution, notification capture and visible delivery evidence separate
+
+Settings reset preserves developer-mode opt-in, unsupported-platform preferences
+and unrelated keys. Both delivery toggles off disables notifications for that
+capture context. Game-overlay capture can continue after alt-tabbing.
+
+## Paths and sessions
+
+Unset, empty or relative XDG config/data/cache/state paths use their standard
+home-directory defaults. The control socket requires an owned absolute
+XDG_RUNTIME_DIR from the desktop session. One graphical session per user is
+supported. The hidden autostart imports current display/session variables and
+restarts the enabled user service; a disabled service remains disabled.
+
+New diagnostic logs use `$XDG_STATE_HOME/steam-native-notifications/standalone.log`
+(default `~/.local/state`). The current file and one backup are each limited to
+5 MiB and private to the user. Capture can read the legacy cache log when the
+new log is absent. Shared notification-helper cache paths remain unchanged.
+Uninstall and recovery do not require Steam's runtime to remain installed.
+
+The archive contains one release directory. Its format 2 manifest covers runtime
+assets and `docs/standalone-release.md` and `docs/standalone-notices.md`.
+Pre-release source installs and older manifest formats have no migration support. Public binary distribution remains pending the complete pinned-runtime
+license and rebuild/relink materials described there.

@@ -10,7 +10,7 @@ export const SETTINGS_SCHEMA = {
     showSteamInGame: { type: 'boolean', default: true, label: 'Show Steam notifications', description: steamDescription, group: 'inside', platforms: all, developer: false, visible: true },
     notificationCenterOnlyOutsideGame: { type: 'boolean', default: false, label: 'Save to Notification Center only', description: historyDescription, group: 'outside', platforms: ['windows'], developer: false, visible: true },
     notificationCenterOnlyInGame: { type: 'boolean', default: false, label: 'Save to Notification Center only', description: historyDescription, group: 'inside', platforms: ['windows'], developer: false, visible: true },
-    devFire: { type: 'boolean', default: false, label: 'Developer: accept test commands from tools/fire', description: "Lets the tools/fire script in the plugin repository push synthesized notifications through Steam's own pipeline.", group: 'developer', platforms: all, developer: true, visible: true },
+    devFire: { type: 'boolean', default: false, label: 'Developer: accept test commands', description: "Allow snn dev fire and the repository tools/fire command to send synthesized notifications through Steam.", group: 'developer', platforms: all, developer: true, visible: true },
     devMode: { type: 'boolean', default: false, label: 'Show developer options', description: 'Enable developer controls explicitly.', group: 'developer', platforms: all, developer: true, visible: false },
 } as const;
 export type SettingKey = keyof typeof SETTINGS_SCHEMA;

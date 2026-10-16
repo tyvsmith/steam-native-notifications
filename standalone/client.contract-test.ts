@@ -11,25 +11,30 @@ mock.module('../tools/lib/mep', () => ({ mepCall: async (method: string, params:
 } }));
 mock.module('./control', () => ({ controlCall: async (operation: string, payload: any): Promise<any> => {
     if (!standalone) throw new Error('offline');
-    if (operation === 'status') return { host: 'standalone', state: 'ready', build: BUILD_IDENTITY };
+    if (operation === 'status') return { host: 'standalone', state: 'ready', build: BUILD_IDENTITY, capabilities: {settingsWrite:true,sample:true,developerCommands:true} };
     if (operation === 'config.read') return { values: settings, error: null };
     if (operation === 'config.update') { settings = { ...settings, ...payload }; return { values: settings, error: null }; }
     if (operation === 'sample' || operation === 'dev.fire') return { stage: 'executed' };
     return { lines: [] };
 } }));
+mock.module('../tools/lib/millennium-control', () => ({
+    probeMillennium: async () => ({ frontendBuild: BUILD_IDENTITY, hook: 'installed', control: true }),
+    millenniumReadiness: () => ({ state: 'ready', frontendBuild: BUILD_IDENTITY, capabilities: {settingsWrite:true,sample:true,developerCommands:true} }),
+    millenniumCommand: async (command: any, sample: boolean) => { queued.push({ command, kind: sample ? 'sample' : 'dev' }); return { stage: 'executed' }; },
+}));
 mock.module('../tools/lib/snn', () => ({ PLUGIN_ID: 'fixture', writeDevFire: (command: any) => queued.push(command), writeCommandFile: (command: any, kind: any) => queued.push({ ...command, kind }), readPluginLog: () => ['historical'] }));
 mock.module('../tools/lib/cli/capture-millennium', () => ({ captureReport: async () => ['full diagnostic fixture'] }));
-const { fire, sample, capture, readConfig, updateConfig, resetConfig, selectHost, hostStatus } = await import('./client');
+const { fire, sample, capture, readConfig, updateConfig, resetConfig, selectHost, hostStatus } = await import('../tools/lib/host-client');
 for (const host of ['standalone', 'millennium'] as const) {
     test(`${host}: shared settings, diagnostics, developer gate and narrow sample scenario`, async () => {
         settings = { ...DEFAULTS }; queued.length = 0;
         expect((await readConfig(host)).values.devFire).toBe(false);
         if (host === 'millennium') await expect(fire({ call: 'TestFriendOnline', args: [] }, host)).rejects.toThrow('disabled');
         await updateConfig({ devFire: true, notifyInGame: false }, host); expect((await readConfig(host)).values.notifyInGame).toBe(false);
-        const fired: any = await fire({ call: 'TestFriendOnline', args: [] }, host); expect(fired.stage).toBe(host === 'standalone' ? 'executed' : 'queued');
+        const fired: any = await fire({ call: 'TestFriendOnline', args: [] }, host); expect(fired.stage).toBe('executed');
         await expect(fire({ call: 'TestIncomingVoiceChat', args: [] }, host)).rejects.toThrow('blocked'); await expect(fire({ call: 'eval', args: [] }, host)).rejects.toThrow('Unsupported');
-        expect((await sample(host) as any).stage).toBe(host === 'standalone' ? 'executed' : 'queued');
-        if (host === 'millennium') { expect(queued[1].kind).toBe('sample'); expect(queued[1].command).toBeUndefined(); expect(queued[0].deadline).toBeGreaterThan(Date.now()); }
+        expect((await sample(host) as any).stage).toBe('executed');
+        if (host === 'millennium') { expect(queued[1].kind).toBe('sample'); expect(queued[1].command).toBeUndefined(); }
         await resetConfig(host); expect((await readConfig(host)).values).toEqual(DEFAULTS); expect(await capture(1, host)).toBeDefined();
     });
 }

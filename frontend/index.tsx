@@ -1,3 +1,4 @@
+import { startMillenniumDiagnostics, reportCommandResult } from './millennium-diagnostics';
 import { definePlugin, IconsModule } from 'millennium';
 import { SettingsPanel } from './SettingsPanel';
 import { startNativeNotifications } from './runtime';
@@ -25,6 +26,7 @@ function pluginIcon(): any {
 }
 
 export default definePlugin(() => {
-	const stop = startNativeNotifications();
-	return { title: 'Steam Native Notifications', icon: pluginIcon(), content: <SettingsPanel />, onDismount: stop } as any;
+	const stop = startNativeNotifications(reportCommandResult);
+	const stopDiagnostics = startMillenniumDiagnostics();
+	return { title: 'Steam Native Notifications', icon: pluginIcon(), content: <SettingsPanel />, onDismount: () => { stopDiagnostics(); stop(); } } as any;
 });

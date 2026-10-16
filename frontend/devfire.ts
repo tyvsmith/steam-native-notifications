@@ -139,7 +139,7 @@ export async function executeDevCommand(envelope: DevEnvelope, sample = false): 
     }
     return { id: envelope.id, stage: 'executed', value: value ?? null, measurement: 'Execution completed; capture, delivery and banner visibility are unmeasured' };
 }
-export function startDevFirePoll(): () => void {
+export function startDevFirePoll(report?: (id: string, result: unknown) => Promise<void>): () => void {
     const epoch = ++generation;
     active = true;
     (globalThis as any).__snnDevControl = async (envelope: DevEnvelope, sample = false) => {
@@ -154,6 +154,7 @@ export function startDevFirePoll(): () => void {
             if (sample && typeof sample.id === 'string' && Number.isSafeInteger(sample.deadline)) {
                 const result = await (globalThis as any).__snnDevControl(sample, true);
                 dlog(`dev-fire: sample result ${safeJson({ id: sample.id, ...result })}`);
+                await report?.(sample.id, result);
             }
             if (!settings().devFire) return;
             const raw = await takeDevCommand();
@@ -163,6 +164,7 @@ export function startDevFirePoll(): () => void {
             const envelope: DevEnvelope = parsed;
             const result = await (globalThis as any).__snnDevControl(envelope);
             dlog(`dev-fire: result ${safeJson({ id: envelope.id, ...result })}`);
+            await report?.(envelope.id, result);
         } catch (e: any) { dlog(`dev-fire failed: ${e.message}`); }
     }, DEV_POLL_MS);
     return () => {

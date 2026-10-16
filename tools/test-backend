@@ -59,6 +59,12 @@ end
 local mkdir_execute = os.execute
 package.preload["fs"] = function()
 	return {
+        list = function(path)
+            local reader = io.popen("find '" .. path .. "' -mindepth 1 -maxdepth 1 -printf '%f\\n' 2>/dev/null")
+            local entries = {}
+            if reader then for name in reader:lines() do entries[#entries + 1] = { name = name } end; reader:close() end
+            return entries
+        end,
 		create_directories = function(path)
 			return mkdir_execute("mkdir -p '" .. path .. "'") ~= nil
 		end,
@@ -296,6 +302,25 @@ sample_file:close()
 local sample_ok, sample_taken = pcall(TakeSampleCommand)
 check("TakeSampleCommand reads fixed sample envelope", sample_ok and sample_taken:find("sample-fixture", 1, true) ~= nil, tostring(sample_taken))
 check("TakeSampleCommand consumes once", TakeSampleCommand() == "")
+
+-- Diagnostic channels isolate concurrent callers and bound receipt writes.
+local probe_id = "12345678-1234-1234-1234-123456789abc"
+local probe_dir = tmp_cache .. "/steam-native-notifications/.control-requests/" .. probe_id
+mkdir_execute("mkdir -p '" .. probe_dir .. "'")
+local diagnostic = io.open(probe_dir .. "/status", "w")
+local probe = '{"id":"' .. probe_id .. '"}'
+diagnostic:write(probe); diagnostic:close()
+check("diagnostic challenge consumed", TakeDiagnosticCommand() == probe and TakeDiagnosticCommand() == "")
+check("diagnostic status receipt", ReportDiagnostic("status", probe) == "ok")
+check("diagnostic command receipt", ReportDiagnostic("command", probe) == "ok")
+check("diagnostic rejects path injection", ReportDiagnostic("../foreign", "x") == "invalid")
+check("diagnostic rejects invalid request ID", ReportDiagnostic("status", '{"id":"../foreign"}') == "invalid")
+check("diagnostic rejects oversized payload", ReportDiagnostic("status", string.rep("x", 65537)) == "invalid")
+local receipt = io.open(probe_dir .. "/result", "r")
+check("diagnostic preserves receipt bytes", receipt and receipt:read("*a") == probe)
+if receipt then receipt:close() end
+mkdir_execute("rm -r '" .. probe_dir .. "'")
+check("late diagnostic does not recreate request directory", ReportDiagnostic("status", probe) == "unavailable")
 
 -- TakeDevCommand: consume-once semantics against the runtime cache directory
 -- (created by on_load above), the same place tools/fire writes.

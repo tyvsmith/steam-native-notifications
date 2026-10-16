@@ -17,9 +17,6 @@ export type HostMethod = keyof HostMethods;
 export interface RuntimeHost { call<M extends HostMethod>(method: M, ...args: HostMethods[M]): Promise<string> }
 export type OperationResult<T> = { ok: true; value: T } | { ok: false; code: 'unsupported' | 'invalid' | 'disabled' | 'unavailable'; message: string };
 export interface SettingsHost { read(): Promise<Settings>; write(patch: Partial<Settings>): Promise<OperationResult<Settings>>; subscribe(listener: (key: string, value: unknown) => void): () => void }
-export interface DiagnosticResult { host: HostKind; build: BuildIdentity; frontendBuild: BuildIdentity | null; capabilities: HostCapabilities; state: string }
-export interface DeveloperRequest { id: string; command: string; args: unknown[] }
-export interface DeveloperResult { id: string; stage: 'queued' | 'executed' | 'captured' | 'delivery-attempted'; result: OperationResult<unknown> }
 export type FfiFactory = <Args extends unknown[], Result>(method: string) => (...args: Args) => Promise<Result>;
 export function createRuntimeHost(ffi: FfiFactory): RuntimeHost {
     const methods = new Map<HostMethod, (...args: any[]) => Promise<string>>();

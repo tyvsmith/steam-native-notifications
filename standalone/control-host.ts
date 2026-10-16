@@ -19,7 +19,7 @@ export function controlHandler(host: Host) {
                     dependencies: dependencies(),
                     capabilities: { settingsWrite: true, sample: compatible && !!host.frontendCommand, developerCommands: compatible && !!host.frontendCommand } };
             }
-            case 'capture': { const count = request.payload ?? 8; if (!Number.isSafeInteger(count) || (count as number) < 0 || (count as number) > 100) throw new Error('Capture count must be 0–100'); let log = ''; try { log = await readFile(join(host.runtime, 'standalone.log'), 'utf8'); } catch {} return { host: 'standalone', live: host.live, lines: log.trim().split('\n').slice(-(count as number) || log.length).slice(0, count as number).map(line => line.slice(0, 320)), evidence: 'Historical log; banner visibility is unmeasured' }; }
+            case 'capture': { const count = request.payload ?? 8; if (!Number.isSafeInteger(count) || (count as number) < 0 || (count as number) > 100) throw new Error('Capture count must be 0–100'); let log = ''; try { log = await readFile(host.logPath, 'utf8'); } catch { try { log = await readFile(join(host.runtime, 'standalone.log'), 'utf8'); } catch {} } return { host: 'standalone', live: host.live, lines: log.trim().split('\n').slice(-(count as number) || log.length).slice(0, count as number).map(line => line.slice(0, 320)), evidence: 'Historical log; banner visibility is unmeasured' }; }
             case 'config.read': return host.store.read();
             case 'config.update': return host.store.update(request.payload, request.deadline);
             case 'config.reset': return host.store.reset(request.deadline);

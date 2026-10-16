@@ -465,19 +465,64 @@ local function consume(path)
     return content
 end
 
+local function request_id(value)
+    return type(value) == "string" and #value == 36 and value:match("^[%x%-]+$") ~= nil
+end
+
+local function consume_request(kind)
+    local root = join(RUNTIME_DIR, ".control-requests")
+    local ok, entries = pcall(fs.list, root)
+    if not ok or type(entries) ~= "table" then return "" end
+    for _, entry in ipairs(entries) do
+        if request_id(entry.name) then
+            local content = consume(join(root, entry.name, kind))
+            if content ~= "" then return content end
+        end
+    end
+    return ""
+end
+
 --- Dev trigger: tools/fire writes RUNTIME_DIR/.dev-fire; the frontend polls
 --- this callable and executes the named NotificationStore test method.
 ---@ffi
 ---@return string
 function TakeDevCommand()
-    return consume(join(RUNTIME_DIR, ".dev-fire"))
+    local queued = consume_request("dev")
+    return queued ~= "" and queued or consume(join(RUNTIME_DIR, ".dev-fire"))
 end
 
 --- Fixed sample door: frontend ignores any supplied method/arguments.
 ---@ffi
 ---@return string
 function TakeSampleCommand()
-    return consume(join(RUNTIME_DIR, ".sample"))
+    local queued = consume_request("sample")
+    return queued ~= "" and queued or consume(join(RUNTIME_DIR, ".sample"))
+end
+
+--- Read-only challenge and correlated execution receipts for local tools.
+---@ffi
+---@return string
+function TakeDiagnosticCommand()
+    return consume_request("status")
+end
+
+---@ffi
+---@param kind string
+---@param payload string
+---@return string
+function ReportDiagnostic(kind, payload)
+    if (kind ~= "status" and kind ~= "command") or type(payload) ~= "string" or #payload > 65536 then
+        return "invalid"
+    end
+    local ok, reply = pcall(json.decode, payload)
+    if not ok or type(reply) ~= "table" or not request_id(reply.id) then return "invalid" end
+    -- The caller removes this directory on timeout; never recreate a late reply.
+    local path = join(RUNTIME_DIR, ".control-requests", reply.id, "result")
+    local handle = io.open(path, "w")
+    if not handle then return "unavailable" end
+    handle:write(payload)
+    handle:close()
+    return "ok"
 end
 
 --- Legacy/test click handoff: production helpers launch or store the canonical

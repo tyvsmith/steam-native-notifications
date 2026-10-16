@@ -19,10 +19,3 @@ export function healthExpression(id: number): string {
         catch { finish(false); }
     })`;
 }
-
-export function heartbeatReady(value: any, steam: string, now = Date.now(), isAlive = (pid: number) => {
-    try { process.kill(pid, 0); return true; } catch { return false; }
-}): boolean {
-    return value?.state === 'ready' && value.steam === steam && Number.isSafeInteger(value.pid) && value.pid > 0 &&
-        Number.isFinite(value.at) && now - value.at >= 0 && now - value.at < 5000 && isAlive(value.pid);
-}

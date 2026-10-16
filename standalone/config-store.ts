@@ -1,9 +1,9 @@
 import { acquireConfigLock } from './lock';
 import { mkdir, readFile, rename, writeFile, unlink } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
-import { homedir } from 'node:os';
+import { dirname } from 'node:path';
+import { setupPaths } from './paths';
 import { DEFAULTS, isSettingKey, normalizeSettings, validateSettingsPatch, type Settings } from '../shared/settings';
-export function configPath(): string { return join(process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'), 'steam-native-notifications/standalone.json'); }
+export function configPath(): string { return setupPaths().config; }
 export interface ConfigSnapshot { values: Settings; error: string | null }
 /** One shared store per path serializes local writers. Invalid external edits retain last good values. */
 export class ConfigStore {
