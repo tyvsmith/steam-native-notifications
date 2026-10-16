@@ -160,7 +160,7 @@ test('the same popup delivers only once', async () => {
 
 test('panel groups desktop before game and shows all six Windows controls', () => {
 	const sections = nodes(SettingsPanel()).filter((node) => node.type === 'header');
-	expect(sections.map((node) => node.props.children)).toEqual(['Outside games', 'Inside games']);
+	expect(sections.map((node) => node.props.children)).toEqual(['Outside a game', 'In a game']);
 	expect(toggles().map((node) => [node.props.label, node.props.checked])).toEqual([
 		['Show OS notifications', true], ['Show Steam notifications', false], ['Save to Notification Center only', false],
 		['Show OS notifications', true], ['Show Steam notifications', true], ['Save to Notification Center only', false],
@@ -219,7 +219,7 @@ test('deleted or invalid settings return delivery and panel to the same default'
 
 test('both-off notice applies only to the disabled context', () => {
 	set('notifyOutsideGame', false);
-	const notices = nodes(SettingsPanel()).filter((node) => node.props?.children === 'Notifications are off for this context');
+	const notices = nodes(SettingsPanel()).filter((node) => node.props?.children === 'Notifications are off for this context.');
 	expect(notices).toHaveLength(1);
 	expect(toggles().slice(-3).map((node) => node.props.checked)).toEqual([true, true, false]);
 });
@@ -228,6 +228,6 @@ test('developer options have a header and stay hidden outside developer mode', (
 	expect(nodes(SettingsPanel()).some((node) => node.props?.children === 'Developer options')).toBe(false);
 	set('devMode', true);
 	const headers = nodes(SettingsPanel()).filter((node) => node.type === 'header');
-	expect(headers.map((node) => node.props.children)).toEqual(['Outside games', 'Inside games', 'Developer options']);
-	expect(toggles().at(-1).props.label).toBe('Developer: accept test commands from tools/fire');
+	expect(headers.map((node) => node.props.children)).toEqual(['Outside a game', 'In a game', 'Developer options']);
+	expect(toggles().at(-1).props.label).toBe('Developer: accept test commands');
 });

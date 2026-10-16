@@ -11,7 +11,7 @@ mock.module('../tools/lib/mep', () => ({ mepCall: async (method: string, params:
 } }));
 mock.module('./control', () => ({ controlCall: async (operation: string, payload: any): Promise<any> => {
     if (!standalone) throw new Error('offline');
-    if (operation === 'status') return { host: 'standalone', state: 'ready', build: BUILD_IDENTITY };
+    if (operation === 'status') return { host: 'standalone', state: 'ready', build: BUILD_IDENTITY, capabilities: {settingsWrite:true,sample:true,developerCommands:true} };
     if (operation === 'config.read') return { values: settings, error: null };
     if (operation === 'config.update') { settings = { ...settings, ...payload }; return { values: settings, error: null }; }
     if (operation === 'sample' || operation === 'dev.fire') return { stage: 'executed' };

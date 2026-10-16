@@ -1,3 +1,4 @@
+import { SETTINGS_CONTEXT, settingsWarning } from '../shared/settings-policy';
 import { useEffect, useState } from 'react';
 import { DialogBodyText, DialogControlsSection, DialogControlsSectionHeader, ToggleField, usePluginConfig } from 'millennium';
 import { DEFAULTS, type Settings } from './settings';
@@ -16,10 +17,8 @@ function PresentationSection({ inGame, windows }: { inGame: boolean; windows: bo
 	const [history, setHistory] = useToggle(inGame ? 'notificationCenterOnlyInGame' : 'notificationCenterOnlyOutsideGame');
 	return (
 		<DialogControlsSection>
-			<DialogControlsSectionHeader>{inGame ? 'Inside games' : 'Outside games'}</DialogControlsSectionHeader>
-			<DialogBodyText>{inGame
-				? 'For notifications Steam sends to the game overlay. This can continue after alt-tabbing.'
-				: 'For notifications Steam sends to the desktop.'}</DialogBodyText>
+			<DialogControlsSectionHeader>{SETTINGS_CONTEXT[inGame ? 'inside' : 'outside'].title}</DialogControlsSectionHeader>
+			<DialogBodyText>{SETTINGS_CONTEXT[inGame ? 'inside' : 'outside'].description}</DialogBodyText>
 			<ToggleField label={SETTINGS_SCHEMA[inGame ? 'notifyInGame' : 'notifyOutsideGame'].label}
 				description={SETTINGS_SCHEMA[inGame ? 'notifyInGame' : 'notifyOutsideGame'].description}
 				checked={native} onChange={setNative} />
@@ -29,7 +28,7 @@ function PresentationSection({ inGame, windows }: { inGame: boolean; windows: bo
 			{windows && native && <ToggleField label={SETTINGS_SCHEMA[inGame ? 'notificationCenterOnlyInGame' : 'notificationCenterOnlyOutsideGame'].label}
 				description={SETTINGS_SCHEMA[inGame ? 'notificationCenterOnlyInGame' : 'notificationCenterOnlyOutsideGame'].description}
 				checked={history} onChange={setHistory} />}
-			{!native && !steam && <DialogBodyText>Notifications are off for this context</DialogBodyText>}
+			{!native && !steam && <DialogBodyText>{settingsWarning({ ...DEFAULTS, notifyOutsideGame: native, showSteamOutsideGame: steam }, 'outside')}</DialogBodyText>}
 		</DialogControlsSection>
 	);
 }

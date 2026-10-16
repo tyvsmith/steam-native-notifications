@@ -22,7 +22,7 @@ export function desktopQuote(value: string): string {
 export function serviceText(paths: Paths, root: string, bun: string, steam: string): string {
     systemdQuote(root); // validate line/control characters; WorkingDirectory is a raw path directive.
     const args = [bun, join(root, 'standalone/daemon.ts'), '--config', paths.config, '--steam-dir', steam];
-    return `[Unit]\nDescription=Experimental Steam RT3 native notifications\nPartOf=graphical-session.target\nAfter=graphical-session-pre.target\n\n[Service]\nType=simple\nWorkingDirectory=${root.replace(/%/g, '%%')}\nExecStart=${args.map(value => systemdQuote(value.replace(/\$/g, '$$$$'))).join(' ')}\nRestart=on-failure\nRestartSec=5\nUMask=0077\n` +
+    return `[Unit]\nDescription=Experimental Steam RT3 native notifications\nPartOf=graphical-session.target\nAfter=graphical-session-pre.target\n\n[Service]\nType=exec\nWorkingDirectory=${root.replace(/%/g, '%%')}\nExecStart=${args.map(value => systemdQuote(value.replace(/\$/g, '$$$$'))).join(' ')}\nRestart=on-failure\nRestartSec=5\nUMask=0077\n` +
         ['HOME', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'XDG_DATA_HOME', 'XDG_STATE_HOME'].map((key, index) =>
             `Environment=${systemdQuote(`${key}=${[paths.home, paths.configHome, paths.cacheHome, paths.dataHome, paths.stateHome][index]}`)}\n`).join('') +
         `\n[Install]\nWantedBy=graphical-session.target\n`;

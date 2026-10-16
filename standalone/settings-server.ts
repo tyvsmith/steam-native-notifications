@@ -1,5 +1,6 @@
+import { panelPatch, panelDefaults } from './settings-policy';
 import { BUILD_IDENTITY } from '../shared/host';
-import { DEFAULTS, SETTINGS_SCHEMA, settingSupported, validateSettingsPatch, type SettingKey } from '../shared/settings';
+import { SETTINGS_SCHEMA } from '../shared/settings';
 import { configStore, type ConfigStore } from './config-store';
 import { hostStatus, sample, type HostSelection } from './client';
 import { settingsHtml, settingsScript, settingsStyle } from './settings-assets';
@@ -28,12 +29,11 @@ export function startSettingsServer(options: SettingsServerOptions = {}) {
             const body = await request.text(); if (body.length > 8192) return json({ error: 'Request too large' }, 413);
             let input: any; try { input = JSON.parse(body); } catch { return json({ error: 'Malformed JSON' }, 400); }
             if (url.pathname === '/api/config') {
-                const patch = validateSettingsPatch(input); const current = await store.read();
-                for (const key of Object.keys(patch) as SettingKey[]) if (!settingSupported(key, 'linux') || key === 'devMode' || (SETTINGS_SCHEMA[key].developer && !current.values.devMode)) return json({ error: `Setting unavailable: ${key}` }, 400);
+                const patch = panelPatch(input, (await store.read()).values);
                 touch(); return json(await store.update(patch));
             }
             if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).length) return json({ error: 'Expected empty object' }, 400);
-            if (url.pathname === '/api/reset') { touch(); const current = await store.read(); const patch = Object.fromEntries(Object.entries(DEFAULTS).filter(([key]) => key !== 'devMode' && settingSupported(key as SettingKey, 'linux'))); return json(await store.update({ ...patch, devMode: current.values.devMode })); }
+            if (url.pathname === '/api/reset') { touch(); return json(await store.update(panelDefaults())); }
             if (url.pathname === '/api/sample') { touch(); return json(await (options.sample ?? sample)('standalone')); }
             if (url.pathname === '/api/close') { setTimeout(stop, 50); return json({ closed: true }); }
             return json({ error: 'Unknown endpoint' }, 404);
@@ -41,9 +41,10 @@ export function startSettingsServer(options: SettingsServerOptions = {}) {
     } });
     touch(); return { url: `http://127.0.0.1:${server.port}/#${token}`, origin: `http://127.0.0.1:${server.port}`, stop, closed };
 }
-export async function settingsCommand(noOpen = false, host: HostSelection = 'auto'): Promise<void> {
+export async function settingsCommand(noOpen = false, host: HostSelection = 'standalone', jsonOutput = false): Promise<void> {
     const session = startSettingsServer({ host });
-    console.log(session.url); console.log('Settings server: Ctrl+C to exit; closes after 30 minutes idle.');
+    if (jsonOutput) console.log(JSON.stringify({ host: 'standalone', url: session.url }));
+    else { console.log('Standalone settings (saved even while Steam is stopped).'); console.log(session.url); console.log('Settings server: Ctrl+C to exit; closes after 30 minutes idle.'); }
     if (!noOpen) { try { const child = Bun.spawn(['xdg-open', session.url], { stdout: 'ignore', stderr: 'ignore' }); if (await child.exited !== 0) console.error('Browser launch failed. Open the local URL above.'); } catch { console.error('Browser launch failed. Open the local URL above.'); } }
     const close = () => session.stop(); process.once('SIGINT', close); process.once('SIGTERM', close);
     await session.closed; process.removeListener('SIGINT', close); process.removeListener('SIGTERM', close);

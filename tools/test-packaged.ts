@@ -7,12 +7,47 @@ const home=await mkdtemp(join(tmpdir(),'snn compiled home spaces '));try{
 const release=join(home,'extracted release');await cp(source,release,{recursive:true});const steam=join(home,'Steam root');await mkdir(join(steam,'steamrt64'),{recursive:true});for(const p of ['steam.sh','steamrt64/steam','.cef-enable-remote-debugging'])await writeFile(join(steam,p),'');const shims=join(home,'fake commands');await mkdir(shims);for(const name of ['systemctl','notify-send','gdbus','curl']){const path=join(shims,name);await writeFile(path,'#!/bin/sh\nexit 0\n');await chmod(path,0o700);}
 const env={...process.env,HOME:home,XDG_CONFIG_HOME:join(home,'config'),XDG_DATA_HOME:join(home,'data'),XDG_STATE_HOME:join(home,'state'),XDG_CACHE_HOME:join(home,'cache'),XDG_RUNTIME_DIR:join(home,'run'),DISPLAY:':fixture',DBUS_SESSION_BUS_ADDRESS:'unix:path=/fixture',PATH:`${shims}:/usr/bin:/bin`};
 async function call(bin:string,args:string[]){const c=Bun.spawn([bin,...args],{cwd:home,env,stdout:'pipe',stderr:'pipe'});const [out,err,code]=await Promise.all([new Response(c.stdout).text(),new Response(c.stderr).text(),c.exited]);if(code)throw new Error(`${args.join(' ')} failed: ${err}`);return out;}
-const bin=join(release,'snn');
+const bin=join(release,'snn');const previous=process.argv[2];if(previous)await validateRelease(previous);
 // Model real systemctl: disabling after the unit has been removed fails.
 await writeFile(join(shims,'systemctl'),'#!/bin/sh\ncase "$2" in restart) echo "fixture activation failed" >&2; exit 1;; disable) test -f "$XDG_CONFIG_HOME/systemd/user/steam-native-notifications-standalone.service" || { echo "Unit does not exist" >&2; exit 1; };; esac\nexit 0\n');
 const failed=Bun.spawn([bin,'install','--release',release,'--steam-dir',steam],{cwd:home,env,stdout:'pipe',stderr:'pipe'});const failure=await new Response(failed.stderr).text();if(await failed.exited!==1||failure.includes('recovery pending'))throw new Error(`Fresh activation recovery failed: ${failure}`);if(await Bun.file(join(home,'state/steam-native-notifications/standalone-install.json.transaction')).exists())throw new Error('Fresh recovery left transaction');await call(bin,['recover','--json']);
-await writeFile(join(shims,'systemctl'),'#!/bin/sh\nexit 0\n');
-await call(bin,['--help']);await call(bin,['daemon','--help']);await call(bin,['install','--release',release,'--steam-dir',steam,'--json']);const stable=join(home,'.local/bin/snn');const active=await readlink(join(home,'data/steam-native-notifications/active'));await call(stable,['--help']);await call(stable,['daemon','--help']);
+await mkdir(env.XDG_RUNTIME_DIR,{mode:0o700});
+await writeFile(join(shims,'systemctl'),`#!/bin/sh
+case "$2" in
+ restart)
+  if test -f "$HOME/daemon.pid"; then
+   old=$(cat "$HOME/daemon.pid"); kill "$old" 2>/dev/null || true
+   remaining=70
+   while kill -0 "$old" 2>/dev/null; do
+    case "$(ps -o stat= -p "$old")" in Z*|"") break;; esac
+    test "$remaining" -gt 0 || exit 1
+    remaining=$((remaining - 1)); sleep 0.1
+   done
+  fi
+  "$HOME/.local/bin/snn" daemon --steam-dir "$HOME/Steam root" --port 1 >"$HOME/daemon.log" 2>&1 &
+  echo $! > "$HOME/daemon.pid";;
+ show)
+  echo UnitFileState=enabled; echo ActiveState=active; echo SubState=running
+  echo "MainPID=$(cat "$HOME/daemon.pid")";;
+ disable|stop) if test -f "$HOME/daemon.pid"; then kill "$(cat "$HOME/daemon.pid")" 2>/dev/null || true; fi;;
+esac
+exit 0
+`);
+await call(bin,['--help']);await call(bin,['daemon','--help']);await call(previous?join(previous,'snn'):bin,['install','--release',previous??release,'--steam-dir',steam,'--json']);const stable=join(home,'.local/bin/snn');const active=await readlink(join(home,'data/steam-native-notifications/active'));await call(stable,['--help']);await call(stable,['daemon','--help']);
+if(previous){
+ await call(stable,['upgrade','--release',release,'--json']);
+ await call(stable,['rollback','--json']);
+ await call(stable,['upgrade','--release',release,'--json']);
+ // Older managers return before control readiness. Wait only in this compatibility fixture.
+ for(let attempt=0;attempt<50;attempt++){
+  const hosts=JSON.parse(await call(stable,['status','--host','standalone','--json']));
+  if(hosts[0]?.build?.buildId===identity.buildId)break;
+  if(attempt===49)throw new Error('Previous executable upgrade did not activate candidate: '+JSON.stringify(hosts)+'\n'+await readFile(join(home,'daemon.log'),'utf8'));await Bun.sleep(100);
+ }
+}
+const doctorA=JSON.parse(await call(stable,['doctor','--host','standalone','--json']));
+const doctorB=JSON.parse(await call(stable,['--host','standalone','doctor','--json']));
+if(JSON.stringify(doctorA)!==JSON.stringify(doctorB)||doctorA.hosts.length!==1||doctorA.hosts[0].state==='ready')throw new Error('Doctor dispatch or waiting-state diagnostics differ');
 const settings=Bun.spawn([stable,'settings','--no-open'],{cwd:home,env,stdout:'pipe',stderr:'pipe'});try{const reader=settings.stdout.getReader();let output='';const until=Date.now()+5000;while(!output.includes('http://')&&Date.now()<until){const {value,done}=await reader.read();if(done)break;output+=new TextDecoder().decode(value);}const url=output.match(/http:\/\/127\.0\.0\.1:\d+\/[^\s]*/)?.[0];if(!url)throw new Error('Compiled settings URL absent');const response=await fetch(url);if(!response.ok||!(await response.text()).includes('Steam'))throw new Error('Embedded settings HTML unavailable');const origin=new URL(url).origin;for(const asset of ['settings.css','settings.js'])if(!(await fetch(`${origin}/${asset}`)).ok)throw new Error(`Embedded ${asset} unavailable`);}finally{settings.kill('SIGTERM');await settings.exited;}
 await writeFile(join(home,'config/steam-native-notifications/standalone.json'),' {"unknown":42,"devFire":false}\n');const bytes=await readFile(join(home,'config/steam-native-notifications/standalone.json'));await call(stable,['uninstall','--json']);if(!(await readFile(join(home,'config/steam-native-notifications/standalone.json'))).equals(bytes))throw new Error('Settings changed');console.log(`Compiled smoke passed: no Bun PATH, arbitrary cwd, spaces, install/stable invocation/uninstall, active ${active}`);
-}finally{await rm(home,{recursive:true,force:true});}
+}finally{try{process.kill(Number(await readFile(join(home,'daemon.pid'),'utf8')),'SIGTERM');}catch{}await rm(home,{recursive:true,force:true});}

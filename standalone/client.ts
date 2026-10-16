@@ -1,6 +1,7 @@
 import { runtimeAsset } from './runtime-paths';
-import { BUILD_IDENTITY, parseCallableJson, type HostKind } from '../shared/host';
-import { DEFAULTS, normalizeSettings, validateSettingsPatch } from '../shared/settings';
+import { BUILD_IDENTITY, parseCallableJson, type BuildIdentity, type HostKind } from '../shared/host';
+import { preferenceDefaults } from '../shared/settings-policy';
+import { normalizeSettings, validateSettingsPatch } from '../shared/settings';
 import { validateDevCommand } from '../shared/dev-command';
 import { mepCall } from '../tools/lib/mep';
 import { captureReport } from '../tools/lib/cli/capture-millennium';
@@ -11,19 +12,29 @@ export type HostSelection = HostKind | 'auto';
 async function millennium(method: string, params: Record<string, any> = {}): Promise<any> {
     const reply = await mepCall(method, params, { timeoutMs: 1000 }); if (reply.error !== null && reply.error !== undefined) throw new Error(String(reply.error)); return parseCallableJson(reply.result, reply.result);
 }
-export async function hostStatus(): Promise<any[]> {
-    return Promise.all(['standalone', 'millennium'].map(async kind => {
+export interface HostStatus {
+    host: HostKind; present: boolean; state: string;
+    build?: BuildIdentity; frontendBuild?: BuildIdentity | null;
+    capabilities?: { settingsWrite: boolean; sample: boolean; developerCommands: boolean };
+    evidence?: string; action?: string; error?: string; config?: ConfigSnapshot;
+    pid?: number; installedBuild?: BuildIdentity | null; hook?: string; control?: boolean; dependencies?: ReturnType<typeof import('./dependencies').dependencies>;
+}
+export async function hostStatus(): Promise<HostStatus[]> {
+    return Promise.all((['standalone', 'millennium'] as const).map(async kind => {
         try {
             if (kind === 'standalone') return { ...await controlCall('status', undefined, { timeoutMs: 1200 }), present: true };
             const status = await millennium('plugin.status', { name: PLUGIN_ID });
             const running = status?.running === true || status?.backend?.running === true;
-            return { host: kind, present: true, state: running ? 'ready' : 'stopped', status, frontendBuild: null, build: BUILD_IDENTITY, evidence: 'Backend status; frontend build and hook readiness unmeasured', capabilities: { settingsWrite: true, sample: running, developerCommands: running } };
+            return { host: kind, present: true, state: running ? 'backend-running' : 'stopped', status, frontendBuild: null, build: BUILD_IDENTITY, evidence: 'Backend status; frontend build and hook readiness unmeasured', capabilities: { settingsWrite: true, sample: running, developerCommands: running } };
         } catch (e: any) { return { host: kind, present: false, state: 'unavailable', error: e.message }; }
     }));
 }
-export async function selectHost(selection: HostSelection = 'auto', mutation = false): Promise<HostKind> {
-    if (selection !== 'auto') { if (mutation) { const current = (await hostStatus()).find(s => s.host === selection); if (!current?.present || current.state !== 'ready') throw new Error(current?.action ?? `${selection} is not ready`); } return selection; }
-    const statuses = await hostStatus(); const ready = statuses.filter(s => s.present && s.state === 'ready');
+export function operationEligible(status: HostStatus, operation: 'sample' | 'developerCommands'): boolean {
+    return status.present && status.capabilities?.[operation] === true && ['ready', 'backend-running'].includes(status.state);
+}
+export async function selectHost(selection: HostSelection = 'auto', mutation = false, operation: 'sample' | 'developerCommands' = 'developerCommands'): Promise<HostKind> {
+    if (selection !== 'auto') { if (mutation) { const current = (await hostStatus()).find(s => s.host === selection); if (!current?.present || !operationEligible(current, operation)) throw new Error(current?.action ?? `${selection} is not ready`); } return selection; }
+    const statuses = await hostStatus(); const ready = statuses.filter(s => s.present && operationEligible(s, operation));
     if (ready.length === 1) return ready[0].host;
     if (ready.length > 1) throw new Error('Both hosts are ready; select --host millennium or --host standalone explicitly');
     if (!mutation) { const present = statuses.filter(s => s.present); if (present.length === 1) return present[0].host; }
@@ -41,7 +52,7 @@ export async function updateConfig(patch: unknown, selection: HostSelection = 's
     const statuses = await hostStatus(); if (statuses.find(s => s.host === host)?.present) return controlCall('config.update', values);
     return configStore().update(values);
 }
-export function resetConfig(selection: HostSelection = 'standalone'): Promise<ConfigSnapshot> { return updateConfig(DEFAULTS, selection); }
+export function resetConfig(selection: HostSelection = 'standalone'): Promise<ConfigSnapshot> { return updateConfig(preferenceDefaults(process.platform === 'win32' ? 'windows' : process.platform === 'linux' ? 'linux' : 'unknown'), selection); }
 export async function fire(command: unknown, selection: HostSelection = 'auto'): Promise<unknown> {
     const validated = validateDevCommand(command); const host = await selectHost(selection, true);
     if (host === 'standalone') return controlCall('dev.fire', validated);
@@ -50,7 +61,7 @@ export async function fire(command: unknown, selection: HostSelection = 'auto'):
     return { host, id, stage: 'queued', message: 'Queued with expiry. Execution is unconfirmed; older frontends need a Steam restart for this envelope.' };
 }
 export async function sample(selection: HostSelection = 'auto'): Promise<unknown> {
-    const host = await selectHost(selection, true);
+    const host = await selectHost(selection, true, 'sample');
     if (host === 'standalone') return controlCall('sample');
     const id = crypto.randomUUID(); writeCommandFile({ id, createdAt: Date.now(), deadline: Date.now() + 7000 }, 'sample');
     return { host, id, stage: 'queued', message: 'Fixed sample queued with expiry; execution/capture/delivery unconfirmed. Older frontends need a Steam restart.' };

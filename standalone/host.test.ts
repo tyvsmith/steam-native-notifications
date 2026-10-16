@@ -86,3 +86,30 @@ test('nonstandard Steam artwork root takes precedence without modifying shared S
     expect(await child.exited).toBe(0);
     expect(await readFile(join(host.runtime, 'steam-dir'), 'utf8')).toBe('/preexisting-millennium-root');
 });
+
+test('panel settings restrict writes and preserve hidden settings on reset', async () => {
+    const { host } = await fixture();
+    await host.store.update({ notificationCenterOnlyInGame: true, devMode: true });
+    const state = JSON.parse(await host.dispatch('PanelRead', []));
+    expect(state.config.values.notifyOutsideGame).toBe(true);
+    await host.dispatch('PanelPatch', [{ notifyOutsideGame: false }]);
+    expect((await host.settings()).notifyOutsideGame).toBe(false);
+    for (const patch of [{ devMode: false }, { notificationCenterOnlyInGame: false }, { notifyInGame: 'yes' }, { arbitrary: true }]) {
+        await expect(host.dispatch('PanelPatch', [patch])).rejects.toThrow();
+    }
+    await host.dispatch('PanelReset', []);
+    expect((await host.settings()).notificationCenterOnlyInGame).toBe(true);
+    expect((await host.settings()).devMode).toBe(true);
+    expect((await host.settings()).notifyOutsideGame).toBe(true);
+    await host.store.update({ devMode: false });
+    await expect(host.dispatch('PanelPatch', [{ devFire: true }])).rejects.toThrow();
+});
+test('panel sample is fixed and rejects stale frontend and arbitrary arguments', async () => {
+    const { host } = await fixture();
+    await expect(host.dispatch('PanelSample', [])).rejects.toThrow();
+    const { BUILD_IDENTITY } = await import('../shared/host');
+    host.live = { state: 'ready', frontendBuild: BUILD_IDENTITY, control: true };
+    host.frontendCommand = async (envelope, sample) => ({ command: envelope.command, sample });
+    expect(JSON.parse(await host.dispatch('PanelSample', []))).toEqual({ command: { call: 'TestFriendOnline', args: [] }, sample: true });
+    await expect(host.dispatch('PanelSample', ['TestIncomingVoiceChat'])).rejects.toThrow();
+});

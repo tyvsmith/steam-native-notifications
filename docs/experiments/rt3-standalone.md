@@ -11,7 +11,14 @@ where `notify-send`, `gdbus`, artwork files, and Wayland are available. Capture,
 localized text, replay tokens, routing, and canonical Steam URL activation use
 the same frontend as the Millennium plugin.
 
-## Build and start
+## Packaged installation
+
+Use the compiled package for normal use; see [installation and lifecycle](../standalone-release.md).
+The package includes the runtime, settings editor and support assets. Bun and
+this checkout are only required for development. Current validation is recorded
+in [the milestone evidence](rt3-validation.md).
+
+## Development build and start
 
 Requires native Linux Steam, Bun >=1.4.3 (the standalone build was tested with 1.4.3), `notify-send` (libnotify), `gdbus`
 (GLib), `curl`, and optionally LuaJIT plus libwayland-client for the existing
@@ -28,7 +35,7 @@ bun run test:standalone
 It does not install a `.star`, enable a service, edit Steam, or restart it.
 Keep the checkout: the daemon reads the bundle and the existing helper there.
 
-## Persistent setup and normal Steam launch
+## Source setup for development and migration
 
 From a terminal in your logged-in desktop session:
 
@@ -145,22 +152,24 @@ preserves an existing configuration; it never resets preferences.
 }
 ```
 
-The in-Steam settings panel and Millennium external protocol (MEP) are absent.
-`tools/mep` and the existing `tools/capture` freshness verdict describe the
-Millennium host, not this daemon. Read
-`~/.cache/steam-native-notifications/standalone.log` for standalone attachment,
-`hook installed`, and `steam-url: registered` evidence. The existing delivery
-helper still writes failures to `plugin.log`. Both paths respect
-`XDG_CACHE_HOME`. Logs may contain notification text; keep them private.
+Steam Settings includes Native Notifications at the bottom of the sidebar,
+with a native icon and separator. `snn settings` opens the standalone browser
+editor, including while Steam is stopped. Millennium retains its own panel and
+external protocol; standalone uses a private user control socket.
+
+Use `snn --host standalone status --json` and `snn --host standalone capture`.
+New standalone logs are in `~/.local/state/steam-native-notifications/standalone.log`
+(or XDG_STATE_HOME), with a 5 MiB current file and one backup. The shared helper
+retains its cache log. Logs contain notification text; keep them private.
 
 `--steam-dir DIR` selects the canonical native client root for identity and
 artwork lookup. The standalone helper receives this root explicitly without
 overwriting Millennium's shared `steam-dir` cache file.
 
-Developer commands remain off by default. With `devFire: true`, the daemon
-consumes the existing cache `.dev-fire` file once, and the frontend runs its
-existing test machinery. `tools/fire` still checks Millennium freshness and
-is not a standalone entrypoint. Never synthesize `TestIncomingVoiceChat`:
+Developer commands remain off by default. After enabling `devFire`, use
+`snn --host standalone dev fire TestDownloadComplete 1073390` or
+`tools/fire --host standalone TestDownloadComplete 1073390`. The fixed sample
+button works without developer opt-in. Never synthesize `TestIncomingVoiceChat`:
 it can wedge Steam's toast queue until restart.
 
 ## Stop or uninstall

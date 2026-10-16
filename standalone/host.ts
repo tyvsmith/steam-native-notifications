@@ -1,6 +1,9 @@
+import { controlHandler } from './control-host';
+import { panelPatch, panelDefaults } from './settings-policy';
 import { runtimeRoot } from './runtime-paths';
 import { configStore, type ConfigStore } from './config-store';
-import { appendFile, mkdir, readFile, readdir, realpath, unlink, writeFile, rename } from 'node:fs/promises';
+import { rotatingLog } from './log';
+import { mkdir, readFile, readdir, realpath, unlink, writeFile, rename } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { DEFAULTS, normalizeSettings } from '../shared/settings';
@@ -19,15 +22,15 @@ export class Host {
     readonly store: ConfigStore;
     live: any = { state: 'disconnected', frontendBuild: null, hook: 'unknown' };
     frontendCommand?: (envelope: any, sample: boolean) => Promise<unknown>;
-    constructor(readonly runtime: string, readonly config: string, readonly steam: string) { this.store = configStore(config); }
+    readonly logPath: string;
+    private writeLog: (line: string) => Promise<void>;
+    constructor(readonly runtime: string, readonly config: string, readonly steam: string, logDirectory = runtime) { this.store = configStore(config); this.logPath = join(logDirectory, 'standalone.log'); this.writeLog = rotatingLog(this.logPath); }
     async initialize(): Promise<void> {
         await mkdir(this.runtime, { recursive: true, mode: 0o700 });
         // Separate log: a standalone daemon must not truncate Millennium's evidence.
         await this.log('standalone: backend started (experimental linux RT3)');
     }
-    async log(line: string): Promise<void> {
-        await appendFile(join(this.runtime, 'standalone.log'), `${new Date().toISOString()} ${line.replace(/[\r\n]/g, ' ').slice(0, 4096)}\n`, { mode: 0o600 });
-    }
+    async log(line: string): Promise<void> { await this.writeLog(line); }
     async readiness(state: string): Promise<void> {
         this.live.state = state;
         const path = join(this.runtime, 'standalone-status.json');
@@ -41,6 +44,20 @@ export class Host {
     }
     async dispatch(method: string, args: unknown[]): Promise<string> {
         switch (method) {
+            case 'PanelRead':
+                if (args.length) break;
+                return JSON.stringify({ config: await this.store.read(), state: this.live.state,
+                    compatible: this.live.frontendBuild?.buildId === BUILD_IDENTITY.buildId && this.live.control === true,
+                    hook: this.live.hook, build: BUILD_IDENTITY });
+            case 'PanelPatch':
+                if (args.length !== 1) break;
+                return JSON.stringify(await this.store.update(panelPatch(args[0], (await this.store.read()).values), Date.now() + 4000));
+            case 'PanelReset':
+                if (args.length) break;
+                return JSON.stringify(await this.store.update(panelDefaults(), Date.now() + 4000));
+            case 'PanelSample':
+                if (args.length) break;
+                return JSON.stringify(await controlHandler(this)({ id: crypto.randomUUID(), operation: 'sample', deadline: Date.now() + 4000 }));
             case 'Health': if (args.length) break; return 'ok';
             case 'Platform': if (args.length) break; return 'linux';
             case 'Log': if (args.length !== 1 || typeof args[0] !== 'string') break; await this.log(args[0]); return 'ok';
