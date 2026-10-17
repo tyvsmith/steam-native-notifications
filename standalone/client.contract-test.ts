@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'bun:test';
 import { BUILD_IDENTITY } from '../shared/host';
 import { DEFAULTS } from '../shared/settings';
-let standalone = true, millennium = true; let settings = { ...DEFAULTS }; const queued: any[] = [];
+let standalone = true, millennium = true, failWrite = false; let settings = { ...DEFAULTS }; const queued: any[] = [];
 mock.module('../tools/lib/mep', () => ({ mepCall: async (method: string, params: any): Promise<any> => {
     if (!millennium) throw new Error('offline');
     if (method === 'plugin.status') return { error: null, result: { running: true } };
@@ -13,7 +13,7 @@ mock.module('./control', () => ({ controlCall: async (operation: string, payload
     if (!standalone) throw new Error('offline');
     if (operation === 'status') return { host: 'standalone', state: 'ready', build: BUILD_IDENTITY, capabilities: {settingsWrite:true,sample:true,developerCommands:true} };
     if (operation === 'config.read') return { values: settings, error: null };
-    if (operation === 'config.update') { settings = { ...settings, ...payload }; return { values: settings, error: null }; }
+    if (operation === 'config.update') { settings = { ...settings, ...payload }; if (failWrite) throw Error('reply lost after commit'); return { values: settings, error: null }; }
     if (operation === 'sample' || operation === 'dev.fire') return { stage: 'executed' };
     return { lines: [] };
 } }));
@@ -42,4 +42,23 @@ test('ambiguous automatic mutation refused; readonly status shows both; stopped 
     expect((await hostStatus()).length).toBe(2); await expect(selectHost('auto', true)).rejects.toThrow('Both');
     millennium = false; expect(await selectHost('auto', true)).toBe('standalone'); standalone = false;
     await expect(selectHost('auto', true)).rejects.toThrow('No ready'); await expect(selectHost('standalone', true)).rejects.toThrow('not ready'); standalone = true; millennium = true;
+});
+
+test('a possibly applied daemon mutation is not retried in the offline store', async () => {
+    const { mkdtemp, rm } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const root = await mkdtemp(tmpdir() + '/snn-no-retry-');
+    const previousRuntime = process.env.XDG_RUNTIME_DIR, previousConfig = process.env.XDG_CONFIG_HOME;
+    process.env.XDG_RUNTIME_DIR = root; process.env.XDG_CONFIG_HOME = root;
+    failWrite = true;
+    try {
+        await expect(updateConfig({ notifyOutsideGame: false }, 'standalone')).rejects.toThrow('reply lost');
+        expect(settings.notifyOutsideGame).toBe(false);
+        expect(await Bun.file(root + '/steam-native-notifications/standalone.json').exists()).toBe(false);
+    } finally {
+        failWrite = false;
+        if (previousRuntime === undefined) delete process.env.XDG_RUNTIME_DIR; else process.env.XDG_RUNTIME_DIR = previousRuntime;
+        if (previousConfig === undefined) delete process.env.XDG_CONFIG_HOME; else process.env.XDG_CONFIG_HOME = previousConfig;
+        await rm(root, { recursive: true, force: true });
+    }
 });

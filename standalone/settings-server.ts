@@ -1,14 +1,29 @@
 import { preferencePatch, preferenceDefaults } from '../shared/settings-policy';
 import { BUILD_IDENTITY } from '../shared/host';
 import { SETTINGS_SCHEMA } from '../shared/settings';
-import { type ConfigStore } from './config-store';
-import { hostStatus, sample, readConfig, updateConfig, type HostSelection } from '../tools/lib/host-client';
+import { configStore, type ConfigStore } from './config-store';
+import { hostStatus, sample, type HostSelection } from '../tools/lib/host-client';
+import { controlCall } from './control';
+import { isAbsolute } from 'node:path';
 import { settingsHtml, settingsScript, settingsStyle } from './settings-assets';
 export interface SettingsServerOptions { store?: ConfigStore; host?: HostSelection; status?: typeof hostStatus; sample?: typeof sample; idleMs?: number }
+/** Select one file for the session; daemon reconnects cannot retarget displayed settings. */
+async function editorStore(): Promise<ConfigStore> {
+    let status;
+    try { status = await controlCall('status'); }
+    catch (error: any) {
+        if (!process.env.XDG_RUNTIME_DIR || error.code === 'ENOENT' || error.code === 'ECONNREFUSED') return configStore();
+        throw error;
+    }
+    if (typeof status.configPath !== 'string' || !isAbsolute(status.configPath)) throw new Error('Daemon did not identify its configuration file');
+    return configStore(status.configPath);
+}
 /** Per-command capability session; no daemon/config lock is held by its lifetime. */
 export function startSettingsServer(options: SettingsServerOptions = {}) {
-    const store = options.store ?? { read: () => readConfig('standalone'), update: (patch: unknown) => updateConfig(patch, 'standalone') }; const host = options.host === 'millennium' ? 'millennium' : 'standalone';
+    const host = options.host === 'millennium' ? 'millennium' : 'standalone';
     if (host === 'millennium') throw new Error('This independent settings page configures standalone; use Millennium’s panel for Millennium');
+    const target = options.store ? Promise.resolve(options.store) : editorStore();
+    void target.catch(() => {}); // Report discovery errors through the authenticated API.
     const token = crypto.randomUUID() + crypto.randomUUID(); let idle: ReturnType<typeof setTimeout>; let resolveClosed!: () => void;
     const closed = new Promise<void>(resolve => { resolveClosed = resolve; });
     const stop = () => { clearTimeout(idle); server.stop(true); resolveClosed(); };
@@ -23,17 +38,18 @@ export function startSettingsServer(options: SettingsServerOptions = {}) {
         if (request.method === 'GET' && ['/','/settings.js','/settings.css'].includes(url.pathname)) return new Response(url.pathname === '/' ? settingsHtml : url.pathname.endsWith('.js') ? settingsScript : settingsStyle, { headers: { ...headers, 'Content-Type': url.pathname === '/' ? 'text/html; charset=utf-8' : url.pathname.endsWith('.js') ? 'text/javascript' : 'text/css' } });
         if (request.headers.get('authorization') !== `Bearer ${token}`) return json({ error: 'Unauthorized' }, 401);
         try {
-            if (request.method === 'GET' && url.pathname === '/api/state') return json({ config: await store.read(), schema: SETTINGS_SCHEMA, platform: 'linux', build: BUILD_IDENTITY, hosts: await (options.status ?? hostStatus)(), session: 'Closes after 30 minutes without a settings change, reset, or sample request; Close settings or Ctrl+C also exits.' });
+            if (request.method === 'GET' && url.pathname === '/api/state') return json({ config: await (await target).read(), schema: SETTINGS_SCHEMA, platform: 'linux', build: BUILD_IDENTITY, hosts: await (options.status ?? hostStatus)(), session: 'Closes after 30 minutes without a settings change, reset, or sample request; Close settings or Ctrl+C also exits.' });
             if (request.method !== 'POST') return json({ error: 'Unknown endpoint' }, 404);
             if (request.headers.get('content-type') !== 'application/json') return json({ error: 'Expected application/json' }, 415);
             const body = await request.text(); if (body.length > 8192) return json({ error: 'Request too large' }, 413);
             let input: any; try { input = JSON.parse(body); } catch { return json({ error: 'Malformed JSON' }, 400); }
             if (url.pathname === '/api/config') {
+                const store = await target;
                 const patch = preferencePatch(input, (await store.read()).values, 'linux');
                 touch(); return json(await store.update(patch));
             }
             if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).length) return json({ error: 'Expected empty object' }, 400);
-            if (url.pathname === '/api/reset') { touch(); return json(await store.update(preferenceDefaults('linux'))); }
+            if (url.pathname === '/api/reset') { touch(); return json(await (await target).update(preferenceDefaults('linux'))); }
             if (url.pathname === '/api/sample') { touch(); return json(await (options.sample ?? sample)('standalone')); }
             if (url.pathname === '/api/close') { setTimeout(stop, 50); return json({ closed: true }); }
             return json({ error: 'Unknown endpoint' }, 404);
