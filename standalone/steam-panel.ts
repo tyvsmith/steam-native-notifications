@@ -63,18 +63,18 @@ export function createSteamPanel(React: typeof import('react'), controls: Return
             checked: values?.[key] ?? false, controlled: true, disabled: disabled || !values || settingDisabled(values, key),
             onChange: (value: boolean): void => void command('PanelPatch', { [key]: value }),
         });
-        return h(controls.Theme, {}, h(controls.Section, { label: 'Operating system notifications' }, h('section', { 'data-snn-panel': true },
-            !removed && !ready && h('p', { role: 'status' }, !connected
+        return h(controls.Section, { label: 'Operating system notifications' }, h('section', { 'data-snn-panel': true },
+            h(controls.Theme, {}, !removed && !ready && h('p', { role: 'status' }, !connected
                 ? 'Connecting to standalone service. Controls are unavailable until connected.'
                 : 'Standalone needs attention. Restart Steam if you recently updated.'),
             state?.config.error && h('p', { role: 'alert' }, state.config.error),
             ...visibleSettings(values ?? {} as Settings, 'linux').filter(key => !SETTINGS_SCHEMA[key].developer).map(row),
-            values?.devMode && row('devFire'),
-            h(controls.Buttons, {},
+            values?.devMode && row('devFire')),
+            h('div', { className: controls.ActionSection },
                 h(controls.Button, { disabled: busy || !ready || !values?.integrationEnabled, onClick: (): void => void command('PanelSample') }, 'Send test notification'),
                 h(controls.Button, { disabled, onClick: (event: { currentTarget: HTMLElement }): void => confirm(false, event) }, 'Reset notification settings'),
                 h(controls.Button, { disabled: removed || busy || !connected, onClick: (event: { currentTarget: HTMLElement }): void => confirm(true, event) }, 'Remove OS notification integration')),
-            h('div', { role: error ? 'alert' : 'status' }, h(controls.Description, {}, error || (removed ? removedMessage : busy ? 'Saving…' : message))))));
+            h('div', { role: error ? 'alert' : 'status' }, h(controls.Description, {}, error || (removed ? removedMessage : busy ? 'Saving…' : message)))));
     };
 }
 export function startSteamPanel(): () => void {
