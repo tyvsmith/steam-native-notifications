@@ -33,7 +33,9 @@ presentation, replay, durable routes and the Linux notification helper.
 | Installation | packed `.star` | versioned executable, user service and desktop entries |
 
 `shared/settings-policy.ts` owns visibility, dependent-control availability and preference
-reset rules. Renderers and storage stay with their hosts. An optional Steam panel
+reset rules. Standalone test commands apply the latest saved preferences before
+execution; a delayed polling read cannot replace that snapshot. Renderers and
+storage stay with their hosts. An optional Steam panel
 failure does not stop notification capture or the external editor.
 
 `tools/lib/host-client.ts` owns host selection and common command dispatch;
@@ -113,8 +115,12 @@ opt-in remains independent. Changes affect subsequent captures.
 
 With integration enabled, OS and Steam visibility are
 independent: both enabled sends a copy and preserves Steam; both disabled
-closes Steam without sending a copy. Replacing Steam with an OS notification
-closes its popup only after the backend acknowledges launching delivery.
+dismisses Steam without sending a copy. Replacing Steam with an OS notification
+invokes the toast's bound `onDismiss` only after the backend acknowledges launching
+delivery. Discovery requires the matching popup portal, notification identity and
+one callback. Missing or ambiguous callbacks preserve Steam; callback failures
+are logged without a raw-close fallback. Direct
+CEF window closure bypasses native cleanup and can stall Steam's animation queue.
 A failed request preserves Steam, but a successful launch does not establish
 whether the OS displayed a banner. Unknown capture surfaces preserve Steam
 and skip mirroring. Closing happens after capture, so a brief flash is possible.
@@ -375,8 +381,8 @@ action.
   external config writes by evaluating JS in the main IPC context; a plugin
   frontend runs in its own isolated CDP world and never sees them. Presets
   take effect at the next Steam start.
-- **Compositor rules for hiding Steam's toast** — the plugin closes the
-  popup itself, which is portable and knows the read succeeded.
+- **Compositor rules for hiding Steam's toast** — the plugin invokes Steam's
+  native dismissal after capture and delivery acknowledgement.
 - The routing catalog's own dead ends (external steam:// URLs into the
   overlay, instance objects as browserInfo, the appid-0 playtime ingestion)
   are recorded beside the current rules in `frontend/routes.ts` and

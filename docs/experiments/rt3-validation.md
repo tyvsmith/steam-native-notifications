@@ -30,6 +30,34 @@ Synthetic events, fixture interruption, stored-argv invocation and helper
 acknowledgement each establish only their own layer. They do not prove real
 server events, power-loss durability, physical history clicks or visible banners.
 
+## Toast lifecycle and immediate tests, 2026-10-17
+
+Build: `aa865e733f5df3601b96b7f91eef33991899fabfaf3fd7e5ae83f46889bfe7c5`,
+version 0.1.0, native Linux RT3.
+
+- found two already-closed synthetic popups retained in Steam's animation state,
+  blocking 18 queued notifications; native dismissal of only those two objects
+  preserved the queue and allowed it to drain without restarting
+- replaced raw CEF window closure with the matching toast's native dismissal;
+  the original animation exception was not retained, so its exact failing
+  instruction remains unconfirmed
+- reproduced an immediate master-on/test race: saved settings had changed while
+  the capture snapshot still disabled OS delivery; commands now apply fresh
+  saved settings before execution, and delayed polling cannot overwrite them
+- passed shared tests, 114 standalone tests plus four contracts, noninstalling
+  Millennium pack and compiled package smoke; fixtures cover callback binding,
+  failure without force-close, deferred acknowledgement and config races
+- installed the exact final package after checking no game or queued notification
+  remained; installed, daemon and frontend identities matched
+- verified three replacement downloads, a master-off native toast, and three
+  resumed samples; each phase drained Steam's queue, rendering contexts and popups
+- repeated three immediate master-on/test clicks through the actual panel; all
+  three captured with OS delivery enabled and reached desktop notification history
+- confirmed the desktop's Do Not Disturb was on and left it unchanged; silent
+  history delivery was expected, and this pass makes no OS-banner visibility claim
+- restored the user's current configuration byte-for-byte, including enabled
+  desktop Steam notifications; no Millennium, Windows or OS-session live tests
+
 ## Integration switch, 2026-10-16
 
 Build: `20847ff6b68b582de873f16dc95d52812a02603f1c27f32d13eae44c07fda4e2`,

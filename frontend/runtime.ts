@@ -1,3 +1,4 @@
+import { toastDismissal } from './dismiss';
 import { hostMethod } from './host';
 import { BUILD_IDENTITY } from '../shared/host';
 import { CLICK_PAYLOAD_PREFIX, captureAppIdFromToastName, encodeClickEnvelope, focusKindFor, newClickToken } from './click';
@@ -24,7 +25,7 @@ import { loadPlatform } from './platform';
  * has to live in here, where the document is reachable.
  *
  * This file owns the popup lifecycle: hook the popup manager, wait for a toast
- * to paint, deliver it once, close it if asked. What a click does lives
+ * to paint, deliver it once, dismiss it through Steam if asked. What a click does lives
  * elsewhere -- replay.ts stashes Steam's own click handler from the toast's
  * tree, and the click bridge re-runs it; notification.ts decodes Steam's
  * attached object for the log line.
@@ -135,14 +136,15 @@ function readWhenPainted(win: Window, name: string, attempt: number = 0): void {
 
 /**
  * Deliver one painted toast: at most once per popup name, never throwing, and
- * only after a successful read -- Steam's own popup is closed at the end, and
- * a toast this function could not read stays on screen rather than being
+ * only after a successful read. Steam owns dismissal and popup cleanup; a
+ * toast this function could not read stays on screen rather than being
  * silently swallowed.
  */
 async function deliverToast(win: Window, name: string, text: string): Promise<void> {
 	if (delivered.has(name)) return;
 	delivered.add(name);
 	const snapshot = settings();
+	const dismiss = toastDismissal(win);
 
 	const { title, body } = splitToastText(text);
 	const image = toastImage(win);
@@ -220,8 +222,11 @@ async function deliverToast(win: Window, name: string, text: string): Promise<vo
 		}
 	}
 	if (!policy.showSteam) {
-		try { win.close(); }
-		catch (e) { dlog(`could not close ${name}: ${(e as Error)?.message ?? e}`); }
+		// Closing the CEF window directly leaves Steam's animation queue holding
+		// stale popups. Its bound callback removes the toast and unmounts it.
+		if (!dismiss) { dlog(`toast ${name} left open: native dismissal unavailable`); return; }
+		try { if (!win.closed) dismiss(); }
+		catch (e) { dlog(`could not dismiss ${name}: ${(e as Error)?.message ?? e}`); }
 	}
 }
 
