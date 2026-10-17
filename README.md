@@ -132,5 +132,6 @@ Build with `bun run build:standalone`; see
 Live standalone checks cover settings, visible synthetic banners, a banner
 click and stored-history fallback after Steam restart. See the
 [build-specific evidence and remaining merge gates](docs/experiments/rt3-validation.md).
-Build local packages with `bun run build:release`; public standalone binaries
-remain gated on complete runtime redistribution materials.
+Build a Bun package with `bun run build:release`; see
+[installation and removal](docs/standalone-release.md). Bun is a runtime dependency;
+settings live inside Steam. Registry publication is separate from local builds.

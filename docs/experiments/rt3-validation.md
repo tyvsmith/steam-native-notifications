@@ -1,10 +1,41 @@
 # RT3 candidate validation
 
+## Bun distribution and settings convergence
+
+- remove the external browser settings editor; Steam remains the settings UI
+- share settings-operation serialization, stale-read protection and reset feedback between host panels
+- replace compiled release deployment with a prebuilt Bun npm package and integration-only setup/teardown
+- restrict automatic trusted setup to the global command; project dependency installs remain inert
+- preserve package-manager ownership, preferences and disabled/stopped service state
+- retain explicit teardown because Bun 1.4.3 removal does not execute package removal hooks
+
+Offline validation uses isolated homes, fake Steam and a service-manager fixture
+driving the real packaged daemon. Upgrade/downgrade and removal tests preserve
+preferences and distinguish package files from owned integration.
+
+### Installed Bun candidate, 2026-10-17
+
+- installed build `f9bfd0b27e48c642bc879e38f139f36934a31abcba6c17d8d139247d309bb152` from the exact tested npm tarball
+- saved the original compiled package and preferences locally, then uninstalled it through its own installer
+- trusted global Bun installation automatically configured and started the user service
+- restarted idle Steam; installed, daemon and frontend identities matched, with hook/panel/control ready
+- exercised all five panel switches and reset cancellation; restored preference bytes exactly
+- submitted three panel sample requests; two FriendOnline events reached capture/history, while one request had no capture event
+- displayed a synthetic Aircar download-complete desktop banner; temporarily disabled DND for observation and restored it afterward
+- invoked that notification's retained argv action; exact replay completed and Steam showed Aircar's library page
+- validated user service and desktop-entry syntax; service active and enabled, executing the Bun-owned package
+
+The retained action was invoked programmatically, not through a pointer click.
+No real game, Millennium runtime, Windows, login or OS restart validation was
+performed. Bun global commands live in `~/.bun/bin`, which was absent from this
+session's PATH; the service uses absolute executable paths and is unaffected.
+
 ## Experimental merge checklist
 
 Each milestone targets `experimental/rt3-standalone-cdp`, receives independent
 review and CI, then merges. Main remains gated on the deferred host/session
-checks below. Public standalone binary distribution is a separate gate.
+checks below. The Bun package supersedes compiled standalone distribution;
+older evidence below describes the artifacts tested at that time.
 
 | Milestone | Plan and maintainability checkpoint | Verification and evidence |
 |---|---|---|
@@ -23,8 +54,8 @@ checks below. Public standalone binary distribution is a separate gate.
 - retain Windows behavior as explicitly untested by this workstream
 - verify retained-history pointer clicks, real notification events and
   in-game/Gamescope behavior where unavailable in the final pass
-- keep standalone release uploads disabled until complete pinned-runtime
-  notices and rebuild/relink materials are reviewed
+- publish registry versions only through an explicit release operation; the new
+  Bun package does not embed the runtime covered by the former binary audit
 
 Synthetic events, fixture interruption, stored-argv invocation and helper
 acknowledgement each establish only their own layer. They do not prove real
@@ -177,7 +208,7 @@ stored-argv fallback establish separate parts of the notification journey.
 Candidate: `a2efd134a9552b12507d63af70237e4dfc210a3ee674c1c92e048907a2fe187c`,
 version 0.1.0, Bun 1.4.3, native Linux RT3 on Hyprland.
 
-### Milestones
+### Historical compiled-candidate milestones
 
 | Milestone | Current result | Remaining gate |
 |---|---|---|

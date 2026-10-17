@@ -6,8 +6,8 @@ Capture, localized text, presentation, replay, durable routing and the Linux
 notification helper are shared with the Millennium plugin.
 
 Use the [locally built package](../standalone-release.md) for installation. The
-compiled package includes its runtime; development requires Bun 1.4.3.
-There is one CLI and one package installer. Source installations and migration
+package requires Bun 1.4.3 or newer.
+Bun owns application files; the CLI manages per-user integration. Source installations and migration
 from earlier pre-release package formats are unsupported.
 
 ## Build and run
@@ -20,8 +20,7 @@ bun run snn --help
 bun run build:release
 ```
 
-Builds write into `dist` without installing either host. Install the extracted
-release with its `snn install --release DIR`. For foreground debugging against
+Builds write into `dist` without installing either host. Install its npm tarball with `bun add --global --trust /absolute/package.tgz`. For foreground debugging against
 an already configured Steam client, stop the packaged service first, then run:
 
 ```sh
@@ -54,7 +53,7 @@ frontend to preserve callbacks; status reports mismatched build identities.
 ## Settings and diagnostics
 
 - use the Operating system notifications section at the bottom of Steam Settings → Notifications
-- use `snn settings` for the external editor, including while Steam is stopped
+- use `snn config get|set|reset` for offline recovery while Steam is stopped
 - use `snn --host standalone status --json`, `doctor` and `capture`
 - enable `devFire` before `snn --host standalone dev fire TestDownloadComplete 1073390`
 - never synthesize `TestIncomingVoiceChat`; it can wedge Steam's toast queue
@@ -79,9 +78,9 @@ bunx starlight pack -o dist
 bun tools/test-packaged.ts
 ```
 
-Build the release before the compiled-package smoke test. It runs with isolated
-paths, fake Steam/systemctl and no Bun on PATH. Fixtures prove package behavior,
+Build the release before the Bun-package smoke test. It runs with isolated
+paths and fake Steam/systemctl. Fixtures prove package behavior,
 not live Steam compatibility. See [recorded live evidence and remaining
 checks](rt3-validation.md). Windows, macOS and Flatpak standalone hosts remain
-unsupported. Public binary distribution still requires the runtime licensing
-materials listed in [notices](../standalone-notices.md).
+unsupported. The package ships application code with a separate Bun runtime dependency; see
+[notices](../standalone-notices.md).

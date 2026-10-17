@@ -1,7 +1,6 @@
 import { expect, test } from 'bun:test';
 import { readFileSync, readdirSync } from 'node:fs';
 
-// Remove this gate only with the complete runtime distribution materials.
 const star = 'me.tysmith.steam-native-notifications.star';
 const workflowDirectory = new URL('../.github/workflows/', import.meta.url);
 const workflows = Object.fromEntries(readdirSync(workflowDirectory)
@@ -13,25 +12,18 @@ const workflows = Object.fromEntries(readdirSync(workflowDirectory)
 const steps = Object.values(workflows).flatMap(workflow =>
   Object.values(workflow.jobs).flatMap((job: any) => job.steps ?? []));
 
-test('CI exports only the Millennium plugin while standalone distribution is gated', () => {
+test('CI exports the plugin and validated Bun package only', () => {
   const uploads = steps.filter(step => step.uses?.startsWith('actions/upload-artifact@'));
-  expect(uploads.length).toBeGreaterThan(0);
-  for (const step of uploads) expect(step.with.path).toBe(`dist/${star}`);
-  const downloads = steps.filter(step => step.uses?.startsWith('actions/download-artifact@'));
-  for (const step of downloads) expect(step.with.name).toBe(star);
+  expect(uploads).toHaveLength(2);
+  expect(uploads[0].with.path).toBe(`dist/${star}`);
+  expect(uploads[1].with.name).toBe('standalone-bun-package');
+  expect(uploads[1].with.path.trim().split('\n')).toEqual(['dist/releases/*.tgz', 'dist/releases/*.tgz.sha256']);
 });
 
-test('release attachment commands remain restricted to the plugin', () => {
-  const commands = steps.flatMap(step => (step.run ?? '').split('\n'))
-    .filter((line: string) => /gh release (create|upload) /.test(line));
-  expect(commands).toHaveLength(3);
-  for (const command of commands) {
-    // Both current publication paths explicitly name the one allowed asset.
-    expect(command).toMatch(/gh release (?:create|upload) (?:latest "\$star"|"\$TAG" dist\/me\.tysmith\.steam-native-notifications\.star)(?: |$)/);
-    expect(command).not.toMatch(/\*|\.tar|\.sha256|releases\//);
-  }
-  const latest = workflows.ci.jobs.latest.steps.find((step: any) => step.name === 'Publish the .star under the latest pre-release');
-  expect(latest.run).toContain(`star=dist/${star}`);
+test('numbered releases include the Bun tarball without publishing to a registry', () => {
+  const publish = workflows.release.jobs.release.steps.find((step: any) => step.name === 'Create the GitHub release');
+  expect(publish.run).toContain('dist/releases/*.tgz dist/releases/*.tgz.sha256');
+  for (const step of steps) expect(step.run ?? '').not.toMatch(/(?:npm|bun) publish/);
 });
 
 test('dry-run publication remains disabled and local package coverage remains enabled', () => {
