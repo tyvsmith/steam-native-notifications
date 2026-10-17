@@ -58,8 +58,8 @@ function panel(React: typeof import('react'), controls: ReturnType<typeof discov
             checked: values?.[key] ?? false, controlled: true, disabled,
             onChange: (value: boolean): void => void run('PanelPatch', { [key]: value }),
         });
-        return h(controls.Theme, {}, h('section', { 'data-snn-panel': true },
-            h(controls.Description, {}, 'Mirror Steam notifications to your desktop, with artwork and click actions.'),
+        return h(controls.Theme, {}, h(controls.Section, { label: 'Desktop notifications' }, h('section', { 'data-snn-panel': true },
+            h(controls.Description, {}, 'Send Steam notifications to your desktop'),
             !ready && h('p', { role: 'status' }, !connected
                 ? 'Connecting to standalone service. Controls are unavailable until connected.'
                 : 'Standalone needs attention. Restart Steam if you recently updated.'),
@@ -71,12 +71,12 @@ function panel(React: typeof import('react'), controls: ReturnType<typeof discov
             values?.devMode && row('devFire'),
             h(controls.Buttons, {},
                 h(controls.Button, { disabled: busy || !ready, onClick: (): void => void run('PanelSample') }, 'Send sample notification'),
-                h(controls.Button, { disabled, onClick: (): void => setConfirmReset(true) }, 'Reset to defaults')),
-            confirmReset && h(controls.Section, { label: 'Restore notification settings to their defaults?' },
+                h(controls.Button, { disabled, onClick: (): void => setConfirmReset(true) }, 'Reset desktop notification settings')),
+            confirmReset && h(controls.Section, { label: 'Restore desktop notification settings to their defaults?' },
                 h(controls.Buttons, {},
                     h(controls.Button, { disabled, onClick: (): void => void run('PanelReset') }, 'Restore defaults'),
                     h(controls.Button, { onClick: (): void => setConfirmReset(false) }, 'Cancel'))),
-            h('div', { role: error ? 'alert' : 'status' }, h(controls.Description, {}, error || (busy ? 'Saving…' : message)))));
+            h('div', { role: error ? 'alert' : 'status' }, h(controls.Description, {}, error || (busy ? 'Saving…' : message))))));
     };
 }
 export function startSteamPanel(): () => void {
@@ -90,7 +90,7 @@ export function startSteamPanel(): () => void {
         const { React, widget, instances } = discoverSettings(requireModule);
         const controls = discoverControls(requireModule);
         let stop: (() => void) | undefined;
-        const attach = () => { if (instances.size) return; stop = mountSettings(React, widget, panel(React, controls), report, instances, controls.DividerClass); };
+        const attach = () => { if (instances.size) return; stop = mountSettings(React, widget, controls.Body, panel(React, controls), report, instances); };
         attach();
         if (stop) return stop;
         report('waiting-for-settings-close');

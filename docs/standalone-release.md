@@ -19,7 +19,7 @@ Uninstall: `snn uninstall`. Uninstall records its manager and owned-removal plan
 
 ## Settings and diagnostics
 
-- open Steam Settings → Native Notifications, below the final sidebar separator, or run `snn settings` for the standalone browser editor
+- open Steam Settings → Notifications → Desktop notifications at the bottom of the page, or run `snn settings` for the standalone browser editor
 - use `snn --host standalone doctor --json` for standalone diagnostics; options also work after the command
 - omit the host on `status` to see both hosts; explicit `--host auto` refuses ambiguous command targets
 - use Millennium's existing settings panel for that host; its backend status alone does not prove frontend readiness

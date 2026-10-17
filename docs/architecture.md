@@ -28,7 +28,7 @@ presentation, replay, durable routes and the Linux notification helper.
 |---|---|---|
 | Frontend loading and RPC | plugin loader and FFI | loopback CEF CDP and binding adapter |
 | Preferences | per-key plugin config | serialized atomic JSON store |
-| Settings UI | plugin panel | native Steam settings page and external browser editor |
+| Settings UI | plugin panel | section in Steam Notifications settings and external browser editor |
 | Developer commands | MEP discovery, expiring file queue and correlated frontend replies | private Unix socket and correlated frontend execution |
 | Installation | packed `.star` | versioned executable, user service and desktop entries |
 
@@ -42,7 +42,13 @@ requires a fresh challenge reply with the expected frontend build, an installed
 hook and live command control. Backend availability alone leaves actions disabled.
 Command receipts carry the request ID and distinguish execution from an
 unacknowledged queue. They do not prove capture or visible desktop delivery.
-Both Steam panels offer a fixed sample and confirmed reset; all editors share
+The standalone section appends inside Steam's existing Notifications scroll
+body, with an error boundary around only the extension. The private seam wraps
+the observed synchronous page function in a stable component per native type,
+calls it once with the original props, and clones only the discovered body
+element. Other component shapes or body outputs remain unchanged. It adds no sidebar entry and
+leaves Steam's page metadata and navigation callbacks intact. Both hosts offer
+a fixed sample and confirmed reset; all editors share
 visibility, reset policy and sample-result wording.
 
 

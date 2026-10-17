@@ -74,6 +74,9 @@ Windows toast identity per-user at load, and
 
 ## Settings
 
+Standalone: open Steam Settings → Notifications → Desktop notifications at the
+bottom of the page. Millennium: use the plugin settings panel.
+
 | Setting | Outside games | Inside games |
 | --- | --- | --- |
 | Show OS notifications | On | On |
