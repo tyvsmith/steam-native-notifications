@@ -14,7 +14,7 @@ async function millennium(method: string, params: Record<string, any> = {}): Pro
     const reply = await mepCall(method, params, { timeoutMs: 1000 }); if (reply.error !== null && reply.error !== undefined) throw new Error(String(reply.error)); return parseCallableJson(reply.result, reply.result);
 }
 export interface HostStatus {
-    host: HostKind; present: boolean; state: string;
+    host: HostKind; present: boolean | null; state: string;
     build?: BuildIdentity; frontendBuild?: BuildIdentity | null;
     capabilities?: { settingsWrite: boolean; sample: boolean; developerCommands: boolean };
     evidence?: string; action?: string; error?: string; config?: ConfigSnapshot;
@@ -28,37 +28,54 @@ export async function hostStatus(): Promise<HostStatus[]> {
             const running = status?.running === true || status?.backend?.running === true;
             const measured = running ? millenniumReadiness(await probeMillennium()) : { state: 'stopped', frontendBuild: null as BuildIdentity | null, capabilities: { settingsWrite: true, sample: false, developerCommands: false } };
             return { host: kind, present: true, status, build: BUILD_IDENTITY, ...measured, evidence: 'Correlated frontend reply measures build, hook and control; capture and banner visibility are unmeasured' };
-        } catch (e: any) { return { host: kind, present: false, state: 'unavailable', error: e.message }; }
+        } catch (e: any) {
+            const absent = e.code === 'ENOENT' || e.code === 'ECONNREFUSED';
+            return { host: kind, present: absent ? false : null, state: absent ? 'unavailable' : 'unknown', error: e.message };
+        }
     }));
 }
 export function operationEligible(status: HostStatus, operation: 'sample' | 'developerCommands'): boolean {
-    return status.present && status.capabilities?.[operation] === true && ['ready', 'backend-running'].includes(status.state);
+    return status.present === true && status.capabilities?.[operation] === true && ['ready', 'backend-running'].includes(status.state);
 }
 export async function selectHost(selection: HostSelection = 'auto', mutation = false, operation: 'sample' | 'developerCommands' = 'developerCommands'): Promise<HostKind> {
     if (selection !== 'auto') { if (mutation) { const current = (await hostStatus()).find(s => s.host === selection); if (!current?.present || !operationEligible(current, operation)) throw new Error(current?.action ?? `${selection} is not ready`); } return selection; }
-    const statuses = await hostStatus(); const ready = statuses.filter(s => s.present && operationEligible(s, operation));
+    const statuses = await hostStatus();
+    assertConclusiveHosts(statuses);
+    const ready = statuses.filter(s => s.present && operationEligible(s, operation));
     if (ready.length === 1) return ready[0].host;
     if (ready.length > 1) throw new Error('Both hosts are ready; select --host millennium or --host standalone explicitly');
     if (!mutation) { const present = statuses.filter(s => s.present); if (present.length === 1) return present[0].host; }
     throw new Error(statuses.find(s => s.action)?.action ?? 'No ready host; start Steam with the chosen host');
+}
+function assertConclusiveHosts(statuses: HostStatus[]): void {
+    const unknown = statuses.find(status => status.present === null);
+    if (unknown) throw new Error(`${unknown.host} status is inconclusive: ${unknown.error ?? unknown.state}; select --host explicitly`);
+}
+/** Configuration remains available when capture is degraded or developer commands are off. */
+export function selectConfigHost(statuses: HostStatus[]): HostKind {
+    assertConclusiveHosts(statuses);
+    const present = statuses.filter(status => status.present);
+    if (present.length === 1) return present[0]!.host;
+    if (present.length > 1) throw new Error('Both hosts are present; select --host millennium or --host standalone explicitly');
+    throw new Error('No host available; use --host standalone or --config FILE for offline recovery');
 }
 /** Probe without mutating; only an absent daemon permits the default offline store. */
 async function standaloneConfig() {
     let snapshot: ConfigSnapshot;
     try { snapshot = await controlCall('config.read'); }
     catch (error: any) {
-        if (!process.env.XDG_RUNTIME_DIR || error.code === 'ENOENT' || error.code === 'ECONNREFUSED') return configStore();
+        if (error.code === 'ENOENT' || error.code === 'ECONNREFUSED') return configStore();
         throw error;
     }
     return { read: async () => snapshot, update: (patch: unknown) => controlCall('config.update', patch) };
 }
 export async function readConfig(selection: HostSelection = 'standalone'): Promise<ConfigSnapshot> {
-    const host = selection === 'auto' ? await selectHost(selection) : selection;
+    const host = selection === 'auto' ? selectConfigHost(await hostStatus()) : selection;
     if (host === 'millennium') return { values: normalizeSettings((await millennium('plugin.config.get_all', { name: PLUGIN_ID })).config), error: null };
     return (await standaloneConfig()).read();
 }
 export async function updateConfig(patch: unknown, selection: HostSelection = 'standalone'): Promise<ConfigSnapshot> {
-    const values = validateSettingsPatch(patch); const host = selection === 'auto' ? await selectHost(selection, true) : selection;
+    const values = validateSettingsPatch(patch); const host = selection === 'auto' ? selectConfigHost(await hostStatus()) : selection;
     if (host === 'millennium') { for (const [key, value] of Object.entries(values)) await millennium('plugin.config.set', { name: PLUGIN_ID, key, value }); return readConfig(host); }
     // Offline edits use the same serialized, atomic store. Never retry a possibly applied socket mutation.
     return (await standaloneConfig()).update(values);

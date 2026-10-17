@@ -80,7 +80,7 @@ if ($Setup) {
             New-ItemProperty -Path $AumidKey -Name IconUri -Value $IconPath -PropertyType String -Force | Out-Null
         }
     } catch {
-        Write-PluginLog "setup: icon extraction failed, DisplayName-only branding: $($_.Exception.Message)"
+        Write-PluginLog "setup: icon extraction failed, DisplayName-only branding: $($_.Exception.GetType().Name)"
     }
     # No URI scheme of our own: clicks ride Steam's canonical notification URI
     # (see the launch attribute below). An earlier build registered an "snn:"
@@ -112,7 +112,7 @@ if ($Id) {
         # The backend writes UTF-8; Windows PowerShell 5.1 otherwise assumes ANSI.
         $Payload = Get-Content -LiteralPath $NotifyFile -Raw -Encoding UTF8 | ConvertFrom-Json
     } catch {
-        Write-PluginLog "payload $Id unreadable, notification dropped: $($_.Exception.Message)"
+        Write-PluginLog "payload $Id unreadable, notification dropped: $($_.Exception.GetType().Name)"
         Remove-Item -LiteralPath $NotifyFile -Force -ErrorAction SilentlyContinue
         exit 1
     }
@@ -126,7 +126,7 @@ if ($Id) {
 $Backoff = Join-Path $RuntimeDir '.wpn-backoff'
 if ($Id -and (Test-Path -LiteralPath $Backoff) -and
     ((Get-Date) - (Get-Item -LiteralPath $Backoff).LastWriteTime).TotalSeconds -lt 60) {
-    Write-PluginLog "delivery suppressed during platform back-off: $($Payload.title)"
+    Write-PluginLog 'delivery suppressed during platform back-off'
     exit 1
 }
 
@@ -272,19 +272,6 @@ public static class SnnToastFocus
         return found;
     }
 
-    private static string DescribeWindow(IntPtr window)
-    {
-        if (window == IntPtr.Zero) return "none";
-        uint processId;
-        GetWindowThreadProcessId(window, out processId);
-        StringBuilder title = new StringBuilder(256);
-        GetWindowText(window, title, title.Capacity);
-        string processName = "missing";
-        try { processName = Process.GetProcessById((int)processId).ProcessName; }
-        catch {}
-        return processId + ":" + processName + ":" + title.ToString();
-    }
-
     public static string Raise(string kind)
     {
         try
@@ -307,7 +294,6 @@ public static class SnnToastFocus
             {
                 return "target-missing kind=" + kind;
             }
-            IntPtr before = GetForegroundWindow();
             bool topmost = SetWindowPos(target, HWND_TOPMOST, 0, 0, 0, 0,
                 SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
             Thread.Sleep(350);
@@ -316,10 +302,7 @@ public static class SnnToastFocus
             Thread.Sleep(250);
             return "raised kind=" + kind
                 + " topmost=" + topmost
-                + " restored=" + restored
-                + " target=" + DescribeWindow(target)
-                + " before=" + DescribeWindow(before)
-                + " after=" + DescribeWindow(GetForegroundWindow());
+                + " restored=" + restored;
         }
         catch (Exception error)
         {
@@ -336,7 +319,7 @@ if ($FocusKind) {
         Write-PluginLog "focus: $result"
         if ($result -like 'raised *') { exit 0 }
     } catch {
-        Write-PluginLog "focus: helper failed: $($_.Exception.Message)"
+        Write-PluginLog "focus: helper failed: $($_.Exception.GetType().Name)"
     }
     exit 1
 }
@@ -376,9 +359,9 @@ try {
 } catch {
     if ($_.Exception.Message -match 'notification platform') {
         New-Item -ItemType File -Path $Backoff -Force | Out-Null
-        Write-PluginLog "notification platform unavailable, backing off 60s: $($_.Exception.Message)"
+        Write-PluginLog "notification platform unavailable, backing off 60s: $($_.Exception.GetType().Name)"
     } else {
-        Write-PluginLog "toast delivery failed: $($_.Exception.Message)"
+        Write-PluginLog "toast delivery failed: $($_.Exception.GetType().Name)"
     }
     exit 1
 }

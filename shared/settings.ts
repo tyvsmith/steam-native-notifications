@@ -9,11 +9,12 @@ export const SETTINGS_SCHEMA = {
     notificationCenterOnlyInGame: { type: 'boolean', default: false, label: 'Save to Notification Center only while in a game', description: '', group: 'inside', platforms: ['windows'], developer: false, visible: true },
     notificationCenterOnlyOutsideGame: { type: 'boolean', default: false, label: 'Save to Notification Center only outside a game', description: '', group: 'outside', platforms: ['windows'], developer: false, visible: true },
     devFire: { type: 'boolean', default: false, label: 'Developer: accept test commands', description: "Allow snn dev fire and the repository tools/fire command to send synthesized notifications through Steam.", group: 'developer', platforms: all, developer: true, visible: true },
+    verboseDiagnostics: { type: 'boolean', default: false, label: 'Verbose diagnostics', description: 'Include private notification content in diagnostic logs.', group: 'developer', platforms: all, developer: true, visible: false },
     devMode: { type: 'boolean', default: false, label: 'Show developer options', description: 'Enable developer controls explicitly.', group: 'developer', platforms: all, developer: true, visible: false },
 } as const;
 export type SettingKey = keyof typeof SETTINGS_SCHEMA;
 export type Settings = { [K in SettingKey]: boolean };
-export type PresentationSettings = Omit<Settings, 'devFire' | 'devMode'>;
+export type PresentationSettings = Omit<Settings, 'devFire' | 'devMode' | 'verboseDiagnostics'>;
 export const DEFAULTS: Settings = Object.fromEntries(Object.entries(SETTINGS_SCHEMA).map(([key, field]) => [key, field.default])) as Settings;
 export const PRESENTATION_DEFAULTS: PresentationSettings = {
     integrationEnabled: DEFAULTS.integrationEnabled,

@@ -45,19 +45,19 @@ export function registerSteamUrlClicks(): Unregisterable | null {
 			try {
 				const envelope = clickEnvelopeFromSteamUrl(String(url ?? ''));
 				if (!envelope) {
-					dlog(`steam-url: ignored ${String(url).slice(0, 120)}`);
+					dlog('steam-url: ignored invalid activation', () => `steam-url: ignored ${String(url).slice(0, 120)}`);
 					return;
 				}
 				dlog(`steam-url: click token=${envelope.token.slice(0, 8)}`);
 				void dispatchClick(envelope);
 			} catch (e) {
-				dlog(`steam-url handler failed: ${(e as Error)?.message ?? e}`);
+				dlog(`steam-url handler failed: (enable verboseDiagnostics for details)`, () => `steam-url handler failed: ${(e as Error)?.message ?? e}`);
 			}
 		});
 		dlog(`steam-url: registered steam://${STEAM_URL_SECTION}/${STEAM_URL_RESOURCE}/<payload>`);
 		return registration;
 	} catch (e) {
-		dlog(`steam-url: registration failed: ${(e as Error)?.message ?? e}`);
+		dlog(`steam-url: registration failed: (enable verboseDiagnostics for details)`, () => `steam-url: registration failed: ${(e as Error)?.message ?? e}`);
 		return null;
 	}
 }

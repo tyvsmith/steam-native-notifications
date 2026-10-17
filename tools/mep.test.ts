@@ -173,6 +173,7 @@ describe('mepCall', () => {
 	test('no socket file names the socket and asks after Steam', async () => {
 		const socketPath = join(tmpdir(), `snn-mep-${process.pid}-absent.sock`);
 		await expect(mepCall('m', {}, { socketPath })).rejects.toThrow(`${socketPath} is not there -- is Steam running with Millennium?`);
+		await expect(mepCall('m', {}, { socketPath })).rejects.toMatchObject({ code: 'ENOENT' });
 	});
 
 	test('a server that never answers times out', async () => {

@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 async function fixture() {
     const seams: Record<string, string> = {
         './host': "export const hostMethod = name => async () => globalThis.pending?.[name] || '';",
-        './settings': "export const settings = () => ({devFire:globalThis.enabled !== false}); export const parseCallableJson = (raw,fallback) => {try{return JSON.parse(raw)}catch{return fallback}};",
+        './settings': "export const settingsHost = {read:async () => { if (globalThis.savedEnabled !== undefined) globalThis.enabled = globalThis.savedEnabled; }}; export const settings = () => ({devFire:globalThis.enabled !== false}); export const parseCallableJson = (raw,fallback) => {try{return JSON.parse(raw)}catch{return fallback}};",
         './log': "export const dlog = () => {}; export const safeJson = JSON.stringify;",
         './overlay': "export const currentClickSurface = () => globalThis.surface();",
         './replay': "export const inspectReplayStash = () => {}; export const invokeReplayHandler = () => { globalThis.invoked++; return true; };",
@@ -55,5 +55,20 @@ test('Millennium poll acknowledges fixed samples with developer commands disable
         expect(f.receipts[0].result.value.stage).toBe('executed');
         f.context.pending.TakeSampleCommand = JSON.stringify({ ...envelope, deadline: Date.now() - 1 });
         await f.context.tick(); expect(invoked).toBe(1); expect(f.receipts[1].result.ok).toBe(false);
+    } finally { f.stop(); }
+});
+
+test('external settings refresh enables and disables commands without a subscription event', async () => {
+    const f = await fixture(); let invoked = 0;
+    f.context.enabled = false; f.context.savedEnabled = true;
+    f.context.NotificationStore = { TestFriendOnline: () => { invoked++; } };
+    f.context.pending = { TakeDevCommand: JSON.stringify(f.request({ call: 'TestFriendOnline', args: [] })) };
+    try {
+        await f.context.tick();
+        expect(invoked).toBe(1);
+        f.context.savedEnabled = false;
+        await f.context.tick();
+        expect(invoked).toBe(1);
+        await expect(f.api.executeDevCommand(f.request({ call: 'TestFriendOnline', args: [] }))).rejects.toThrow('disabled');
     } finally { f.stop(); }
 });

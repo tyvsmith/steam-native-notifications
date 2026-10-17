@@ -101,6 +101,7 @@ export async function captureReport(entry: string, count = 8): Promise<string[]>
 
 	hr();
 	emit('== 3. what did the last notifications carry? ==');
+	emit('   Detailed logs default off. Enable: snn --host millennium config set verboseDiagnostics true; disable with false.');
 	// A `dev-fire:` line with no `from-toast` line after it means Steam's own
 	// per-type gating swallowed the test fire, not a break. `replay: candidates`
 	// shows what the walk stashed for each toast; `steam-url: click token=` +
@@ -109,7 +110,7 @@ export async function captureReport(entry: string, count = 8): Promise<string[]>
 	const matched = plugin.filter((l) => LOG.notification.test(l));
 	const notifs = matched.slice(Math.max(0, matched.length - lines));
 	if (notifs.length) emit(notifs.join('\n'));
-	else emit('   (no notifications captured yet -- trigger one)');
+	else emit('   (no notification detail logged; enable diagnostics before triggering one)');
 	// Windows' own record, under its own heading below the log: the newest row is
 	// the newest toast the platform accepted, which is not the outcome of the log
 	// line above it. A delivery that failed leaves the previous successful toast

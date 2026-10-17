@@ -1,3 +1,4 @@
+import { createDiagnosticLogger, diagnosticsVerbose } from '../shared/diagnostics';
 import { hostMethod } from './host';
 
 /**
@@ -18,13 +19,7 @@ import { hostMethod } from './host';
 const logLine = hostMethod('Log');
 
 /** Never throws: diagnostics must not take the notification path down. */
-export function dlog(line: string): void {
-	try {
-		void Promise.resolve(logLine(line)).catch(() => {});
-	} catch {
-		/* the log is best-effort by design */
-	}
-}
+export const dlog = createDiagnosticLogger(line => logLine(line), diagnosticsVerbose);
 
 /**
  * JSON.stringify throws outright on a BigInt, and Steam's decoded values can be

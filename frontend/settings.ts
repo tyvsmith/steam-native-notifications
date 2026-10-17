@@ -1,3 +1,4 @@
+import { setVerboseDiagnostics } from '../shared/diagnostics';
 import { pluginConfig, subscribePluginConfig } from 'millennium';
 import { createSettingsHost } from '../shared/host';
 import { DEFAULTS, isSettingKey, type Settings } from '../shared/settings';
@@ -22,13 +23,13 @@ export const settingsHost = {
         for (let attempt = 0; attempt < 5; attempt++) {
             const before = revision;
             const next = await store.read();
-            if (revision === before) return current = next;
+            if (revision === before) { setVerboseDiagnostics(next.verboseDiagnostics); return current = next; }
         }
         throw new Error('Settings changed during read; retry the operation');
     },
     async write(patch: Partial<Settings>) {
         const result = await store.write(patch);
-        if (result.ok) { revision++; current = result.value; }
+        if (result.ok) { revision++; current = result.value; setVerboseDiagnostics(current.verboseDiagnostics); }
         return result;
     },
 };
@@ -42,6 +43,7 @@ function absorb(key: string, value: unknown): void {
 	if (isSettingKey(key)) {
         revision++;
 		current = { ...current, [key]: typeof value === 'boolean' ? value : DEFAULTS[key as keyof Settings] };
+        setVerboseDiagnostics(current.verboseDiagnostics);
 	}
 }
 
