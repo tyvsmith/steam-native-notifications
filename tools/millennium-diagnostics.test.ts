@@ -22,3 +22,42 @@ test('actual frontend answers only live challenges and reports failures without 
     fail = true; await tick(); await api.reportCommandResult('ignored', {});
     fail = false; stop(); await tick(); expect(replies).toHaveLength(2);
 });
+
+test('host adapters keep plugin-scoped SDK references as direct calls for Starlight', async () => {
+    const ts = await import('typescript');
+    // Starlight injects pluginName into SDK calls, not function references.
+    for (const [file, name] of [['frontend/host.ts', 'ffi'], ['frontend/settings.ts', 'subscribePluginConfig']] as const) {
+        const source = ts.createSourceFile(file, await Bun.file(file).text(), ts.ScriptTarget.Latest, true);
+        const indirect: number[] = [];
+        function visit(node: import('typescript').Node) {
+            if (ts.isImportDeclaration(node)) return;
+            if (ts.isIdentifier(node) && node.text === name &&
+                !(ts.isCallExpression(node.parent) && node.parent.expression === node)) indirect.push(node.getStart(source));
+            ts.forEachChild(node, visit);
+        }
+        visit(source);
+        expect({ file, indirect }).toEqual({ file, indirect: [] });
+    }
+});
+
+test('a concurrent config event cannot discard untouched saved preferences on startup', async () => {
+    const built = await Bun.build({ entrypoints: [resolve('frontend/settings.ts')], target: 'browser', format: 'cjs', plugins: [{ name: 'config-fixture', setup(build) {
+        build.onResolve({ filter: /^millennium$/ }, () => ({ path: 'config', namespace: 'fixture' }));
+        build.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ contents: 'export const pluginConfig = globalThis.config; export const subscribePluginConfig = globalThis.listen;', loader: 'js' }));
+    } }] });
+    expect(built.success).toBe(true);
+    let listener!: (key: string, value: boolean) => void;
+    let release!: (value: unknown) => void;
+    let first = true;
+    const saved = { integrationEnabled: false, notifyOutsideGame: false, devFire: false };
+    const initial = { ...saved };
+    const context: any = { module: { exports: {} }, setTimeout,
+        config: { getAll: () => { if (first) { first = false; return new Promise(resolve => { release = resolve; }); } return Promise.resolve({ ...saved }); } },
+        listen: (cb: typeof listener) => { listener = cb; return () => {}; },
+    };
+    runInNewContext(await built.outputs[0]!.text(), context);
+    const loading = context.module.exports.loadSettings();
+    saved.devFire = true; listener('devFire', true); release(initial);
+    await loading;
+    expect(context.module.exports.settings()).toMatchObject(saved);
+});

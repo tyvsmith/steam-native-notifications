@@ -2,6 +2,7 @@ import { beforeEach, expect, mock, test } from 'bun:test';
 
 // Exercise the real popup lifecycle and settings panel with only host APIs replaced.
 const store: Record<string, unknown> = {};
+let emitSettings = true;
 const settingListeners = new Set<(key: string, value: unknown) => void>();
 let onPopup: (popup: any) => void;
 let sequence = 0;
@@ -16,7 +17,9 @@ const platformReply = new Promise<string>((resolve) => { resolvePlatform = resol
 
 mock.module('../frontend/millennium-diagnostics', () => ({ startMillenniumDiagnostics: () => () => {}, reportCommandResult: async () => {} }));
 mock.module('react/jsx-runtime', () => ({ jsx: element, jsxs: element, Fragment: 'fragment' }));
+mock.module('../shared/steam-settings-controls', () => ({ steamSettingsControls: () => ({ Theme: 'theme', Section: 'section', Toggle: 'toggle', Button: 'button', Description: 'text', ActionSection: 'native-actions' }) }));
 mock.module('react', () => ({
+    createElement: (type: any, props: any, ...children: any[]) => ({ type, props: { ...props, children } }),
 	useState: (initial: unknown) => [typeof initial === 'object' ? settings() : initial === 'unknown' ? platformState : initial, (value: unknown) => { if (initial === 'unknown') platformState = value; }],
 	useRef: (initial: unknown) => ({ current: initial }),
 	useEffect: (callback: () => void) => { effect = callback; },
@@ -45,14 +48,14 @@ Reflect.set(globalThis, 'g_PopupManager', {
 	AddPopupDestroyedCallback() { return { Unregister() {} }; },
 });
 
-const { DEFAULTS, settings, loadSettings } = await import('../frontend/settings');
+const { DEFAULTS, settings, loadSettings, settingsHost } = await import('../frontend/settings');
 const { presentationFor } = await import('../frontend/presentation');
 const { SettingsPanel } = await import('../frontend/SettingsPanel');
 const { default: plugin } = await import('../frontend/index');
 plugin();
 await loadSettings();
 
-function set(key: string, value: unknown) { store[key] = value; for (const listener of settingListeners) listener(key, value); }
+function set(key: string, value: unknown) { store[key] = value; if (emitSettings) for (const listener of settingListeners) listener(key, value); }
 async function flush() { for (let i = 0; i < 20; i++) await Promise.resolve(); }
 function toast(surface: 'desktop' | 'game' | 'unknown' = 'desktop', onDismiss?: () => void) {
 	let dismissed = 0; let rawClosed = 0;
@@ -169,8 +172,8 @@ test('the same popup delivers only once', async () => {
 });
 
 test('panel exposes one section with five ordered controls and Windows additions', () => {
-	const sections = nodes(SettingsPanel()).filter((node) => node.type === 'header');
-	expect(sections.map((node) => node.props.children)).toEqual(['Operating system notifications']);
+	const sections = nodes(SettingsPanel()).filter((node) => node.type === 'section');
+	expect(sections.map((node) => node.props.label)).toEqual(['Operating system notifications']);
 	expect(toggles().map((node) => [node.props.label, node.props.checked])).toEqual([
         ['Enable native notification integration', true],
         ['Show OS notifications while in a game', true], ['Show Steam notifications while in a game', true],
@@ -231,12 +234,10 @@ test('deleted or invalid settings return delivery and panel to the same default'
 	}
 });
 
-test('developer options have a header and stay hidden outside developer mode', () => {
-	expect(nodes(SettingsPanel()).some((node) => node.props?.children === 'Developer options')).toBe(false);
-	set('devMode', true);
-	const headers = nodes(SettingsPanel()).filter((node) => node.type === 'header');
-	expect(headers.map((node) => node.props.children)).toEqual(['Operating system notifications', 'Developer options']);
-	expect(toggles().at(-1).props.label).toBe('Developer: accept test commands');
+test('shared developer control stays hidden outside developer mode', () => {
+    expect(toggles().some(node => node.props.label === 'Developer: accept test commands')).toBe(false);
+    set('devMode', true);
+    expect(toggles().at(-1).props.label).toBe('Developer: accept test commands');
 });
 
 for (const surface of ['desktop', 'game', 'unknown'] as const) {
@@ -318,4 +319,22 @@ test('delivery acknowledgement uses the callback captured before the tree change
     popup.win.document.querySelectorAll = (): unknown[] => [];
     acknowledge('ok'); await flush();
     expect(popup.dismissed()).toBe(1); expect(popup.rawClosed()).toBe(0);
+});
+
+
+test('panel saves control real delivery without Millennium subscription pushes', async () => {
+    emitSettings = false;
+    try {
+        for (const os of [true, false]) for (const steam of [true, false]) {
+            expect((await settingsHost.write({ notifyOutsideGame: os, showSteamOutsideGame: steam })).ok).toBe(true);
+            notifications.length = 0;
+            const popup = toast(); await flush();
+            expect(notifications).toHaveLength(os ? 1 : 0);
+            expect(popup.dismissed()).toBe(steam ? 0 : 1);
+        }
+        await settingsHost.write({ integrationEnabled: false });
+        notifications.length = 0;
+        const popup = toast(); await flush();
+        expect(notifications).toHaveLength(0); expect(popup.dismissed()).toBe(0);
+    } finally { emitSettings = true; }
 });

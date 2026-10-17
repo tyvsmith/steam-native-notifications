@@ -1,15 +1,14 @@
 import { useSettingsActions } from '../shared/settings-actions';
 import { sampleMessage } from '../shared/command-result';
-import { visibleSettings, settingDisabled } from '../shared/settings-policy';
+import { settingsContent } from '../shared/settings-content';
 import { ffi, pluginConfig, subscribePluginConfig } from './adapter';
-import { SETTINGS_SCHEMA, type SettingKey, type Settings } from '../shared/settings';
+import { type Settings } from '../shared/settings';
 import { discoverSettings, discoverControls, mountSettings } from './steam-settings';
 
 const removedMessage = 'Integration removed. Restart Steam to finish unloading it.';
 type State = { config: { values: Settings; error: string | null }; state: string; compatible: boolean; hook: string };
 const rpc = async (method: string, ...args: unknown[]): Promise<any> => JSON.parse(await ffi<unknown[], string>(method)(...args));
 export function createSteamPanel(React: typeof import('react'), controls: ReturnType<typeof discoverControls>) {
-    const h = React.createElement;
     return function Panel(): React.ReactElement {
         const [state, setState] = React.useState<State | null>(null);
         const [removed, setRemoved] = React.useState(Boolean((globalThis as any).__snnIntegrationRemoved));
@@ -45,36 +44,22 @@ export function createSteamPanel(React: typeof import('react'), controls: Return
             setState(previous => previous && ({ ...previous, config: result }));
             return method === 'PanelReset' ? 'Defaults restored.' : 'Saved.';
         });
-        const confirm = (remove: boolean, event: { currentTarget: HTMLElement }) => {
-            const owner = event.currentTarget.ownerDocument.defaultView;
-            if (!owner) return;
-            controls.ShowModal(h(controls.ConfirmDialog, {
-                strTitle: remove ? 'Remove OS notification integration?' : 'Reset notification settings?',
-                strDescription: remove ? 'Stops OS notifications and automatic startup. Your settings are kept.' : 'Restores this integration’s notification preferences to their defaults. Steam’s own settings are kept.',
-                strOKButtonText: remove ? 'Remove integration' : 'Restore defaults', strCancelButtonText: 'Cancel',
-                onOK: () => { void command(remove ? 'PanelRemove' : 'PanelReset'); },
-            }), owner);
-        };
         const values = state?.config.values;
         const ready = !removed && connected && state?.state === 'ready' && state.compatible && state.hook === 'installed';
         const disabled = removed || busy || !connected || !!state?.config.error;
-        const row = (key: SettingKey) => h(controls.Toggle, { key, className: `snn-setting-${key}`,
-            label: SETTINGS_SCHEMA[key].label, description: SETTINGS_SCHEMA[key].description,
-            checked: values?.[key] ?? false, controlled: true, disabled: disabled || !values || settingDisabled(values, key),
-            onChange: (value: boolean): void => void command('PanelPatch', { [key]: value }),
-        });
-        return h(controls.Section, { label: 'Operating system notifications' }, h('section', { 'data-snn-panel': true },
-            h(controls.Theme, {}, !removed && !ready && h('p', { role: 'status' }, !connected
+        return settingsContent(React, controls, {
+            values: values ?? null, platform: 'linux', disabled,
+            sampleDisabled: busy || !ready || !values?.integrationEnabled,
+            status: !removed && !ready ? (!connected
                 ? 'Connecting to standalone service. Controls are unavailable until connected.'
-                : 'Standalone needs attention. Restart Steam if you recently updated.'),
-            state?.config.error && h('p', { role: 'alert' }, state.config.error),
-            ...visibleSettings(values ?? {} as Settings, 'linux').filter(key => !SETTINGS_SCHEMA[key].developer).map(row),
-            values?.devMode && row('devFire')),
-            h('div', { className: controls.ActionSection },
-                h(controls.Button, { disabled: busy || !ready || !values?.integrationEnabled, onClick: (): void => void command('PanelSample') }, 'Send test notification'),
-                h(controls.Button, { disabled, onClick: (event: { currentTarget: HTMLElement }): void => confirm(false, event) }, 'Reset notification settings'),
-                h(controls.Button, { disabled: removed || busy || !connected, onClick: (event: { currentTarget: HTMLElement }): void => confirm(true, event) }, 'Remove OS notification integration')),
-            h('div', { role: error ? 'alert' : 'status' }, h(controls.Description, {}, error || (removed ? removedMessage : busy ? 'Saving…' : message)))));
+                : 'Standalone needs attention. Restart Steam if you recently updated.') : '',
+            error: error || state?.config.error,
+            message: removed ? removedMessage : busy ? 'Saving…' : message,
+            onPatch: patch => { void command('PanelPatch', patch); },
+            onSample: () => { void command('PanelSample'); },
+            onReset: () => { void command('PanelReset'); },
+            remove: { disabled: removed || busy || !connected, onConfirm: () => { void command('PanelRemove'); } },
+        });
     };
 }
 export function startSteamPanel(): () => void {

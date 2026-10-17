@@ -54,7 +54,7 @@ async function standaloneConfig() {
 }
 export async function readConfig(selection: HostSelection = 'standalone'): Promise<ConfigSnapshot> {
     const host = selection === 'auto' ? await selectHost(selection) : selection;
-    if (host === 'millennium') return { values: normalizeSettings(await millennium('plugin.config.get_all', { name: PLUGIN_ID })), error: null };
+    if (host === 'millennium') return { values: normalizeSettings((await millennium('plugin.config.get_all', { name: PLUGIN_ID })).config), error: null };
     return (await standaloneConfig()).read();
 }
 export async function updateConfig(patch: unknown, selection: HostSelection = 'standalone'): Promise<ConfigSnapshot> {
