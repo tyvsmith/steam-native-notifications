@@ -5,7 +5,7 @@ let standalone = true, millennium = true, failWrite = false; let settings = { ..
 mock.module('../tools/lib/mep', () => ({ mepCall: async (method: string, params: any): Promise<any> => {
     if (!millennium) throw new Error('offline');
     if (method === 'plugin.status') return { error: null, result: { running: true } };
-    if (method === 'plugin.config.get_all') return { error: null, result: settings };
+    if (method === 'plugin.config.get_all') return { error: null, result: { config: settings } };
     if (method === 'plugin.config.set') { (settings as any)[params.key] = params.value; return { error: null, result: null }; }
     throw new Error('unsupported');
 } }));
