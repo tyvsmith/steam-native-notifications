@@ -5,7 +5,7 @@
     "": {
       "name": "steam-native-notifications",
       "devDependencies": {
-        "@steambrew/starlight": "^1.1.4",
+        "@steambrew/starlight": "^1.1.6",
         "@types/bun": "^1.4.2",
         "@types/react": "19.1.1",
         "@types/react-dom": "19.1.1",
@@ -14,7 +14,7 @@
     },
   },
   "packages": {
-    "@steambrew/starlight": ["@steambrew/starlight@1.1.4", "", { "bin": { "starlight": "bin/starlight.js" } }, "sha512-shd8fd/p53RJIwg/i/6y2aueEQVuPW1u5oGKlJIm+aco2B2g0wObIoZxdfdp1t3dBRfZ/4GwH3LcfoaHLla+5Q=="],
+    "@steambrew/starlight": ["@steambrew/starlight@1.1.6", "", { "bin": { "starlight": "bin/starlight.js" } }, "sha512-M2tVnoGru9zfqI7mvJK6gizOVJX/AuYvHAKD1kbzxA1RUM8zRgL04Vk0bmVu0mVj4eHVXVkaa6+7eyBfHC++nA=="],
 
     "@types/bun": ["@types/bun@1.4.2", "", { "dependencies": { "bun-types": "1.4.2" } }, "sha512-GimotNn7+ZV0uVArItBbriZsR1oNf0+WTzPkdcFrzShI7k2norL0uzEaJT8T33dWr7O/c9ZDuAFQrctKCi72oQ=="],
 

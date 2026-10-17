@@ -34,7 +34,7 @@ jobs:
       # Lua backend + notify-action seams (notify-send/gdbus shimmed), and
       # the frontend's toast decode + click chooser, compiled offline.
       - run: bun run test
-      - run: bun test tools/publication-policy.test.ts
+      - run: bun test tools/publication-policy.test.ts tools/release-notes.test.ts tools/verify-release-source.test.ts
       - run: bun run build:standalone
       - run: bun run test:standalone
       # Validate the exact Bun package users install, without embedding a runtime.

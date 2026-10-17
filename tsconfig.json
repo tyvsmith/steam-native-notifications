@@ -22,12 +22,12 @@
     "baseUrl": ".",
     "paths": {
       "millennium": [
-        ".millennium/lsp/ts"
+        "./.millennium/lsp/ts"
       ]
     },
     "typeRoots": [
-      ".millennium/types",
-      "node_modules/@types"
+      "./.millennium/types",
+      "./node_modules/@types"
     ]
   },
   "include": [

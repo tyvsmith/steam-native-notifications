@@ -20,10 +20,11 @@ test('CI exports the plugin and validated Bun package only', () => {
   expect(uploads[1].with.path.trim().split('\n')).toEqual(['dist/releases/*.tgz', 'dist/releases/*.tgz.sha256']);
 });
 
-test('numbered releases include the Bun tarball without publishing to a registry', () => {
+test('numbered releases include the Bun tarball with explicit notes', () => {
   const publish = workflows.release.jobs.release.steps.find((step: any) => step.name === 'Create the GitHub release');
   expect(publish.run).toContain('dist/releases/*.tgz dist/releases/*.tgz.sha256');
-  for (const step of steps) expect(step.run ?? '').not.toMatch(/(?:npm|bun) publish/);
+  expect(publish.run).toContain('--notes-file dist/release-notes.md');
+  expect(publish.run).not.toContain('--generate-notes');
 });
 
 test('dry-run publication remains disabled and local package coverage remains enabled', () => {
@@ -33,4 +34,28 @@ test('dry-run publication remains disabled and local package coverage remains en
   const builds = workflows.build.jobs.build.steps.map((step: any) => step.run);
   expect(builds).toContain('bun tools/build-release.ts');
   expect(builds).toContain('bun tools/test-packaged.ts');
+});
+
+
+test('npm publication requires a manual run and an explicit publishing choice', () => {
+  const workflow = workflows['npm-publish'];
+  const npm = workflow.jobs.npm;
+  expect(Object.keys(workflow.on)).toEqual(['workflow_dispatch']);
+  expect(workflow.on.workflow_dispatch.inputs.dry_run.default).toBe(true);
+  expect(npm.if).toBe("${{ startsWith(github.ref, 'refs/tags/v') }}");
+  expect(npm.environment).toBe('npm');
+  expect(npm.permissions).toEqual({ contents: 'read', 'id-token': 'write' });
+  const publish = npm.steps.find((step: any) => step.name === 'Publish the validated tarball through npm OIDC');
+  expect(publish.if).toBe('${{ !inputs.dry_run }}');
+  expect(publish.run).toContain('npm publish dist/releases/*.tgz');
+  expect(publish.run).toContain('--ignore-scripts');
+  expect(publish.run).toContain('channel=next');
+  expect(JSON.stringify(npm)).not.toContain('secrets.');
+  const download = npm.steps.find((step: any) => step.name === 'Download the numbered release package');
+  expect(download.run).toContain('gh release download');
+  const checks = npm.steps.find((step: any) => step.name === 'Check the exact release package');
+  expect(checks.run).toContain('sha256sum --check');
+  expect(checks.run).toContain('process.env.TAG');
+  expect(checks.run).toContain('bun tools/verify-release-source.ts');
+  expect(npm.steps.some((step: any) => step.run === 'bun tools/gen-proto.mjs')).toBe(true);
 });

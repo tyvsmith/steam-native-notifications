@@ -3,7 +3,7 @@ id = "me.tysmith.steam-native-notifications"
 name = "Steam Native Notifications"
 version = "0.1.0"
 author = "Ty Smith"
-description = "Mirrors Steam's in-client notification toasts to the desktop notification daemon via notify-send."
+description = "Mirrors Steam's in-client notification toasts to the desktop notification service."
 
 [assets]
 # The backend materializes each platform's delivery files out of the .star at
