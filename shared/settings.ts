@@ -1,7 +1,7 @@
 export type Platform = 'windows' | 'linux' | 'macos' | 'unknown';
 const all = ['windows', 'linux', 'macos', 'unknown'] as const;
 export const SETTINGS_SCHEMA = {
-    integrationEnabled: { type: 'boolean', default: true, label: 'Enable native notification integration', description: 'OS notifications follow your system settings, including Do Not Disturb.', group: 'general', platforms: all, developer: false, visible: true },
+    integrationEnabled: { type: 'boolean', default: true, label: 'Enable native notification integration', description: 'OS notifications follow your system settings, including do not disturb and notification history.', group: 'general', platforms: all, developer: false, visible: true },
     notifyInGame: { type: 'boolean', default: true, label: 'Show OS notifications while in a game', description: '', group: 'inside', platforms: all, developer: false, visible: true },
     showSteamInGame: { type: 'boolean', default: true, label: 'Show Steam notifications while in a game', description: '', group: 'inside', platforms: all, developer: false, visible: true },
     notifyOutsideGame: { type: 'boolean', default: true, label: 'Show OS notifications outside a game', description: '', group: 'outside', platforms: all, developer: false, visible: true },
