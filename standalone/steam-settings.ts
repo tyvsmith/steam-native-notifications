@@ -86,7 +86,7 @@ export function mountSettings(React: typeof import('react'), widget: any, Body: 
 }
 
 /** Resolve the same themed controls used by Steam desktop settings, without export IDs. */
-export function discoverControls(requireModule: any): Record<'Body' | 'Theme' | 'Toggle' | 'Section' | 'Button' | 'Buttons' | 'Description', any> {
+export function discoverControls(requireModule: any): Record<'Body' | 'Theme' | 'Toggle' | 'Section' | 'Button' | 'Buttons' | 'Description' | 'ConfirmDialog' | 'ShowModal', any> {
     const modules = Object.entries(requireModule.m ?? {}).filter(([, factory]) => {
         const source = String(factory);
         return source.includes('PagedSettings:') && source.includes('ToggleField:') && source.includes('BottomButtons');
@@ -106,10 +106,19 @@ export function discoverControls(requireModule: any): Record<'Body' | 'Theme' | 
     const bodies = Object.values(requireModule(bodyModules[0]![0])).filter((value: any) =>
         typeof value === 'function' && String(value).includes('SettingsDialogBodyFade') && String(value).includes('disableFade'));
     if (bodies.length !== 1) throw new Error('Steam settings body incompatible');
+    const component = (...signatures: string[]) => {
+        const candidates = Object.entries(requireModule.m ?? {}).filter(([, factory]) => signatures.every(s => String(factory).includes(s)));
+        const matches = candidates.flatMap(([id]) => Object.values(requireModule(id))).filter(value =>
+            typeof value === 'function' && signatures.every(s => String(value).includes(s)));
+        if (matches.length !== 1) throw new Error('Steam confirmation dialog unavailable or ambiguous');
+        return matches[0];
+    };
     return {
         Body: bodies[0], Theme: find('PagedSettings:', 'ToggleField:', 'strButtonClassName:'),
         Toggle: find('"ToggleField"'), Section: find('"DialogSettingsSection"'),
         Button: find('"DialogButton"', '"Secondary"'), Buttons: find('.BottomButtons'),
         Description: find('.FieldDescription'),
+        ConfirmDialog: component('strOKButtonText:', 'strCancelButtonText:', 'bAlertDialog:', 'focusButton:'),
+        ShowModal: component('ShowLegacyPopupModal', 'cloneElement', 'ShowModal('),
     };
 }

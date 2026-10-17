@@ -13,9 +13,8 @@ export function createSteamPanel(React: typeof import('react'), controls: Return
     return function Panel(): React.ReactElement {
         const [state, setState] = React.useState<State | null>(null);
         const [removed, setRemoved] = React.useState(Boolean((globalThis as any).__snnIntegrationRemoved));
-        const [confirmRemove, setConfirmRemove] = React.useState(false);
         const [connected, setConnected] = React.useState(false);
-        const { busy, message, error, confirmReset, setConfirmReset, refresh, run } = useSettingsActions(React);
+        const { busy, message, error, refresh, run } = useSettingsActions(React);
         React.useEffect(() => {
             if (removed) return undefined;
             let polling = false;
@@ -40,13 +39,23 @@ export function createSteamPanel(React: typeof import('react'), controls: Return
             return result;
         }, result => {
             if (method === 'PanelRemove') {
-                setRemoved(true); setConfirmRemove(false);
+                setRemoved(true);
                 return removedMessage;
             }
             if (method === 'PanelSample') return sampleMessage(result);
             setState(previous => previous && ({ ...previous, config: result }));
             return method === 'PanelReset' ? 'Defaults restored.' : 'Saved.';
         });
+        const confirm = (remove: boolean, event: { currentTarget: HTMLElement }) => {
+            const owner = event.currentTarget.ownerDocument.defaultView;
+            if (!owner) return;
+            controls.ShowModal(h(controls.ConfirmDialog, {
+                strTitle: remove ? 'Remove OS notification integration?' : 'Reset notification settings?',
+                strDescription: remove ? 'Stops OS notifications and automatic startup. Your settings are kept.' : 'Restores this integration’s notification preferences to their defaults. Steam’s own settings are kept.',
+                strOKButtonText: remove ? 'Remove integration' : 'Restore defaults', strCancelButtonText: 'Cancel',
+                onOK: () => { void command(remove ? 'PanelRemove' : 'PanelReset'); },
+            }), owner);
+        };
         const values = state?.config.values;
         const ready = !removed && connected && state?.state === 'ready' && state.compatible && state.hook === 'installed';
         const disabled = removed || busy || !connected || !!state?.config.error;
@@ -64,17 +73,8 @@ export function createSteamPanel(React: typeof import('react'), controls: Return
             values?.devMode && row('devFire'),
             h(controls.Buttons, {},
                 h(controls.Button, { disabled: busy || !ready || !values?.integrationEnabled, onClick: (): void => void command('PanelSample') }, 'Send test notification'),
-                h(controls.Button, { disabled, onClick: (): void => { setConfirmRemove(false); setConfirmReset(true); } }, 'Reset notification settings'),
-                h(controls.Button, { disabled: removed || busy || !connected, onClick: (): void => { setConfirmReset(false); setConfirmRemove(true); } }, 'Remove OS notification integration')),
-            confirmRemove && h(controls.Section, { label: 'Remove OS notification integration?' },
-                h(controls.Description, {}, 'Stops the background service and removes automatic startup. Your settings are kept. Remove the Bun package separately, then restart Steam.'),
-                h(controls.Buttons, {},
-                    h(controls.Button, { disabled: busy || !connected, onClick: (): void => void command('PanelRemove') }, 'Remove integration'),
-                    h(controls.Button, { disabled: busy, onClick: (): void => setConfirmRemove(false) }, 'Cancel'))),
-            confirmReset && h(controls.Section, { label: 'Restore notification settings to their defaults?' },
-                h(controls.Buttons, {},
-                    h(controls.Button, { disabled, onClick: (): void => void command('PanelReset') }, 'Restore defaults'),
-                    h(controls.Button, { disabled, onClick: (): void => setConfirmReset(false) }, 'Cancel'))),
+                h(controls.Button, { disabled, onClick: (event: { currentTarget: HTMLElement }): void => confirm(false, event) }, 'Reset notification settings'),
+                h(controls.Button, { disabled: removed || busy || !connected, onClick: (event: { currentTarget: HTMLElement }): void => confirm(true, event) }, 'Remove OS notification integration')),
             h('div', { role: error ? 'alert' : 'status' }, h(controls.Description, {}, error || (removed ? removedMessage : busy ? 'Saving…' : message))))));
     };
 }

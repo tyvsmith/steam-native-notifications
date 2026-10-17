@@ -24,11 +24,20 @@ async function fixture() {
         return JSON.stringify({ config: { values: DEFAULTS, error: null }, state: 'ready', compatible: true, hook: 'installed' });
     } };
     runInNewContext(await built.outputs[0]!.text(), context);
-    const Panel = context.module.exports.createSteamPanel(hooks, { Theme: 'theme', Section: 'section', Toggle: 'toggle', Button: 'button', Buttons: 'buttons', Description: 'description' });
-    const nodes = (node: any): any[] => !node || typeof node !== 'object' ? [] : [node, ...node.props.children.flat(Infinity).flatMap(nodes)];
-    const render = () => { index = 0; const tree = nodes(Panel()); effects.splice(0).forEach(fn => { const cleanup = fn(); if (cleanup) cleanups.push(cleanup); }); return tree; };
+    let modal: any;
+    const owner = {};
+    const Panel = context.module.exports.createSteamPanel(hooks, { Theme: 'theme', Section: 'section', Toggle: 'toggle', Button: 'button', Buttons: 'buttons', Description: 'description', ConfirmDialog: 'confirm', ShowModal: (element: any, window: any) => { expect(window).toBe(owner); modal = element; } });
+    const nodes = (node: any): any[] => {
+        if (!node || typeof node !== 'object' || (node.type === 'modal' && !node.props.active)) return [];
+        const buttons = node.type === 'confirm' ? [
+            { type: 'button', props: { children: [node.props.strOKButtonText], onClick: () => { node.props.onOK(); modal = undefined; }, disabled: false } },
+            { type: 'button', props: { children: ['Cancel'], onClick: () => { modal = undefined; }, disabled: false } },
+        ] : [];
+        return [node, ...buttons, ...node.props.children.flat(Infinity).flatMap(nodes)];
+    };
+    const render = () => { index = 0; const tree = [...nodes(Panel()), ...nodes(modal)]; effects.splice(0).forEach(fn => { const cleanup = fn(); if (cleanup) cleanups.push(cleanup); }); return tree; };
     const flush = async () => { for (let i = 0; i < 30; i++) await Promise.resolve(); };
-    const button = (label: string) => render().find(n => n.type === 'button' && n.props.children[0] === label);
+    const button = (label: string) => { const found = render().find(n => n.type === 'button' && n.props.children[0] === label); if (!found) return undefined; return { ...found, props: { ...found.props, onClick: () => found.props.onClick({ currentTarget: { ownerDocument: { defaultView: owner } } }) } }; };
     render(); await flush();
     return { calls, render, flush, button, poll: async () => { await poll?.(); }, close: () => { cleanups.splice(0).forEach(fn => fn()); slots.length = 0; }, fail: () => { failure = true; }, hold: (fn: () => Promise<void>) => { hold = fn; } };
 }
@@ -38,10 +47,12 @@ test('removal requires confirmation, cancellation does nothing and success disab
     f.button('Cancel').props.onClick(); expect(f.calls).not.toContain('PanelRemove');
     f.button('Remove OS notification integration').props.onClick();
     let release!: () => void; f.hold(() => new Promise<void>(resolve => { release = resolve; }));
-    f.button('Remove integration').props.onClick();
-    f.button('Remove integration').props.onClick();
+    const submit = f.button('Remove integration');
+    submit.props.onClick();
+    submit.props.onClick();
     expect(f.calls.filter(x => x === 'PanelRemove')).toHaveLength(1);
-    expect(f.button('Remove integration').props.disabled).toBe(true);
+    expect(f.button('Remove integration')).toBeUndefined();
+    expect(f.button('Remove OS notification integration').props.disabled).toBe(true);
     release(); await f.flush();
     expect(f.render().filter(n => n.type === 'toggle').every(n => n.props.disabled)).toBe(true);
     expect(f.button('Send test notification').props.disabled).toBe(true);
@@ -53,7 +64,8 @@ test('failed removal reports error and permits retry without disabling settings'
     f.button('Remove OS notification integration').props.onClick();
     f.button('Remove integration').props.onClick(); await f.flush();
     expect(f.render().some(n => n.props.children.includes('Cleanup refused'))).toBe(true);
-    expect(f.button('Remove integration').props.disabled).toBe(false);
+    f.button('Remove OS notification integration').props.onClick();
+    expect(f.button('Remove integration')).toBeDefined();
     expect(f.button('Send test notification').props.disabled).toBe(false);
 });
 
@@ -76,4 +88,17 @@ test('reopening settings before removal completes observes completion from the o
     release(); await f.flush(); await f.poll();
     expect(f.button('Remove OS notification integration').props.disabled).toBe(true);
     expect(f.render().some(n => n.props.children.includes('Integration removed. Your settings are kept. Remove the Bun package separately, then restart Steam.'))).toBe(true);
+});
+
+test('reset uses a native modal and cancellation preserves preferences', async () => {
+    const f = await fixture();
+    f.button('Reset notification settings').props.onClick();
+    expect(f.render().find(n => n.type === 'confirm').props.strTitle).toBe('Reset notification settings?');
+    f.button('Cancel').props.onClick();
+    expect(f.calls).not.toContain('PanelReset');
+    expect(f.render().some(n => n.type === 'confirm')).toBe(false);
+    f.button('Reset notification settings').props.onClick();
+    f.button('Restore defaults').props.onClick(); await f.flush();
+    expect(f.calls.filter(x => x === 'PanelReset')).toHaveLength(1);
+    expect(f.render().some(n => n.type === 'confirm')).toBe(false);
 });
