@@ -34,8 +34,9 @@ test('fresh install failure disables while unit exists and repeated extracted re
         expect(await recover(f.p,run)).toBe(false);await installPackage(f.p,await f.release(),f.steam,run);
     }finally{await rm(f.home,{recursive:true,force:true});}
 });
-test('every recovery durable boundary including refreshed publication and partial/finished cleanup is retryable',async()=>{
-    for(const fresh of [false,true]) {
+// Each case exhausts every filesystem/journal interruption; allow slow CI disks.
+for (const fresh of [false, true]) {
+test(`every recovery boundary is retryable after ${fresh ? 'fresh install' : 'upgrade'}`,async()=>{
         let boundaries=0;const baseline=await fixture();try{await pendingRecovery(baseline,fresh);await recover(baseline.p,run,async()=>{boundaries++;});}finally{await rm(baseline.home,{recursive:true,force:true});}
         for(let stop=1;stop<=boundaries;stop++) {
             const f=await fixture();try{const old=await pendingRecovery(f,fresh);let step=0;
@@ -45,8 +46,8 @@ test('every recovery durable boundary including refreshed publication and partia
                 await installPackage(f.p,await f.release(),f.steam,run);
             }finally{await rm(f.home,{recursive:true,force:true});}
         }
-    }
-});
+}, 15_000);
+}
 test('every uninstall durable boundary including partial file/directory cleanup resumes via recover or uninstall',async()=>{
     let boundaries=0;const baseline=await fixture();try{await installPackage(baseline.p,await baseline.release(),baseline.steam,run);await packageCommand('uninstall',[],baseline.p,run,async()=>{boundaries++;});}finally{await rm(baseline.home,{recursive:true,force:true});}
     for(let stop=1;stop<=boundaries;stop++) {

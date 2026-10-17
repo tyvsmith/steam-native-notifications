@@ -1,14 +1,10 @@
 import identity from './build-identity.json';
-import { normalizeSettings, validateSettingsPatch, type Platform, type Settings } from './settings';
+import { normalizeSettings, validateSettingsPatch, type Settings } from './settings';
 export const PROTOCOL_VERSION = 1 as const;
 export interface BuildIdentity { protocolVersion: typeof PROTOCOL_VERSION; version: string; buildId: string }
 /** Deterministic source fingerprint generated before either build. */
 export const BUILD_IDENTITY: BuildIdentity = { ...identity, protocolVersion: PROTOCOL_VERSION };
 export type HostKind = 'millennium' | 'standalone';
-export interface HostCapabilities { settingsWrite: boolean; settingsSubscribe: boolean; notificationCenterOnly: boolean; focusSteam: boolean; developerCommands: boolean }
-export function hostCapabilities(kind: HostKind, platform: Platform): HostCapabilities {
-    return { settingsWrite: kind === 'millennium', settingsSubscribe: true, notificationCenterOnly: platform === 'windows', focusSteam: kind === 'millennium' && platform === 'windows', developerCommands: true };
-}
 export interface HostMethods {
     Notify: [string, string, string, string, string, string]; Identity: []; Platform: []; Log: [string];
     GameHostFocus: [number]; TakeDevCommand: []; TakeSampleCommand: []; TakeClick: []; FocusSteam: [string];
