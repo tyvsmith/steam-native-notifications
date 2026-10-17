@@ -1,4 +1,4 @@
-import { SETTINGS_CONTEXT, settingsWarning, visibleSettings, preferenceDefaults, preferencePatch } from '../shared/settings-policy';
+import { settingDisabled, visibleSettings, preferenceDefaults, preferencePatch } from '../shared/settings-policy';
 import { sampleMessage } from '../shared/command-result';
 import { useEffect, useRef, useState } from 'react';
 import { DialogBodyText, DialogControlsSection, DialogControlsSectionHeader, DialogButton, ToggleField } from 'millennium';
@@ -48,22 +48,20 @@ export function SettingsPanel() {
     };
     const visible = visibleSettings(values, platform);
     const row = (key: SettingKey) => <ToggleField key={key} label={SETTINGS_SCHEMA[key].label}
-        description={SETTINGS_SCHEMA[key].description} checked={values[key]} disabled={!ready || busy}
+        description={SETTINGS_SCHEMA[key].description} checked={values[key]} disabled={!ready || busy || settingDisabled(values, key)}
         onChange={(value: boolean) => { void run(() => save(preferencePatch({ [key]: value }, values, platform))); }} />;
     return <>
-        {(['outside', 'inside'] as const).map(group => <DialogControlsSection key={group}>
-            <DialogControlsSectionHeader>{SETTINGS_CONTEXT[group].title}</DialogControlsSectionHeader>
-            <DialogBodyText>{SETTINGS_CONTEXT[group].description}</DialogBodyText>
-            {visible.filter(key => SETTINGS_SCHEMA[key].group === group).map(row)}
-            {settingsWarning(values, group) && <DialogBodyText>{settingsWarning(values, group)}</DialogBodyText>}
-        </DialogControlsSection>)}
+        <DialogControlsSection>
+            <DialogControlsSectionHeader>Operating system notifications</DialogControlsSectionHeader>
+            {visible.filter(key => !SETTINGS_SCHEMA[key].developer).map(row)}
+        </DialogControlsSection>
         {values.devMode && <DialogControlsSection>
             <DialogControlsSectionHeader>Developer options</DialogControlsSectionHeader>
             {visible.filter(key => SETTINGS_SCHEMA[key].group === 'developer').map(row)}
         </DialogControlsSection>}
         <DialogControlsSection>
-            <DialogButton disabled={!ready || busy} onClick={() => { void run(async () => sampleMessage(await executeDevCommand({ id: crypto.randomUUID(), createdAt: Date.now(), deadline: Date.now() + 7000, command: { call: 'TestFriendOnline', args: [] } }, true))); }}>Send sample notification</DialogButton>
-            <DialogButton disabled={!ready || busy || platform === 'unknown'} onClick={() => setConfirmReset(true)}>Reset to defaults</DialogButton>
+            <DialogButton disabled={!ready || busy || !values.integrationEnabled} onClick={() => { void run(async () => sampleMessage(await executeDevCommand({ id: crypto.randomUUID(), createdAt: Date.now(), deadline: Date.now() + 7000, command: { call: 'TestFriendOnline', args: [] } }, true))); }}>Send test notification</DialogButton>
+            <DialogButton disabled={!ready || busy || platform === 'unknown'} onClick={() => setConfirmReset(true)}>Reset notification settings</DialogButton>
             {confirmReset && <>
                 <DialogBodyText>Restore notification settings to their defaults?</DialogBodyText>
                 <DialogButton disabled={busy} onClick={() => { void run(async () => { await save(preferenceDefaults(platform)); return 'Defaults restored.'; }); }}>Restore defaults</DialogButton>

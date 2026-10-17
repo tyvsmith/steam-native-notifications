@@ -30,6 +30,31 @@ Synthetic events, fixture interruption, stored-argv invocation and helper
 acknowledgement each establish only their own layer. They do not prove real
 server events, power-loss durability, physical history clicks or visible banners.
 
+## Integration switch, 2026-10-16
+
+Build: `20847ff6b68b582de873f16dc95d52812a02603f1c27f32d13eae44c07fda4e2`,
+version 0.1.0, Bun 1.4.3, native Linux RT3 on Hyprland.
+
+- flattened all three editors to Operating system notifications; Linux shows
+  the master followed by game OS/Steam and desktop OS/Steam switches
+- passed shared tests, 110 standalone tests plus four host contracts,
+  noninstalling Millennium pack and compiled package smoke; a subsequent
+  external-editor fixture also verified the five-switch order and disabled state
+- verified native Steam content, each context switch, reset cancel/confirm,
+  navigation away/back and sample execution with developer options disabled
+- disabled the master through the panel; attempted subordinate clicks left
+  preferences unchanged and Steam's native disabled style covered the rows and
+  test button; re-enabling restored the saved choices
+- observed capture policy change from `sendNative:false, showSteam:true` to
+  `sendNative:true, showSteam:false`; saw the resumed OS download banner
+- covered no native delivery and no Steam window closure across both capture
+  contexts in runtime fixtures; repeated live native-toast screenshots were
+  inconclusive, so the off-state visibility claim remains limited to policy logs
+- opened and dismissed the existing native dropdown without changing it;
+  installed, daemon and frontend identities matched after the authorized restart
+- restored the original configuration byte-for-byte, including the absent master
+  key, which normalizes to enabled; no Millennium, Windows or OS-session live tests
+
 ## Notifications section, 2026-10-16
 
 Build: `c7eab5b6d9d447603be0d7f07b6de26a6bce7f99592da06d5ea1962ac6e0258c`,

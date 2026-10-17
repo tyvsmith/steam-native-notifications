@@ -162,30 +162,32 @@ test('the same popup delivers only once', async () => {
 	expect(notifications).toHaveLength(1);
 });
 
-test('panel groups desktop before game and shows all six Windows controls', () => {
+test('panel exposes one section with five ordered controls and Windows additions', () => {
 	const sections = nodes(SettingsPanel()).filter((node) => node.type === 'header');
-	expect(sections.map((node) => node.props.children)).toEqual(['Outside a game', 'In a game']);
+	expect(sections.map((node) => node.props.children)).toEqual(['Operating system notifications']);
 	expect(toggles().map((node) => [node.props.label, node.props.checked])).toEqual([
-		['Show OS notifications', true], ['Show Steam notifications', false], ['Save to Notification Center only', false],
-		['Show OS notifications', true], ['Show Steam notifications', true], ['Save to Notification Center only', false],
+        ['Enable native notification integration', true],
+        ['Show OS notifications while in a game', true], ['Show Steam notifications while in a game', true],
+        ['Show OS notifications outside a game', true], ['Show Steam notifications outside a game', false],
+        ['Save to Notification Center only while in a game', false], ['Save to Notification Center only outside a game', false],
 	]);
 });
 
 test('disabling OS hides only its history control without clearing its preference', async () => {
 	set('notificationCenterOnlyOutsideGame', true);
-	toggles()[0].props.onChange(false);
+	toggles()[3].props.onChange(false);
 	await flush();
-	expect(toggles()).toHaveLength(5);
+	expect(toggles()).toHaveLength(6);
 	expect(store.notificationCenterOnlyOutsideGame).toBe(true);
-	toggles()[0].props.onChange(true);
+	toggles()[3].props.onChange(true);
 	await flush();
-	expect(toggles()[2].props.checked).toBe(true);
+	expect(toggles().at(-1).props.checked).toBe(true);
 });
 
 for (const platform of ['linux', 'macos', 'unknown']) {
 	test(`${platform} hides both Windows controls`, () => {
 		platformState = platform;
-		expect(toggles()).toHaveLength(4);
+		expect(toggles()).toHaveLength(5);
 	});
 }
 
@@ -194,7 +196,7 @@ test('panel resolves backend platform after mounting', async () => {
 	SettingsPanel();
 	effect?.();
 	await flush();
-	expect(toggles()).toHaveLength(6);
+	expect(toggles()).toHaveLength(7);
 });
 
 test('non-Windows delivery ignores saved Notification Center preferences', () => {
@@ -219,21 +221,42 @@ test('deleted or invalid settings return delivery and panel to the same default'
 		set('showSteamOutsideGame', true);
 		set('showSteamOutsideGame', value);
 		expect(settings().showSteamOutsideGame).toBe(false);
-		expect(toggles()[1].props.checked).toBe(false);
+		expect(toggles()[4].props.checked).toBe(false);
 	}
-});
-
-test('both-off notice applies only to the disabled context', () => {
-	set('notifyOutsideGame', false);
-	const notices = nodes(SettingsPanel()).filter((node) => node.props?.children === 'Notifications are off for this context.');
-	expect(notices).toHaveLength(1);
-	expect(toggles().slice(-3).map((node) => node.props.checked)).toEqual([true, true, false]);
 });
 
 test('developer options have a header and stay hidden outside developer mode', () => {
 	expect(nodes(SettingsPanel()).some((node) => node.props?.children === 'Developer options')).toBe(false);
 	set('devMode', true);
 	const headers = nodes(SettingsPanel()).filter((node) => node.type === 'header');
-	expect(headers.map((node) => node.props.children)).toEqual(['Outside a game', 'In a game', 'Developer options']);
+	expect(headers.map((node) => node.props.children)).toEqual(['Operating system notifications', 'Developer options']);
 	expect(toggles().at(-1).props.label).toBe('Developer: accept test commands');
+});
+
+for (const surface of ['desktop', 'game', 'unknown'] as const) {
+    for (const os of [false, true]) for (const steam of [false, true]) {
+        test(`master off preserves ${surface} Steam toast with saved OS=${os} Steam=${steam}`, async () => {
+            set('notifyOutsideGame', os); set('notifyInGame', os);
+            set('showSteamOutsideGame', steam); set('showSteamInGame', steam);
+            const before = { ...settings() };
+            set('integrationEnabled', false);
+            const popup = toast(surface); await flush();
+            expect(notifications).toHaveLength(0); expect(popup.closed()).toBe(0);
+            expect(settings()).toEqual({ ...before, integrationEnabled: false });
+            set('integrationEnabled', true);
+            expect(settings()).toEqual(before);
+            const resumed = toast(surface); await flush();
+            expect(notifications).toHaveLength(os && surface !== 'unknown' ? 1 : 0);
+            expect(resumed.closed()).toBe(steam || surface === 'unknown' ? 0 : 1);
+        });
+    }
+}
+test('master bypasses every platform and capture surface including Windows history', () => {
+    for (const platform of ['linux', 'windows', 'macos', 'unknown'] as const)
+        for (const capture of [0, 570, null])
+            for (const os of [false, true]) for (const steam of [false, true])
+                expect(presentationFor({ ...DEFAULTS, integrationEnabled: false,
+                    notifyInGame: os, notifyOutsideGame: os, showSteamInGame: steam, showSteamOutsideGame: steam,
+                    notificationCenterOnlyInGame: true, notificationCenterOnlyOutsideGame: true,
+                }, capture, platform)).toEqual({ sendNative: false, showSteam: true, suppressPopup: false });
 });
