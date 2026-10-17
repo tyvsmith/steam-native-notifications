@@ -310,5 +310,29 @@ visible user journeys. This is a local test candidate, not a release-readiness c
   context replacement, startup disconnect and panel reply ordering in fixtures
 - verify Millennium request/reply transport against a stub MEP server and the
   SDK source; live Millennium push remains unverified
-- keep earlier live results scoped to their installed builds; this follow-up
-  has not been installed or tested against live Steam
+- keep earlier live results scoped to their installed builds
+
+
+### Installed push candidate, 2026-10-17
+
+Build: `2bd895ae95edb8114e521d750dde9bf1c1173769cbe56f1e2d497d72c1ce30c2`.
+
+- verified tarball source identity, installed through Bun and restarted idle Steam
+- confirmed matching package, daemon and frontend identities with hook/panel/control ready
+- toggled all five panel controls, checked CLI pushes and external atomic file replacement
+- observed zero host RPC calls during 11 idle seconds with the settings panel open
+- exercised 15 CLI checks covering auto host selection, settings, master-off policy,
+  sample execution, developer gating, replay inspection and diagnostic privacy
+- observed synthetic download and friend-online OS banners with artwork; invoked
+  the download notification's retained argv and confirmed exact replay
+- restarted the daemon without restarting Steam and confirmed ready reattachment
+- restored preferences byte-for-byte and left DND unchanged
+- fixed a live-discovered status timeout: discovery now allows the on-demand
+  renderer challenge to complete; a delayed real-socket regression covers it
+
+No real game event, physical history click, logout/login, Windows or live
+Millennium test was performed on this candidate. Screenshots and personal
+notification records remain local. Millennium's final regression should cover
+panel routing, CLI config refresh, sample/developer push, restart/history actions
+and diagnostics; no further Millennium-affecting implementation is planned in
+the current Linux convergence workstream unless validation finds a defect.
