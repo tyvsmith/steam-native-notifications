@@ -88,6 +88,24 @@ test('real standalone bundle applies master off and restores preferences without
     await Bun.sleep(30);
     expect(f.calls.filter(call => call.method === 'Notify')).toHaveLength(1); expect(closed).toBe(2);
     expect(f.hooks).toHaveLength(1);
+    // A toast already awaiting delivery must survive removal too.
+    let delivery: any;
+    f.context.__snnHost = (payload: string) => {
+        const call = JSON.parse(payload); f.calls.push(call);
+        if (call.method === 'Notify') delivery = call;
+        else queueMicrotask(() => f.context.__snnReply(call.id, 'ok'));
+    };
+    f.hooks[0](popup('notificationtoasts_24_desktop')); await Bun.sleep(30);
+    expect(delivery).toBeDefined();
+    f.context.__snnRemove(); f.context.__snnReply(delivery.id, 'ok'); await Bun.sleep(30);
+    expect(closed).toBe(2);
+    // Stale saved-config pushes cannot reactivate this removed browser session.
+    f.context.__snnConfig({ ...preferences, integrationEnabled: true, notifyOutsideGame: false });
+    const delivered = f.calls.filter(call => call.method === 'Notify').length;
+    f.hooks[0](popup('notificationtoasts_25_desktop')); f.hooks[0](popup('notificationtoasts_uid570-26'));
+    await Bun.sleep(30);
+    expect(closed).toBe(2);
+    expect(f.calls.filter(call => call.method === 'Notify')).toHaveLength(delivered);
 });
 
 test('commands apply newly saved settings to the real runtime before the polling refresh', async () => {

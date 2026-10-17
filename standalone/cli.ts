@@ -46,15 +46,15 @@ Run teardown before removing the Bun package. Steam is never launched or stopped
     }
     if (['setup', 'teardown', 'recover', 'session'].includes(command)) {
         if (options.hostExplicit && options.host !== 'standalone') throw new Error('Integration setup targets standalone only');
-        const hook = command === 'setup' && args.includes('--hook');
+        const hook = ['setup', 'teardown'].includes(command) && args.includes('--hook');
         if (hook && !await setupHookAllowed()) {
-            console.error('Desktop setup skipped: this package is not the global snn command. Run snn setup explicitly if needed.');
+            console.error(`Desktop ${command} skipped: this package is not the global snn command.`);
             return;
         }
         try {
             printResult(await integrationCommand(command as 'setup' | 'teardown' | 'recover' | 'session', hook ? args.filter(arg => arg !== '--hook') : args), options.json);
         } catch (error) {
-            if (!hook) throw error;
+            if (!hook || command !== 'setup') throw error;
             console.error(`Package installed; desktop setup is pending: ${error instanceof Error ? error.message : error}. Run snn setup from your graphical session.`);
         }
         return;

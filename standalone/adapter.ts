@@ -6,25 +6,33 @@ const listeners = new Set<(key: string, value: unknown) => void>();
 let config: Record<string, unknown> = (globalThis as any).__snnInitialConfig ?? {};
 const bridge = globalThis as typeof globalThis & {
     __snnHost(payload: string): void;
-    __snnReply(id: number, value: string, error?: string): void;
+    __snnReply(id: number, value: string, error?: string): boolean;
     __snnConfig(values: Record<string, unknown>): void;
+    __snnRemove(): void;
+    __snnIntegrationRemoved?: boolean;
 };
 bridge.__snnReply = (id, value, error) => {
     const request = pending.get(id);
-    if (!request) return;
+    if (!request) return false;
     clearTimeout(request.timer);
     pending.delete(id);
     if (error) request.reject(new Error(error)); else request.resolve(value);
+    return true;
 };
 bridge.__snnConfig = (values) => {
     const keys = new Set([...Object.keys(config), ...Object.keys(values)]);
-    config = values;
+    config = bridge.__snnIntegrationRemoved ? { ...values, integrationEnabled: false } : values;
     for (const key of keys) for (const listener of listeners) listener(key, config[key]);
+};
+// Removal changes this browser session only; saved preferences remain untouched.
+bridge.__snnRemove = () => {
+    bridge.__snnIntegrationRemoved = true;
+    bridge.__snnConfig({ ...config, integrationEnabled: false });
 };
 export function ffi<Args extends unknown[], Result>(method: string): (...args: Args) => Promise<Result> {
     return (...args) => new Promise<string>((resolve, reject) => {
         const id = ++sequence;
-        const timer = setTimeout(() => { pending.delete(id); reject(new Error(`${method} host timeout`)); }, 5000);
+        const timer = setTimeout(() => { pending.delete(id); reject(new Error(`${method} host timeout`)); }, method === 'PanelRemove' ? 30000 : 5000);
         pending.set(id, { resolve, reject, timer });
         try { bridge.__snnHost(JSON.stringify({ id, method, args })); }
         catch (error) { clearTimeout(timer); pending.delete(id); reject(error); }

@@ -2,7 +2,7 @@ import { realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 import { runtimeRoot } from './runtime-paths';
 
-/** Local dependency installs must never configure the desktop. */
+/** Local dependency lifecycle hooks must never change desktop integration. */
 export async function setupHookAllowed(cli = join(runtimeRoot(), 'standalone/cli.js')): Promise<boolean> {
     const child = Bun.spawn([process.execPath, 'pm', 'bin', '--global'], { stdout: 'pipe', stderr: 'pipe' });
     const timer = setTimeout(() => child.kill(), 5000);

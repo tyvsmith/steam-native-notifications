@@ -22,6 +22,7 @@ export class Host {
     private root = runtimeRoot();
     readonly store: ConfigStore;
     live: any = { state: 'disconnected', frontendBuild: null, hook: 'unknown' };
+    removal?: { remove(): Promise<unknown>; acknowledged(): void };
     frontendCommand?: (envelope: any, sample: boolean) => Promise<unknown>;
     readonly logPath: string;
     private writeLog: (line: string) => Promise<void>;
@@ -43,6 +44,9 @@ export class Host {
     }
     async dispatch(method: string, args: unknown[]): Promise<string> {
         switch (method) {
+            case 'PanelRemove':
+                if (args.length || !this.removal) break;
+                return JSON.stringify(await this.removal.remove());
             case 'PanelRead':
                 if (args.length) break;
                 return JSON.stringify({ config: await this.store.read(), state: this.live.state,

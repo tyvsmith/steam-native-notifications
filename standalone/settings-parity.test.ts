@@ -9,6 +9,11 @@ test('actual standalone adapter feeds actual frontend settings consumer, updates
     runInContext(await result.outputs[0]!.text(),context); const consumer=context.module.exports;
     expect(await consumer.loadSettings()).toEqual({...DEFAULTS,notifyOutsideGame:false,notificationCenterOnlyInGame:true});
     context.__snnConfig({showSteamInGame:false,devFire:'invalid'}); expect(consumer.settings()).toEqual({...DEFAULTS,showSteamInGame:false});
+    context.__snnRemove();
+    expect(consumer.settings().integrationEnabled).toBe(false);
+    context.__snnConfig({ integrationEnabled: true, showSteamInGame: false });
+    expect(consumer.settings().integrationEnabled).toBe(false);
+    expect(consumer.settings().showSteamInGame).toBe(false);
     expect((await consumer.settingsHost.write({notifyOutsideGame:true})).code).toBe('unsupported');
 });
 test('actual frontend consumer with Millennium boundary receives identical removal normalization', async () => {
