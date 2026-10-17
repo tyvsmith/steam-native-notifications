@@ -34,8 +34,11 @@ jobs:
       # Lua backend + notify-action seams (notify-send/gdbus shimmed), and
       # the frontend's toast decode + click chooser, compiled offline.
       - run: bun run test
+      - run: bun test tools/publication-policy.test.ts
       - run: bun run build:standalone
       - run: bun run test:standalone
+      # Compile and smoke-test locally; do not distribute the embedded runtime
+      # until docs/standalone-notices.md is complete.
       - run: bun tools/build-release.ts
       - run: bun tools/test-packaged.ts
 
@@ -66,13 +69,4 @@ jobs:
         with:
           path: dist/me.tysmith.steam-native-notifications.star
           archive: false
-          if-no-files-found: error
-
-      - if: inputs.upload
-        uses: actions/upload-artifact@v7
-        with:
-          name: snn-linux-x64
-          path: |
-            dist/releases/*.tar.gz
-            dist/releases/*.sha256
           if-no-files-found: error
