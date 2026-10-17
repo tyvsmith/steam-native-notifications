@@ -520,10 +520,12 @@ local function start_control()
         if key ~= "snnControl" or type(value) ~= "string" or #value > 65536 then return end
         local ok, request = pcall(json.decode, value)
         if not ok or type(request) ~= "table" or not request_id(request.id)
-            or type(request.deadline) ~= "number" or request.deadline <= os.time() * 1000
+            or type(request.deadline) ~= "string" or not request.deadline:match("^%d+$")
+            or not tonumber(request.deadline) or tonumber(request.deadline) <= os.time() * 1000
             or (request.kind ~= "status" and request.kind ~= "sample" and request.kind ~= "dev") then return end
         pcall(millennium.config.delete, "snnControl")
-        pcall(millennium.call_frontend_method, "receiveControl", {value})
+        local called, result, err = pcall(millennium.call_frontend_method, "receiveControl", {value})
+        if not called or err then log_line("error", "control: frontend push failed: " .. tostring(err or result)) end
     end)
 end
 

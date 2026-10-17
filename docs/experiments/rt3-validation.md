@@ -308,8 +308,8 @@ visible user journeys. This is a local test candidate, not a release-readiness c
 - replace idle configuration, panel, command, click and health polling with push
 - cover idle silence, external atomic config replacement, watcher failure,
   context replacement, startup disconnect and panel reply ordering in fixtures
-- verify Millennium request/reply transport against a stub MEP server and the
-  SDK source; live Millennium push remains unverified
+- verify Millennium request/reply transport against a stub MEP server, SDK
+  source and the installed host described below
 - keep earlier live results scoped to their installed builds
 
 
@@ -336,3 +336,22 @@ notification records remain local. Millennium's final regression should cover
 panel routing, CLI config refresh, sample/developer push, restart/history actions
 and diagnostics; no further Millennium-affecting implementation is planned in
 the current Linux convergence workstream unless validation finds a defect.
+
+### Millennium push candidate, 2026-10-17
+
+Build: `3eb00f7b00c1114f9d4e12245a4c0aaa551e6addc0a033f0983365f376c19aa8`.
+
+- installed and enabled the current `.star` on Millennium 3.6.1; disabled the standalone service
+- fixed a live failure: 32-bit Lua JSON decoding truncated command deadlines;
+  decimal-string deadlines now preserve timestamps through the backend
+- confirmed matching backend/frontend build, installed hook and responsive control
+- verified CLI settings refresh, developer gating and sample execution with developer commands off
+- checked desktop routing through CLI changes: master off, both outputs off,
+  Steam only and OS only; observed friend-online and Aircar OS banners with artwork
+- invoked the retained Aircar action and confirmed exact replay without a throw
+- restored original plugin preferences, including absent diagnostic keys
+
+Steam relaunched successfully, but three shutdowns crashed in its audio/PulseAudio
+thread. These traces do not establish a plugin cause; clean shutdown remains
+unverified. Panel pointer interaction, in-game routing, physical history clicks,
+logout/login and Windows were not tested in this pass.

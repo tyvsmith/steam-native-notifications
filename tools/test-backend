@@ -310,10 +310,11 @@ end
 
 -- Config notifications carry their own request value; no mailbox reads.
 local push_id = "12345678-1234-1234-1234-123456789abc"
-local push_payload = '{"id":"' .. push_id .. '","kind":"status","deadline":' .. (os.time() * 1000 + 5000) .. '}'
+local push_payload = '{"id":"' .. push_id .. '","kind":"status","deadline":"' .. (os.time() * 1000 + 5000) .. '"}'
 config_listener("snnControl", push_payload)
 check("config push targets exported frontend control", #pushed_controls == 1 and pushed_controls[1][1] == "receiveControl" and pushed_controls[1][2][1] == push_payload)
 config_listener("snnControl", '{"id":"' .. push_id .. '","kind":"status","deadline":1}')
+config_listener("snnControl", '{"id":"' .. push_id .. '","kind":"status","deadline":"1"}')
 config_listener("other", push_payload)
 config_listener("snnControl", nil)
 check("expired, unrelated and delete events never execute", #pushed_controls == 1)

@@ -33,7 +33,8 @@ export async function pushRequest(kind: 'status' | 'sample' | 'dev', command: un
             watcher.on('error', () => resolve(null));
             timer = setTimeout(() => resolve(null), timeoutMs);
         });
-        const pushed = await mepCall('plugin.config.set', { name: PLUGIN_ID, key, value: JSON.stringify(request) }, { ...options, timeoutMs });
+        // Millennium's 32-bit Lua JSON decoder truncates large integer literals.
+        const pushed = await mepCall('plugin.config.set', { name: PLUGIN_ID, key, value: JSON.stringify({ ...request, deadline: String(request.deadline) }) }, { ...options, timeoutMs });
         if (pushed.error !== null && pushed.error !== undefined) return null;
         return await result;
     } catch { return null; }

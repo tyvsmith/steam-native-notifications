@@ -12,6 +12,8 @@ async function handleControl(payload: string): Promise<void> {
     const epoch = generation;
     try {
         const request = JSON.parse(payload);
+        if (typeof request.deadline !== 'string' || !/^\d+$/.test(request.deadline)) return;
+        request.deadline = Number(request.deadline);
         const live = () => active && epoch === generation && Number.isSafeInteger(request.deadline) && request.deadline > Date.now();
         if (!live() || typeof request.id !== 'string') return;
         if (request.kind === 'status') {

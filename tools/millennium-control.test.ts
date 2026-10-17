@@ -28,6 +28,8 @@ test('push transport correlates overlapping replies, expires and deletes transie
             if (request.method === 'plugin.config.delete') deleted.push(p.key);
             if (request.method === 'plugin.config.set' && respond) {
                 const value = JSON.parse(p.value);
+                expect(typeof value.deadline).toBe('string');
+                expect(Number(value.deadline)).toBeGreaterThan(Date.now());
                 void writeFile(join(root, value.id, 'result'), JSON.stringify({ id: value.id, settingsRefreshed: true }));
             }
             socket.end(frame(encode({ id: request.id, error: null, result })));

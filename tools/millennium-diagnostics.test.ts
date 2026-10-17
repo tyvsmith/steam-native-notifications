@@ -15,7 +15,7 @@ test('pushed requests are fenced by expiry and frontend lifetime without idle ti
         call: async (_name: string, args: string[]) => { replies.push(JSON.parse(args[1]!)); } };
     runInNewContext(await built.outputs[0]!.text(), context);
     const api = context.module.exports; const stop = api.startMillenniumDiagnostics();
-    const send = (r: any) => api.receiveControl(JSON.stringify({ kind: 'status', deadline: Date.now() + 1000, ...r }));
+    const send = (r: any) => api.receiveControl(JSON.stringify({ kind: 'status', ...r, deadline: String(r.deadline ?? Date.now() + 1000) }));
     send({ id: 'expired', deadline: Date.now() - 1 });
     expect(replies).toHaveLength(0);
     expect(send({ id: 'fresh' })).toBeUndefined();
