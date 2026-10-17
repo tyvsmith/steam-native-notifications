@@ -167,8 +167,8 @@ inside the existing window; unwatched, a working navigation looks like nothing.
 action launches it directly; Quattro can retain the fixed argv hint in history;
 Windows stores it as the WinRT protocol target. Every accepted click logs a
 `steam-url:` line followed by `click-bridge:` dispatch. No line means the OS
-action did not reach Steam or the frontend is not running. The remaining
-click-file poll is a legacy/test seam, not the Linux notification transport.
+action did not reach Steam or the frontend is not running. The legacy
+click-file input has been removed; tests invoke the URL or dispatch seam.
 
 **Never fire TestIncomingVoiceChat.** A fake incoming call has no caller to
 hang up: its notification never resolves, and once its toast has shown,

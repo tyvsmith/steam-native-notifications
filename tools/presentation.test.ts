@@ -15,7 +15,7 @@ let platformState: unknown = 'unknown';
 let resolvePlatform!: (value: string) => void;
 const platformReply = new Promise<string>((resolve) => { resolvePlatform = resolve; });
 
-mock.module('../frontend/millennium-diagnostics', () => ({ startMillenniumDiagnostics: () => () => {}, reportCommandResult: async () => {} }));
+mock.module('../frontend/millennium-diagnostics', () => ({ startMillenniumDiagnostics: () => () => {}, receiveControl: () => {} }));
 mock.module('react/jsx-runtime', () => ({ jsx: element, jsxs: element, Fragment: 'fragment' }));
 mock.module('../shared/steam-settings-controls', () => ({ steamSettingsControls: () => ({ Theme: 'theme', Section: 'section', Toggle: 'toggle', Button: 'button', Description: 'text', ActionSection: 'native-actions' }) }));
 mock.module('react', () => ({

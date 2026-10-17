@@ -1,5 +1,5 @@
 import { hostMethod } from './host';
-import { decodeClickPayload, deliveryMode, surfaceMatches, type ClickEnvelope, type FocusKind } from './click';
+import { deliveryMode, surfaceMatches, type ClickEnvelope, type FocusKind } from './click';
 import { dlog } from './log';
 import { canReplayHandler, invokeReplayHandler } from './replay';
 import { DEFAULT_STEAM_ROUTE } from './routes';
@@ -15,30 +15,9 @@ import {
 	currentClickSurface,
 } from './overlay';
 
-/**
- * The click bridge: every notification click is delivered through here.
- *
- * Production helpers expose the versioned envelope through the canonical Steam
- * URL, which frontend/steamurl.ts sends to dispatchClick. The retained
- * timestamped click-file input is a legacy/test seam. Both entries prefer exact
- * handler replay while the capture surface still matches, then fall back to the
- * restored catalog against the live click surface.
- */
-const takeClick = hostMethod('TakeClick');
+/** Canonical Steam URLs enter shared replay and durable dispatch here. */
 const focusSteam = hostMethod('FocusSteam');
-
-const CLICK_POLL_MS = 1000;
-/**
- * A legacy/test writer stamps each click with its write time (<epoch-seconds>|
- * <payload>). The session-long poll may observe an abandoned write after a
- * delay, so old writes are dropped instead of opened as a surprise. Canonical
- * URL activation does not use this age limit.
- */
-const CLICK_MAX_AGE_S = 30;
-
 const OPENURL_PREFIX = 'steam://openurl/';
-
-let timer: number | null = null;
 
 function requestFocus(kind: FocusKind): void {
 	void focusSteam(kind).catch((e: unknown) => dlog(`focus request failed: (enable verboseDiagnostics for details)`, () => `focus request failed: ${(e as Error)?.message ?? e}`));
@@ -249,36 +228,4 @@ export async function dispatchClick(envelope: ClickEnvelope): Promise<void> {
 	} catch (e) {
 		dlog(`click-bridge failed: (enable verboseDiagnostics for details)`, () => `click-bridge failed: ${(e as Error)?.message ?? e}`);
 	}
-}
-
-export function startClickBridge(): void {
-	if (timer !== null) return;
-	timer = window.setInterval(async () => {
-		try {
-			const raw = await takeClick();
-			const taken =
-				typeof raw === 'string' && raw ? (raw.startsWith('"') ? (JSON.parse(raw) as string) : raw) : '';
-			if (typeof taken !== 'string' || !taken) return;
-			const sep = taken.indexOf('|');
-			const stamp = sep > 0 ? Number(taken.slice(0, sep)) : NaN;
-			const payload = sep > 0 ? taken.slice(sep + 1) : '';
-			if (!Number.isFinite(stamp) || !payload) {
-				dlog('click-bridge: unstamped click dropped', () => `click-bridge: unstamped click dropped: ${taken.slice(0, 120)}`);
-				return;
-			}
-			const age = Math.round(Date.now() / 1000 - stamp);
-			if (age > CLICK_MAX_AGE_S) {
-				dlog(`click-bridge: stale click dropped (${age}s old)`);
-				return;
-			}
-			const envelope = decodeClickPayload(payload);
-			if (!envelope) {
-				dlog('click-bridge: malformed payload dropped', () => `click-bridge: malformed payload dropped: ${payload.slice(0, 80)}`);
-				return;
-			}
-			await dispatchClick(envelope);
-		} catch (e) {
-			dlog(`click-bridge poll failed: (enable verboseDiagnostics for details)`, () => `click-bridge poll failed: ${(e as Error)?.message ?? e}`);
-		}
-	}, CLICK_POLL_MS);
 }

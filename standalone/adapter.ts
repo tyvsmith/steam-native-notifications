@@ -1,7 +1,12 @@
+import { normalizeSettings } from '../shared/settings';
+import type { ConfigSnapshot } from './config-store';
+export interface PanelState { config: ConfigSnapshot; state: string; compatible: boolean; hook: string; removed?: boolean }
 /** Browser-only compatibility seam; no Millennium runtime or settings panel. */
 type Pending = { resolve(value: string): void; reject(reason: Error): void; timer: ReturnType<typeof setTimeout> };
 const pending = new Map<number, Pending>();
 let sequence = 0;
+const stateListeners = new Set<(state: PanelState) => void>();
+let hostState: PanelState | undefined;
 const listeners = new Set<(key: string, value: unknown) => void>();
 let config: Record<string, unknown> = (globalThis as any).__snnInitialConfig ?? {};
 const bridge = globalThis as typeof globalThis & {
@@ -9,6 +14,8 @@ const bridge = globalThis as typeof globalThis & {
     __snnReply(id: number, value: string, error?: string): boolean;
     __snnConfig(values: Record<string, unknown>): void;
     __snnRemove(): void;
+    __snnState(state: PanelState): void;
+    __snnHostStateChanged(): void;
     __snnIntegrationRemoved?: boolean;
 };
 bridge.__snnReply = (id, value, error) => {
@@ -24,10 +31,21 @@ bridge.__snnConfig = (values) => {
     config = bridge.__snnIntegrationRemoved ? { ...values, integrationEnabled: false } : values;
     for (const key of keys) for (const listener of listeners) listener(key, config[key]);
 };
+bridge.__snnState = state => {
+    hostState = state;
+    for (const listener of stateListeners) listener(state);
+};
+bridge.__snnHostStateChanged = () => { void ffi<[], string>('FrontendState')().catch(() => {}); };
+export function subscribeHostState(listener: (state: PanelState) => void): () => void {
+    stateListeners.add(listener);
+    if (hostState) listener(hostState);
+    return () => { stateListeners.delete(listener); };
+}
 // Removal changes this browser session only; saved preferences remain untouched.
 bridge.__snnRemove = () => {
     bridge.__snnIntegrationRemoved = true;
     bridge.__snnConfig({ ...config, integrationEnabled: false });
+    bridge.__snnState({ config: { values: normalizeSettings(config), error: null }, state: 'removed', compatible: false, hook: 'unknown', removed: true });
 };
 export function ffi<Args extends unknown[], Result>(method: string): (...args: Args) => Promise<Result> {
     return (...args) => new Promise<string>((resolve, reject) => {

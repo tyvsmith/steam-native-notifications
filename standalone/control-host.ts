@@ -10,6 +10,7 @@ export function controlHandler(host: Host) {
     return async (request: ControlRequest): Promise<unknown> => {
         switch (request.operation) {
             case 'status': {
+                await host.refreshFrontend?.();
                 const compatible = host.live.frontendBuild?.buildId === BUILD_IDENTITY.buildId && host.live.control === true;
                 const degraded = host.live.state === 'ready' && (!compatible || host.live.hook === 'failed');
                 return { host: 'standalone', build: BUILD_IDENTITY, installedBuild: await installedBuild(), ...host.live,
@@ -24,6 +25,7 @@ export function controlHandler(host: Host) {
             case 'config.update': return host.store.update(request.payload, request.deadline);
             case 'config.reset': return host.store.reset(request.deadline);
             case 'sample': case 'dev.fire': {
+                await host.refreshFrontend?.();
                 const sample = request.operation === 'sample';
                 const command = sample ? { call: 'TestFriendOnline', args: [] } : validateDevCommand(request.payload);
                 if (!sample && !(await host.store.read()).values.devFire) throw new Error('Developer commands are disabled');

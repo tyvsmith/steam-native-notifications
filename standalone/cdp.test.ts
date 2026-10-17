@@ -1,6 +1,10 @@
 import { expect, test } from 'bun:test';
 import { CDP, endpoint, targetSocket } from './cdp';
-import { attach, connectSteamContext } from './daemon';
+import { attach as attachHost, connectSteamContext } from './daemon';
+const attach: typeof attachHost = (client, bundle, host, ...rest) => {
+    (host as any).store ??= { read: async () => ({ values: await host.settings(), error: null as string | null }), subscribe: async () => () => {} };
+    return attachHost(client, bundle, host, ...rest);
+};
 const target = { type: 'page', title: 'SharedJSContext', url: 'https://steamloopback.host/index.html', webSocketDebuggerUrl: 'ws://localhost:8080/devtools/page/1' };
 test('target selection accepts Steam UI only and pins websocket to loopback', () => {
     expect(targetSocket(target, 8080)).toBe('ws://127.0.0.1:8080/devtools/page/1');
@@ -47,7 +51,7 @@ test('attach waits for the default Steam context, bridges RPC, and reinjects aft
     const host: any = { live: { state: 'disconnected' }, readiness: async () => {}, settings: async () => ({ devFire: false }), log: async (line: string) => { logs.push(line); }, dispatch: async (method: string) => { methods.push(method); return 'linux'; } };
     await attach(client, '/* fixture bundle */', host, () => running);
     expect(injections).toBe(2); expect(methods).toEqual(['Platform']);
-    expect(logs.length).toBe(2);
+    expect(logs.length).toBe(1);
     expect(calls.some(call => call.params?.expression?.includes('__snnReply(2,"linux"'))).toBe(true);
 });
 
@@ -97,48 +101,45 @@ test('reload during awaited injection cannot mark a destroyed context attached',
     expect(ids).toEqual([1, 2]);
 }, 4000);
 
-test('context replacement while reading command settings refuses stale dispatch', async () => {
-    let running = true, reads = 0, commands = 0;
-    const client: any = { onEvent() {}, closed: new Promise(() => {}), async call(method: string, params: any) {
+test('idle attachment makes no repeated reads or CDP calls; context lifecycle and disconnect clean up', async () => {
+    let close!: () => void, notify!: () => void, unsubscribed = false;
+    let reads = 0, calls = 0, attached = 0;
+    const client: any = { onEvent() {}, closed: new Promise<void>(resolve => { close = resolve; }), async call(method: string, params: any) {
+        calls++;
+        if (method === 'Runtime.enable') this.onEvent({ method: 'Runtime.executionContextCreated', params: { context: { id: 1, auxData: { isDefault: true } } } });
+        if (params?.expression?.includes('fixture bundle')) attached++;
+        return { result: { value: true } };
+    } };
+    const host: any = { live: {}, log: async () => {}, settings: async () => { reads++; return {}; }, readiness: async () => {},
+        store: { read: async () => { reads++; return { values: {}, error: null as string | null }; }, subscribe: async (fn: any) => { notify = fn; return () => { unsubscribed = true; }; } } };
+    const pending = attach(client, '/* fixture bundle */', host).catch(error => error);
+    while (!host.frontendCommand || !attached) await Bun.sleep(1);
+    await Bun.sleep(10);
+    const before = { calls, reads };
+    await Bun.sleep(1100); expect({ calls, reads }).toEqual(before);
+    notify(); await Bun.sleep(10); expect(reads).toBe(before.reads + 1);
+    client.onEvent({ method: 'Runtime.executionContextsCleared' }); expect(host.frontendCommand).toBeUndefined();
+    client.onEvent({ method: 'Runtime.executionContextCreated', params: { context: { id: 2, auxData: { isDefault: true } } } });
+    await Bun.sleep(10); expect(attached).toBe(2);
+    close(); expect((await pending).message).toContain('disconnected');
+    expect(unsubscribed).toBe(true); expect(host.refreshFrontend).toBeUndefined();
+    const after = calls; client.onEvent({ method: 'Runtime.executionContextCreated', params: { context: { id: 3, auxData: { isDefault: true } } } });
+    await Bun.sleep(10); expect(calls).toBe(after);
+});
+
+test('context replacement during a command settings read refuses stale dispatch', async () => {
+    let close!: () => void, replace = false, commands = 0;
+    const client: any = { onEvent() {}, closed: new Promise<void>(resolve => { close = resolve; }), async call(method: string, params: any) {
         if (method === 'Runtime.enable') this.onEvent({ method: 'Runtime.executionContextCreated', params: { context: { id: 1, auxData: { isDefault: true } } } });
         if (params?.expression?.includes('globalThis.__snnDevControl ?')) commands++;
         return { result: { value: true } };
     } };
-    const host: any = { live: {}, log: async () => {}, async settings() {
-        if (++reads === 2) client.onEvent({ method: 'Runtime.executionContextsCleared' });
-        return {};
-    }, async readiness() {
-        const command = host.frontendCommand;
-        await expect(command({ deadline: Date.now() + 2000 }, true)).rejects.toThrow('Frontend changed');
-        running = false;
-    } };
-    await attach(client, '/* fixture */', host, () => running);
-    expect(commands).toBe(0);
-});
-
-test('a delayed config poll cannot overwrite the fresh command snapshot', async () => {
-    let running = true, reads = 0, readiness = 0, release!: () => void, started!: () => void;
-    const polling = new Promise<void>(resolve => { started = resolve; });
-    const writes: boolean[] = [];
-    const client: any = { onEvent() {}, closed: new Promise(() => {}), async call(method: string, params: any) {
-        if (method === 'Runtime.enable') this.onEvent({ method: 'Runtime.executionContextCreated', params: { context: { id: 1, auxData: { isDefault: true } } } });
-        const match = params?.expression?.match(/globalThis\.__snnConfig\((\{"integrationEnabled":(?:true|false)\})\)/);
-        if (match) writes.push(JSON.parse(match[1]).integrationEnabled);
-        if (params?.expression?.includes('globalThis.__snnDevControl ?')) return { result: { value: { ok: true, value: { stage: 'executed' } } } };
-        return { result: { value: true } };
-    } };
-    const host: any = { live: {}, log: async () => {}, async settings() {
-        const read = ++reads;
-        if (read === 2) { started(); await new Promise<void>(resolve => { release = resolve; }); }
-        return { integrationEnabled: read >= 3 };
-    }, async readiness() { if (++readiness === 2) running = false; } };
-    const attached = attach(client, '/* fixture */', host, () => running);
-    try {
-        await polling;
-        await host.frontendCommand({ deadline: Date.now() + 2000 }, true);
-        release(); await attached;
-        expect(writes).toEqual([false, true]);
-    } finally { running = false; release?.(); await attached; }
+    const host: any = { live: {}, log: async () => {}, async settings() { if (replace) client.onEvent({ method: 'Runtime.executionContextsCleared' }); return {}; }, readiness: async () => {} };
+    const pending = attach(client, '/* fixture */', host).catch(error => error);
+    while (!host.frontendCommand) await Bun.sleep(1);
+    const command = host.frontendCommand; replace = true;
+    await expect(command({ deadline: Date.now() + 2000 }, true)).rejects.toThrow('Frontend changed');
+    expect(commands).toBe(0); close(); await pending;
 });
 
 for (const outcome of ['accepted', 'expired', 'exception', 'failed', 'outdated'] as const) test(`panel removal waits for successful reply acceptance: ${outcome}`, async () => {
@@ -162,4 +163,45 @@ for (const outcome of ['accepted', 'expired', 'exception', 'failed', 'outdated']
         removal: { acknowledged: () => { events.push('stop'); } } };
     await attach(client, '/* removal fixture */', host, () => running, [1]);
     expect(events).toEqual(outcome === 'accepted' ? ['cleanup', 'reply', 'stop'] : outcome === 'outdated' ? ['reply'] : ['cleanup', 'reply']);
+});
+
+test('on-demand health replaces remembered ready state when the renderer stops responding', async () => {
+    let close!: () => void, broken = false;
+    const client: any = { onEvent() {}, closed: new Promise<void>(resolve => { close = resolve; }), async call(method: string) {
+        if (method === 'Runtime.enable') this.onEvent({ method: 'Runtime.executionContextCreated', params: { context: { id: 1, auxData: { isDefault: true } } } });
+        if (broken) throw new Error('renderer unresponsive');
+        return { result: { value: true } };
+    } };
+    const host: any = { live: {}, log: async () => {}, settings: async () => ({}), readiness: async () => {} };
+    const pending = attach(client, '/* fixture */', host).catch(error => error);
+    while (host.live.state !== 'ready') await Bun.sleep(1);
+    broken = true; await host.refreshFrontend();
+    expect(host.live.state).toBe('unresponsive'); expect(host.live.control).toBe(false);
+    close(); await pending;
+});
+
+test('destroying the selected context injects an already discovered replacement', async () => {
+    let close!: () => void; const injections: number[] = [];
+    const client: any = { onEvent() {}, closed: new Promise<void>(resolve => { close = resolve; }), async call(_method: string, params: any) {
+        if (params?.expression?.includes('replacement fixture')) injections.push(params.contextId);
+        return { result: { value: true } };
+    } };
+    const host: any = { live: {}, log: async () => {}, settings: async () => ({}), readiness: async () => {} };
+    const pending = attach(client, '/* replacement fixture */', host, () => true, [1, 2]).catch(error => error);
+    while (host.live.state !== 'ready') await Bun.sleep(1);
+    client.onEvent({ method: 'Runtime.executionContextDestroyed', params: { executionContextId: 1 } });
+    while (injections.length < 2) await Bun.sleep(1);
+    expect(injections).toEqual([1, 2]);
+    close(); await pending;
+});
+
+test('disconnect during Runtime.enable observes lifecycle rejection and releases listeners', async () => {
+    let close!: () => void, unsubscribed = false;
+    const client: any = { onEvent() {}, closed: new Promise<void>(resolve => { close = resolve; }), async call() {
+        close(); await Promise.resolve(); throw new Error('closed during enable');
+    } };
+    const host: any = { live: {}, store: { subscribe: async () => () => { unsubscribed = true; } } };
+    await expect(attach(client, '/* fixture */', host)).rejects.toThrow('closed during enable');
+    expect(unsubscribed).toBe(true);
+    await Bun.sleep(1);
 });

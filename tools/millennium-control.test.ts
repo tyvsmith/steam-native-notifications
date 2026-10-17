@@ -1,8 +1,10 @@
+import { takeFrame, frame } from './lib/mep';
+import { decode, encode } from './lib/msgpack';
 import { expect, test } from 'bun:test';
-import { mkdtemp, writeFile, readFile, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { waitForReply, millenniumReadiness, mailboxRequest, refreshMillenniumSettings } from './lib/millennium-control';
+import { millenniumReadiness, pushRequest } from './lib/millennium-control';
 import { BUILD_IDENTITY } from '../shared/host';
 test('readiness requires matching build, protocol, hook and live control', () => {
     const good = { frontendBuild: BUILD_IDENTITY, hook: 'installed', control: true };
@@ -13,65 +15,31 @@ test('readiness requires matching build, protocol, hook and live control', () =>
     expect(millenniumReadiness(null).state).toBe('backend-running');
     expect(millenniumReadiness(null).capabilities.developerCommands).toBe(false);
 });
-test('file replies ignore unrelated IDs and partial writes and expire without inferring success', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'snn-reply-')); const path = join(root, 'reply');
-    try {
-        await writeFile(path, '{');
-        expect(await waitForReply(path, 'wanted', Date.now() + 15)).toBeNull();
-        await writeFile(path, JSON.stringify({ id: 'other', result: 'wrong' }));
-        expect(await waitForReply(path, 'wanted', Date.now() + 15)).toBeNull();
-        await writeFile(path, JSON.stringify({ id: 'wanted', result: 'measured' }));
-        expect((await waitForReply(path, 'wanted', Date.now() + 100)).result).toBe('measured');
-        expect(await waitForReply(path, 'wanted', Date.now() - 1)).toBeNull();
-    } finally { await rm(root, { recursive: true, force: true }); }
-});
-test('overlapping readiness callers have independent replies and clean up on success or timeout', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'snn-mailbox-'));
-    try {
-        const calls = [mailboxRequest('status', undefined, 1000, root), mailboxRequest('status', undefined, 1000, root)];
-        let requests: any[] = [];
-        for (let attempt = 0; attempt < 50; attempt++) {
-            requests = [];
-            for (const name of await readdir(root)) { try { requests.push(JSON.parse(await readFile(join(root, name, 'status'), 'utf8'))); } catch {} }
-            if (requests.length === 2) break;
-            await Bun.sleep(5);
-        }
-        expect(requests).toHaveLength(2);
-        for (const request of requests) await writeFile(join(root, request.id, 'result'), JSON.stringify({ id: request.id, hook: 'installed' }));
-        const results = await Promise.all(calls);
-        expect(new Set(results.map(r => r.id)).size).toBe(2);
-        expect(await readdir(root)).toEqual([]);
-        expect(await mailboxRequest('status', undefined, 15, root)).toBeNull();
-        expect(await readdir(root)).toEqual([]);
-    } finally { await rm(root, { recursive: true, force: true }); }
-});
-
-test('explicit refresh uses the existing mailbox and requires a refresh acknowledgement', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'snn-refresh-'));
-    const previous = process.env.XDG_CACHE_HOME;
-    process.env.XDG_CACHE_HOME = root;
-    try {
-        const mailbox = join(root, 'steam-native-notifications', '.control-requests');
-        for (const acknowledgement of [true, false, undefined]) {
-            const pending = refreshMillenniumSettings();
-            let request: any;
-            for (let attempt = 0; attempt < 100 && !request; attempt++) {
-                try {
-                    for (const name of await readdir(mailbox)) {
-                        try { request = JSON.parse(await readFile(join(mailbox, name, 'status'), 'utf8')); } catch {}
-                    }
-                } catch {}
-                if (!request) await Bun.sleep(5);
+test('push transport correlates overlapping replies, expires and deletes transient config keys', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'snn-push-'));
+    const socketPath = join(root, 'mep.sock'); const deleted: string[] = []; let respond = true;
+    const buffers = new Map<any, Uint8Array>();
+    const server = Bun.listen({ unix: socketPath, socket: {
+        data(socket, data) {
+            const got = takeFrame(Buffer.concat([buffers.get(socket) ?? new Uint8Array(), data]));
+            if (!got) { buffers.set(socket, data); return; }
+            const request: any = decode(got.body); const p = request.params;
+            let result: any = {};
+            if (request.method === 'plugin.config.delete') deleted.push(p.key);
+            if (request.method === 'plugin.config.set' && respond) {
+                const value = JSON.parse(p.value);
+                void writeFile(join(root, value.id, 'result'), JSON.stringify({ id: value.id, settingsRefreshed: true }));
             }
-            expect(request?.command).toBe('refresh-settings');
-            await writeFile(join(mailbox, request.id, 'result'), JSON.stringify({ id: request.id, settingsRefreshed: acknowledgement }));
-            const result = await pending;
-            expect(result.refreshed).toBe(acknowledgement === true);
-            if (!result.refreshed) expect(result.message).toContain('Settings saved');
-            expect(await readdir(mailbox)).toEqual([]);
-        }
-    } finally {
-        if (previous === undefined) delete process.env.XDG_CACHE_HOME; else process.env.XDG_CACHE_HOME = previous;
-        await rm(root, { recursive: true, force: true });
-    }
+            socket.end(frame(encode({ id: request.id, error: null, result })));
+        }, close(socket) { buffers.delete(socket); },
+    } });
+    try {
+        const replies = await Promise.all([pushRequest('status', undefined, 1000, root, { socketPath }), pushRequest('status', 'refresh-settings', 1000, root, { socketPath })]);
+        expect(replies.every(r => r?.settingsRefreshed)).toBe(true);
+        expect(new Set(replies.map(r => r.id)).size).toBe(2);
+        expect(deleted).toEqual(['snnControl', 'snnControl']);
+        respond = false;
+        expect(await pushRequest('dev', {}, 30, root, { socketPath })).toBeNull();
+        expect((await readdir(root)).filter(n => n !== 'mep.sock')).toEqual([]);
+    } finally { server.stop(true); await rm(root, { recursive: true, force: true }); }
 });

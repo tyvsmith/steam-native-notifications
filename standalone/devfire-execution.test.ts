@@ -17,7 +17,7 @@ async function fixture() {
     if (!built.success) throw new Error(built.logs.join('\n'));
     const context: any = createContext({ Date, setTimeout, setInterval: (fn: any) => { context.tick = fn; return 1; }, clearInterval: () => {}, invoked: 0, SteamClient: {}, module: { exports: {} }, surface: async () => ({ focusedAppId: 0 }) }); context.window = context;
     runInContext(await built.outputs[0]!.text(), context); const api = context.module.exports;
-    const receipts: any[] = []; const stop = api.startDevFirePoll(async (id: string, result: any) => { receipts.push({id,result}); });
+    const receipts: any[] = []; const stop = api.startDevControl();
     const request = (command: any, ms = 1000) => ({ id: 'fixture', createdAt: Date.now(), deadline: Date.now() + ms, command });
     return { context, api, stop, request, receipts };
 }
@@ -42,34 +42,29 @@ test('overlay diagnostics propagate missing/rejected API and return measured suc
         const success = await f.context.__snnDevControl(request()); expect(success.ok).toBe(true); expect(success.value.stage).toBe('executed'); expect(success.value.value).toEqual({ browsers: [123] });
     } finally { f.stop(); }
 });
-test('Millennium poll acknowledges fixed samples with developer commands disabled', async () => {
+test('pushed fixed samples work with developer commands disabled and reject expiry', async () => {
     const f = await fixture(); let invoked = 0;
     f.context.enabled = false;
     f.context.NotificationStore = { TestFriendOnline: () => { invoked++; } };
     const envelope = f.request({ call: 'TestIncomingVoiceChat', args: [] });
-    f.context.pending = { TakeSampleCommand: JSON.stringify(envelope) };
     try {
-        await f.context.tick();
-        expect(invoked).toBe(1);
-        expect(f.receipts[0].id).toBe(envelope.id);
-        expect(f.receipts[0].result.value.stage).toBe('executed');
-        f.context.pending.TakeSampleCommand = JSON.stringify({ ...envelope, deadline: Date.now() - 1 });
-        await f.context.tick(); expect(invoked).toBe(1); expect(f.receipts[1].result.ok).toBe(false);
+        const result = await f.context.__snnDevControl(envelope, true);
+        expect(invoked).toBe(1); expect(result.value.stage).toBe('executed');
+        const expired = await f.context.__snnDevControl({ ...envelope, deadline: Date.now() - 1 }, true);
+        expect(invoked).toBe(1); expect(expired.ok).toBe(false);
     } finally { f.stop(); }
 });
 
-test('idle and developer command ticks never reload saved settings', async () => {
+test('developer execution never reloads saved settings or installs idle polling', async () => {
     const f = await fixture(); let invoked = 0;
     f.context.enabled = false; f.context.savedEnabled = true;
     f.context.NotificationStore = { TestFriendOnline: () => { invoked++; } };
-    f.context.pending = { TakeDevCommand: JSON.stringify(f.request({ call: 'TestFriendOnline', args: [] })) };
     try {
-        await f.context.tick(); await f.context.tick();
-        expect(f.context.enabled).toBe(false); expect(invoked).toBe(0);
+        expect(f.context.tick).toBeUndefined();
         await expect(f.api.executeDevCommand(f.request({ call: 'TestFriendOnline', args: [] }))).rejects.toThrow('disabled');
-        // Explicit refresh/panel writes update the snapshot outside this poll.
+        expect(f.context.enabled).toBe(false); expect(invoked).toBe(0);
         f.context.enabled = true; f.context.savedEnabled = false;
-        await f.context.tick(); expect(invoked).toBe(1);
-        expect(f.context.enabled).toBe(true);
+        await f.api.executeDevCommand(f.request({ call: 'TestFriendOnline', args: [] }));
+        expect(invoked).toBe(1); expect(f.context.enabled).toBe(true);
     } finally { f.stop(); }
 });

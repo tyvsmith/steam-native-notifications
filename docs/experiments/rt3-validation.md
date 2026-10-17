@@ -302,3 +302,13 @@ version 0.1.0, Bun 1.4.3, native Linux RT3 on Hyprland.
 
 Fixtures, protocol invocation and helper acknowledgement do not replace these
 visible user journeys. This is a local test candidate, not a release-readiness claim.
+
+## Push runtime follow-up
+
+- replace idle configuration, panel, command, click and health polling with push
+- cover idle silence, external atomic config replacement, watcher failure,
+  context replacement, startup disconnect and panel reply ordering in fixtures
+- verify Millennium request/reply transport against a stub MEP server and the
+  SDK source; live Millennium push remains unverified
+- keep earlier live results scoped to their installed builds; this follow-up
+  has not been installed or tested against live Steam

@@ -41,11 +41,11 @@ test('identity selects MostRecent and preserves exact Steam IDs', async () => {
 });
 test('Millennium command queue remains untouched even after standalone dev opt-in', async () => {
     const { root, host } = await fixture(); const command = join(host.runtime, '.dev-fire'); await writeFile(command, '{"call":"test"}');
-    expect(await host.dispatch('TakeDevCommand', [])).toBe('');
+    await expect(host.dispatch('TakeDevCommand', [])).rejects.toThrow('Unsupported method');
     await writeFile(join(root, 'settings.json'), '{"devFire":true}');
-    expect(await host.dispatch('TakeDevCommand', [])).toBe('');
+    await expect(host.dispatch('TakeDevCommand', [])).rejects.toThrow('Unsupported method');
     expect(await readFile(command, 'utf8')).toBe('{"call":"test"}');
-    expect(await host.dispatch('TakeDevCommand', [])).toBe('');
+    await expect(host.dispatch('TakeDevCommand', [])).rejects.toThrow('Unsupported method');
 });
 test('standalone logs do not truncate Millennium plugin logs', async () => {
     const { host } = await fixture(); const path = join(host.runtime, 'plugin.log'); await writeFile(path, 'previous');

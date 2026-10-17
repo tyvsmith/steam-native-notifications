@@ -127,7 +127,7 @@ test('commands apply newly saved settings to the real runtime before the polling
         if (!params?.expression) return {};
         return { result: { value: await runInContext(params.expression, f.context) } };
     } };
-    const host: any = { live: {}, settings: async () => (await store.read()).values, log: async () => {},
+    const host: any = { store, live: {}, settings: async () => (await store.read()).values, log: async () => {},
         async readiness() {
             const command = () => host.frontendCommand({ id: crypto.randomUUID(), createdAt: Date.now(), deadline: Date.now() + 2000, command: { call: 'TestFriendOnline', args: [] } }, true);
             await store.update({ integrationEnabled: true });

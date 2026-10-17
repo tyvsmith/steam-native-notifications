@@ -2,35 +2,39 @@ import { expect, test } from 'bun:test';
 import { runInNewContext } from 'node:vm';
 import { resolve } from 'node:path';
 import { BUILD_IDENTITY } from '../shared/host';
-test('actual frontend answers only live challenges and reports failures without throwing', async () => {
-    const built = await Bun.build({ entrypoints: [resolve('frontend/millennium-diagnostics.ts')], target: 'browser', format: 'cjs', plugins: [{ name: 'ffi-fixture', setup(build) {
+test('pushed requests are fenced by expiry and frontend lifetime without idle timers', async () => {
+    const built = await Bun.build({ entrypoints: [resolve('frontend/millennium-diagnostics.ts')], target: 'browser', format: 'cjs', plugins: [{ name: 'fixture', setup(build) {
         build.onResolve({ filter: /^millennium$/ }, () => ({ path: 'ffi', namespace: 'fixture' }));
         build.onResolve({ filter: /^\.\/settings$/ }, args => args.importer.endsWith('/frontend/millennium-diagnostics.ts') ? ({ path: 'settings', namespace: 'fixture' }) : undefined);
         build.onLoad({ filter: /.*/, namespace: 'fixture' }, args => ({ contents: args.path === 'settings' ? 'export const settingsHost = { read: () => globalThis.reload() };' : 'export const ffi = name => (...args) => globalThis.call(name, args);', loader: 'js' }));
     } }] });
     expect(built.success).toBe(true);
-    let tick!: () => Promise<void>; let request: any; let fail = false;
-    const replies: any[] = []; let reads = 0; let reloadFailure = false;
-    const context: any = { module: { exports: {} }, Date, setInterval: (fn: any) => { tick = fn; return 1; }, clearInterval() {}, __snnHookState: 'installed', __snnDevControl() {},
-        reload: async () => { reads++; if (reloadFailure) throw Error('offline'); },
-        call: async (name: string, args: string[]) => { if (fail) throw Error('offline'); if (name === 'TakeDiagnosticCommand') { const next = request; request = null; return JSON.stringify(next); } replies.push([args[0], JSON.parse(args[1]!)]); return 'ok'; } };
+    const replies: any[] = []; let reads = 0; let release: (() => void) | undefined;
+    const context: any = { module: { exports: {} }, Date, __snnHookState: 'installed', __snnDevControl: async () => ({ ok: true }),
+        reload: () => { reads++; return new Promise<void>(resolve => { release = resolve; }); },
+        call: async (_name: string, args: string[]) => { replies.push(JSON.parse(args[1]!)); } };
     runInNewContext(await built.outputs[0]!.text(), context);
     const api = context.module.exports; const stop = api.startMillenniumDiagnostics();
-    request = { id: 'expired', deadline: Date.now() - 1 }; await tick(); expect(replies).toHaveLength(0);
-    request = { id: 'fresh', deadline: Date.now() + 1000 }; await tick();
-    expect(replies[0]).toEqual(['status', { id: 'fresh', frontendBuild: BUILD_IDENTITY, hook: 'installed', control: true }]);
-    await api.reportCommandResult('command', { ok: false, error: 'refused' });
-    expect(replies[1][1]).toEqual({ id: 'command', result: { ok: false, error: 'refused' } });
-    await tick(); expect(reads).toBe(0); // Empty/status polls do not read config.
-    request = { id: 'refresh', command: 'refresh-settings', deadline: Date.now() + 1000 }; await tick();
-    expect(reads).toBe(1); expect(replies[2][1]).toMatchObject({ id: 'refresh', settingsRefreshed: true });
-    reloadFailure = true;
-    request = { id: 'failed-refresh', command: 'refresh-settings', deadline: Date.now() + 1000 }; await tick();
-    expect(replies[3][1]).toMatchObject({ id: 'failed-refresh', settingsRefreshed: false });
-    request = { id: 'expired-refresh', command: 'refresh-settings', deadline: Date.now() - 1 }; await tick();
-    expect(reads).toBe(2);
-    fail = true; await tick(); await api.reportCommandResult('ignored', {});
-    fail = false; stop(); await tick(); expect(replies).toHaveLength(4);
+    const send = (r: any) => api.receiveControl(JSON.stringify({ kind: 'status', deadline: Date.now() + 1000, ...r }));
+    send({ id: 'expired', deadline: Date.now() - 1 });
+    expect(replies).toHaveLength(0);
+    expect(send({ id: 'fresh' })).toBeUndefined();
+    expect(replies[0]).toMatchObject({ id: 'fresh', frontendBuild: BUILD_IDENTITY, hook: 'installed', control: true });
+    expect(reads).toBe(0);
+    send({ id: 'refresh', command: 'refresh-settings' });
+    expect(reads).toBe(1); release!(); await Bun.sleep(0);
+    expect(replies[1]).toMatchObject({ id: 'refresh', settingsRefreshed: true });
+    context.reload = async () => { throw Error('offline'); };
+    send({ id: 'failed-refresh', command: 'refresh-settings' }); await Bun.sleep(0);
+    expect(replies[2]).toMatchObject({ id: 'failed-refresh', settingsRefreshed: false });
+    context.reload = () => new Promise<void>(resolve => { release = resolve; });
+    send({ id: 'expired-refresh', command: 'refresh-settings', deadline: Date.now() + 5 });
+    await Bun.sleep(10); release!(); await Bun.sleep(0); expect(replies).toHaveLength(3);
+    send({ id: 'stopped-refresh', command: 'refresh-settings' });
+    stop(); release!(); await Bun.sleep(0); expect(replies).toHaveLength(3);
+    send({ id: 'stopped' }); expect(replies).toHaveLength(3);
+    const stopNext = api.startMillenniumDiagnostics();
+    send({ id: 'next' }); expect(replies[3]?.id).toBe('next'); stopNext();
 });
 
 test('host adapters keep plugin-scoped SDK references as direct calls for Starlight', async () => {

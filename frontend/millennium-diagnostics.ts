@@ -1,37 +1,41 @@
 import { ffi } from 'millennium';
-import { BUILD_IDENTITY, parseCallableJson } from '../shared/host';
+import { BUILD_IDENTITY } from '../shared/host';
 import { safeJson } from './log';
 import { settingsHost } from './settings';
 
-const take = ffi<[], string>('TakeDiagnosticCommand');
 const report = ffi<[string, string], string>('ReportDiagnostic');
-/** Transport replies are best effort and must never interrupt notification capture. */
-export async function reportCommandResult(id: string, result: unknown): Promise<void> {
-    try { await report('command', safeJson({ id, result })); } catch { /* caller times out as unconfirmed */ }
-}
-export function startMillenniumDiagnostics(): () => void {
-    let active = true, pending = false;
-    const timer = setInterval(async () => {
-        if (!active || pending) return;
-        pending = true;
-        try {
-            for (let count = 0; count < 16; count++) {
-                const request = parseCallableJson<any>(await take(), null);
-                if (!request) break;
-                if (!active) return;
-                if (typeof request?.id !== 'string' || !Number.isSafeInteger(request.deadline) || request.deadline <= Date.now()) continue;
-                let refresh: { settingsRefreshed?: boolean; error?: string } = {};
-                if (request.command === 'refresh-settings') {
-                    try { await settingsHost.read(); refresh = { settingsRefreshed: true }; }
-                    catch { refresh = { settingsRefreshed: false, error: 'Settings reload failed' }; }
-                    if (!active || request.deadline <= Date.now()) continue;
-                }
-                const root = globalThis as any;
-                await report('status', safeJson({ id: request.id, frontendBuild: BUILD_IDENTITY,
-                    hook: root.__snnHookState ?? 'unknown', control: typeof root.__snnDevControl === 'function', ...refresh }));
+let generation = 0;
+let active = false;
+
+/** Called through Millennium's plugin export table, in this plugin's isolated world. */
+async function handleControl(payload: string): Promise<void> {
+    const epoch = generation;
+    try {
+        const request = JSON.parse(payload);
+        const live = () => active && epoch === generation && Number.isSafeInteger(request.deadline) && request.deadline > Date.now();
+        if (!live() || typeof request.id !== 'string') return;
+        if (request.kind === 'status') {
+            let refresh: { settingsRefreshed?: boolean; error?: string } = {};
+            if (request.command === 'refresh-settings') {
+                try { await settingsHost.read(); refresh = { settingsRefreshed: true }; }
+                catch { refresh = { settingsRefreshed: false, error: 'Settings reload failed' }; }
             }
-        } catch { /* status remains unconfirmed when the bridge is unavailable */ }
-        finally { pending = false; }
-    }, 1000);
-    return () => { active = false; clearInterval(timer); };
+            if (!live()) return;
+            const root = globalThis as any;
+            await report('status', safeJson({ id: request.id, frontendBuild: BUILD_IDENTITY,
+                hook: root.__snnHookState ?? 'unknown', control: typeof root.__snnDevControl === 'function', ...refresh }));
+        } else if (request.kind === 'sample' || request.kind === 'dev') {
+            const result = await (globalThis as any).__snnDevControl?.(request, request.kind === 'sample');
+            if (live()) await report('command', safeJson({ id: request.id, result: result ?? { ok: false, error: 'Frontend control unavailable' } }));
+        }
+    } catch { /* A failed push leaves the caller unconfirmed. */ }
 }
+
+export function startMillenniumDiagnostics(): () => void {
+    const epoch = ++generation;
+    active = true;
+    return () => { if (epoch === generation) { active = false; generation++; } };
+}
+
+/** Return before frontend RPC reports back to the backend event loop. */
+export function receiveControl(payload: string): void { void handleControl(payload); }

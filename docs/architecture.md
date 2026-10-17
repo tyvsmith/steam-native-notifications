@@ -28,12 +28,12 @@ presentation, replay, durable routes and the Linux notification helper.
 | Frontend loading and RPC | plugin loader and FFI | loopback CEF CDP and binding adapter |
 | Preferences | per-key plugin config | serialized atomic JSON store |
 | Settings UI | plugin panel | section in Steam Notifications settings |
-| Developer commands | MEP discovery, expiring file queue and correlated frontend replies | private Unix socket and correlated frontend execution |
+| Developer commands | MEP config-change push, exported frontend handler and correlated replies | private Unix socket and correlated frontend execution |
 | Installation | packed `.star` | Bun-owned application package, user service and autostart |
 
 `shared/settings-policy.ts` owns visibility, dependent-control availability and preference
 reset rules. Standalone test commands apply the latest saved preferences before
-execution; a delayed polling read cannot replace that snapshot. Renderers and
+execution; serialized pushes cannot replace it with an older snapshot. Renderers and
 storage stay with their hosts. An optional Steam panel
 failure does not stop notification capture; offline config recovery uses the CLI.
 
@@ -42,7 +42,7 @@ failure does not stop notification capture; offline config recovery uses the CLI
 requires a fresh challenge reply with the expected frontend build, an installed
 hook and live command control. Backend availability alone leaves actions disabled.
 Command receipts carry the request ID and distinguish execution from an
-unacknowledged queue. They do not prove capture or visible desktop delivery.
+unconfirmed delivery. They do not prove capture or visible desktop delivery.
 The standalone section appends inside Steam's existing Notifications scroll
 body, with an error boundary around only the extension. The private seam wraps
 the observed synchronous page function in a stable component per native type,
@@ -132,6 +132,32 @@ only when OS delivery is enabled, and set `SuppressPopup` before WinRT `Show`.
 Linux ignores those preferences. Steam's capture surface can lag after
 alt-tab, so an explicitly silent game-context copy can remain silent there.
 
+## Push and recovery
+
+Neither host polls settings, commands, clicks or health while idle.
+
+- Standalone watches the configuration directory so atomic file replacements
+  remain observable; successful writes also publish directly
+- CDP context and disconnect events drive attachment and recovery
+- The Steam panel subscribes to pushed settings and host state
+- Explicit status requests probe responsiveness; stored connection state alone
+  does not prove an idle renderer is responsive
+- Millennium receives control requests through its backend config-change
+  callback, then invokes the plugin's exported frontend handler
+- Request-scoped file watchers receive correlated Millennium replies; expired
+  requests and unloaded frontends cannot acknowledge execution
+
+Millennium's config-change callback and frontend export invocation bypass the
+main-world config subscription that missed updates in the isolated plugin.
+The CLI transport owns its temporary config entry and reply directory. Stored
+requests are never replayed at startup.
+
+Timers remain for request deadlines, disconnected/startup retries, waiting for
+a dialog to close, toast painting and click-triggered window creation. These
+flows stop when completed or disposed; there is no recurring healthy-idle tick.
+A dead transport cannot push its own failure into the panel. The next action or
+status request detects that failure.
+
 ## The click path
 
 At capture, `replay.ts` walks the toast's tree: find the first fiber
@@ -183,9 +209,8 @@ a proved handler nor a fallback is inert. Group chat has exact replay only: its
 room dispatcher requires a toast's session-only browser context, with no
 verified replacement after a restart. Desktop fallback awaits window creation
 and Steam's dispatch result before requesting Windows focus; a failed dispatch
-or window timeout does not request focus. The session-long click-file poll
-remains only as a legacy/test input; its 30-second age check does not limit URL
-activation.
+or window timeout does not request focus. Clicks arrive through the URL handler;
+the legacy click-file input and its polling bridge have been removed.
 
 The replay stash holds the latest 256 chosen closures for the Steam session;
 it has no time expiry. The cap is a memory bound, not a click-lifetime policy.
@@ -265,7 +290,6 @@ appends there too when it refuses a platform:
 | `click-bridge: no verified fallback token=<prefix>` | replay was unavailable and no safe route exists |
 | `steam-url: registered steam://steam-native-notifications/notification/<payload>` | the canonical activation handler attached |
 | `steam-url: click token=<prefix>` | the OS activation URL decoded and entered dispatch |
-| `click-bridge: stale click dropped (Ns old)` | a legacy/test click-file input was older than 30s |
 | `replay: invoke <name> onClick@D age=Ns` then `-> returned without throwing` | the click ran |
 | `replay: invoke ... -> no stash entry / THREW ...` | why exact replay did not run |
 | `focus: raised kind=<main\|chat> ... target=...` | Windows pulsed the selected Steam window after dispatch |
@@ -339,10 +363,10 @@ action.
 - Settings are per-key values in Millennium's config store (`usePluginConfig`
   in the panel, `pluginConfig`/`subscribePluginConfig` behind `settings()`);
   successful panel writes update the runtime snapshot immediately. CLI writes
-  request one explicit reload through the existing diagnostic mailbox and
-  report whether the live frontend acknowledged it. Idle readiness/developer
-  polls do not read settings. Missing settings use defaults; obsolete development settings have
-  no migration path.
+  request one explicit reload through the push control channel and report
+  whether the live frontend acknowledged it. No idle settings or command poll
+  runs. Missing settings use defaults; obsolete development settings have no
+  migration path.
 
 ## Testing methodology, which is easy to get wrong
 

@@ -4,7 +4,7 @@ import { preferencePatch, preferenceDefaults } from '../shared/settings-policy';
 import { runtimeRoot } from './runtime-paths';
 import { configStore, type ConfigStore } from './config-store';
 import { rotatingLog } from './log';
-import { mkdir, readFile, readdir, realpath, unlink } from 'node:fs/promises';
+import { mkdir, readFile, readdir, realpath } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { DEFAULTS, normalizeSettings } from '../shared/settings';
@@ -23,6 +23,7 @@ export class Host {
     readonly store: ConfigStore;
     live: any = { state: 'disconnected', frontendBuild: null, hook: 'unknown' };
     removal?: { remove(): Promise<unknown>; acknowledged(): void };
+    refreshFrontend?: () => Promise<void>;
     frontendCommand?: (envelope: any, sample: boolean) => Promise<unknown>;
     readonly logPath: string;
     private writeLog: (line: string) => Promise<void>;
@@ -38,10 +39,6 @@ export class Host {
 
     }
     async settings(): Promise<Record<string, boolean>> { return (await this.store.read()).values; }
-    private async consume(name: string): Promise<string> {
-        try { const path = join(this.runtime, name); const value = await readFile(path, 'utf8'); await unlink(path); return value; }
-        catch { return ''; }
-    }
     async dispatch(method: string, args: unknown[]): Promise<string> {
         switch (method) {
             case 'PanelRemove':
@@ -49,6 +46,7 @@ export class Host {
                 return JSON.stringify(await this.removal.remove());
             case 'PanelRead':
                 if (args.length) break;
+                await this.refreshFrontend?.();
                 return JSON.stringify({ config: await this.store.read(), state: this.live.state,
                     compatible: this.live.frontendBuild?.buildId === BUILD_IDENTITY.buildId && this.live.control === true,
                     hook: this.live.hook, build: BUILD_IDENTITY });
@@ -61,6 +59,7 @@ export class Host {
             case 'PanelSample':
                 if (args.length) break;
                 return JSON.stringify(await controlHandler(this)({ id: crypto.randomUUID(), operation: 'sample', deadline: Date.now() + 4000 }));
+            case 'FrontendState': if (args.length) break; await this.refreshFrontend?.(); return 'ok';
             case 'Health': if (args.length) break; return 'ok';
             case 'Platform': if (args.length) break; return 'linux';
             case 'Log': if (args.length !== 1 || typeof args[0] !== 'string') break; await this.log(args[0]); return 'ok';
@@ -72,9 +71,6 @@ export class Host {
                 } catch { return '{}'; }
             }
             case 'FocusSteam': return 'unsupported'; // Linux focus is performed inside Steam's existing dispatcher.
-            case 'TakeSampleCommand': if (args.length) break; return ''; // samples arrive through private control
-            case 'TakeClick': if (args.length) break; return this.consume('.click');
-            case 'TakeDevCommand': if (args.length) break; return ''; // Millennium owns .dev-fire; standalone uses private control exclusively.
             case 'GameHostFocus': {
                 const appid = args[0];
                 if (args.length !== 1 || typeof appid !== 'number' || !Number.isInteger(appid) || appid <= 0 || appid > 0xffffffff) return 'unknown';

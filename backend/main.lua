@@ -505,56 +505,26 @@ local function publish_steam_dir()
     os.remove(STEAM_DIR_FILE)
 end
 
---- Consume-once file handoff: the file is deleted before its content is
---- returned, so a command acts once, not once per poll.
-local function consume(path)
-    local handle = io.open(path, "r")
-    if not handle then return "" end
-    local content = handle:read("*a") or ""
-    handle:close()
-    os.remove(path)
-    return content
-end
-
 local function request_id(value)
     return type(value) == "string" and #value == 36 and value:match("^[%x%-]+$") ~= nil
 end
 
-local function consume_request(kind)
-    local root = join(RUNTIME_DIR, ".control-requests")
-    local ok, entries = pcall(fs.list, root)
-    if not ok or type(entries) ~= "table" then return "" end
-    for _, entry in ipairs(entries) do
-        if request_id(entry.name) then
-            local content = consume(join(root, entry.name, kind))
-            if content ~= "" then return content end
-        end
+local stop_control
+local function start_control()
+    if not millennium.config or type(millennium.config.on_change) ~= "function" then
+        log_line("error", "control: Millennium config push API unavailable")
+        return
     end
-    return ""
-end
-
---- Dev trigger: tools/fire writes RUNTIME_DIR/.dev-fire; the frontend polls
---- this callable and executes the named NotificationStore test method.
----@ffi
----@return string
-function TakeDevCommand()
-    local queued = consume_request("dev")
-    return queued ~= "" and queued or consume(join(RUNTIME_DIR, ".dev-fire"))
-end
-
---- Fixed sample door: frontend ignores any supplied method/arguments.
----@ffi
----@return string
-function TakeSampleCommand()
-    local queued = consume_request("sample")
-    return queued ~= "" and queued or consume(join(RUNTIME_DIR, ".sample"))
-end
-
---- Readiness challenges, explicit settings reloads and correlated local replies.
----@ffi
----@return string
-function TakeDiagnosticCommand()
-    return consume_request("status")
+    -- Subscribe only to new changes; never execute persisted requests on load.
+    stop_control = millennium.config.on_change(function(key, value)
+        if key ~= "snnControl" or type(value) ~= "string" or #value > 65536 then return end
+        local ok, request = pcall(json.decode, value)
+        if not ok or type(request) ~= "table" or not request_id(request.id)
+            or type(request.deadline) ~= "number" or request.deadline <= os.time() * 1000
+            or (request.kind ~= "status" and request.kind ~= "sample" and request.kind ~= "dev") then return end
+        pcall(millennium.config.delete, "snnControl")
+        pcall(millennium.call_frontend_method, "receiveControl", {value})
+    end)
 end
 
 ---@ffi
@@ -574,16 +544,6 @@ function ReportDiagnostic(kind, payload)
     handle:write(payload)
     handle:close()
     return "ok"
-end
-
---- Legacy/test click handoff: production helpers launch or store the canonical
---- Steam notification URL, which frontend/steamurl.ts validates before shared
---- dispatch. This consume-once input remains for compatibility and focused
---- tests; live focus still selects the dispatch surface.
----@ffi
----@return string
-function TakeClick()
-    return consume(join(RUNTIME_DIR, ".click"))
 end
 
 --- Steam tracks focus inside nested Gamescope, not necessarily its host window.
@@ -638,10 +598,12 @@ local function on_load()
         end
     end
 
+    start_control()
     millennium.ready()
 end
 
 local function on_unload()
+    if stop_control then stop_control(); stop_control = nil end
     log_line("info", "backend unloaded")
 end
 
