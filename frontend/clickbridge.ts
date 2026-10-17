@@ -41,7 +41,7 @@ const OPENURL_PREFIX = 'steam://openurl/';
 let timer: number | null = null;
 
 function requestFocus(kind: FocusKind): void {
-	void focusSteam(kind).catch((e: unknown) => dlog(`focus request failed: ${(e as Error)?.message ?? e}`));
+	void focusSteam(kind).catch((e: unknown) => dlog(`focus request failed: (enable verboseDiagnostics for details)`, () => `focus request failed: ${(e as Error)?.message ?? e}`));
 }
 
 /**
@@ -62,14 +62,14 @@ async function ensureMainWindow(): Promise<boolean> {
 			}
 		}
 	} catch (e) {
-		dlog(`click-bridge: raise failed: ${(e as Error)?.message ?? e}`);
+		dlog(`click-bridge: raise failed: (enable verboseDiagnostics for details)`, () => `click-bridge: raise failed: ${(e as Error)?.message ?? e}`);
 	}
 	try {
 		dlog('click-bridge: main window closed; opening it');
 		const sc: any = Reflect.get(globalThis, 'SteamClient');
 		await sc?.URL?.ExecuteSteamURL?.('steam://open/main');
 	} catch (e) {
-		dlog(`click-bridge: open main failed: ${(e as Error)?.message ?? e}`);
+		dlog(`click-bridge: open main failed: (enable verboseDiagnostics for details)`, () => `click-bridge: open main failed: ${(e as Error)?.message ?? e}`);
 	}
 	return false;
 }
@@ -135,7 +135,7 @@ async function runActionToken(appid: number, route: string): Promise<boolean> {
 		// door instead. Both observed.
 		opened = await (appid === 0 ? openPlaytimeDialog(0) : openDialogInOverlay(appid, 'requestplaytime'));
 	} else {
-		dlog(`click-bridge: unbridgeable action ${route}`);
+		dlog('click-bridge: unbridgeable action', () => `click-bridge: unbridgeable action ${route}`);
 		return false;
 	}
 	if (!opened) dlog(`click-bridge: ${surface} door failed`);
@@ -152,10 +152,10 @@ function desktopClick(route: string): Promise<boolean> {
 		try {
 			const sc: any = Reflect.get(globalThis, 'SteamClient');
 			if (typeof sc?.URL?.ExecuteSteamURL !== 'function') return false;
-			dlog(`click-bridge: desktop ${route}`);
+			dlog('click-bridge: desktop dispatch', () => `click-bridge: desktop ${route}`);
 			return (await sc.URL.ExecuteSteamURL(route)) !== false;
 		} catch (e) {
-			dlog(`click-bridge: navigate failed: ${(e as Error)?.message ?? e}`);
+			dlog(`click-bridge: navigate failed: (enable verboseDiagnostics for details)`, () => `click-bridge: navigate failed: ${(e as Error)?.message ?? e}`);
 			return false;
 		}
 	});
@@ -201,10 +201,10 @@ async function dispatchFallback(focusedAppId: number, route: string): Promise<bo
 	} else if (OVERLAY_SETTINGS_ROUTES.has(route)) {
 		opened = await openDialogInOverlay(focusedAppId, 'settings');
 	} else if (route.startsWith('steam://nav/')) {
-		dlog(`click-bridge: inert in-game, mirrors Steam: ${route}`);
+		dlog('click-bridge: inert in-game, mirrors Steam', () => `click-bridge: inert in-game, mirrors Steam: ${route}`);
 		return true;
 	} else {
-		dlog(`click-bridge: unbridgeable route ${route}`);
+		dlog('click-bridge: unbridgeable route', () => `click-bridge: unbridgeable route ${route}`);
 		return false;
 	}
 	if (!opened) dlog('click-bridge: overlay door failed');
@@ -239,7 +239,7 @@ export async function dispatchClick(envelope: ClickEnvelope): Promise<void> {
 			dlog(`click-bridge: no verified fallback token=${envelope.token.slice(0, 8)}`);
 			return;
 		}
-		dlog(`click-bridge: fallback ${envelope.fallback}`);
+		dlog('click-bridge: fallback dispatch', () => `click-bridge: fallback ${envelope.fallback}`);
 		if (
 			(await dispatchFallback(focusedAppId, envelope.fallback)) &&
 			(focusedAppId === 0 || isDesktopOnlyRoute(envelope.fallback))
@@ -247,7 +247,7 @@ export async function dispatchClick(envelope: ClickEnvelope): Promise<void> {
 			requestFocus(envelope.focus);
 		}
 	} catch (e) {
-		dlog(`click-bridge failed: ${(e as Error)?.message ?? e}`);
+		dlog(`click-bridge failed: (enable verboseDiagnostics for details)`, () => `click-bridge failed: ${(e as Error)?.message ?? e}`);
 	}
 }
 
@@ -263,7 +263,7 @@ export function startClickBridge(): void {
 			const stamp = sep > 0 ? Number(taken.slice(0, sep)) : NaN;
 			const payload = sep > 0 ? taken.slice(sep + 1) : '';
 			if (!Number.isFinite(stamp) || !payload) {
-				dlog(`click-bridge: unstamped click dropped: ${taken.slice(0, 120)}`);
+				dlog('click-bridge: unstamped click dropped', () => `click-bridge: unstamped click dropped: ${taken.slice(0, 120)}`);
 				return;
 			}
 			const age = Math.round(Date.now() / 1000 - stamp);
@@ -273,12 +273,12 @@ export function startClickBridge(): void {
 			}
 			const envelope = decodeClickPayload(payload);
 			if (!envelope) {
-				dlog(`click-bridge: malformed payload dropped: ${payload.slice(0, 80)}`);
+				dlog('click-bridge: malformed payload dropped', () => `click-bridge: malformed payload dropped: ${payload.slice(0, 80)}`);
 				return;
 			}
 			await dispatchClick(envelope);
 		} catch (e) {
-			dlog(`click-bridge poll failed: ${(e as Error)?.message ?? e}`);
+			dlog(`click-bridge poll failed: (enable verboseDiagnostics for details)`, () => `click-bridge poll failed: ${(e as Error)?.message ?? e}`);
 		}
 	}, CLICK_POLL_MS);
 }

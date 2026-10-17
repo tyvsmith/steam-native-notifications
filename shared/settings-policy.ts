@@ -11,7 +11,7 @@ export function visibleSettings(values: Settings, platform: Platform, schema = S
 export function preferencePatch(input: unknown, current: Settings, platform: Platform): Partial<Settings> {
     const patch = validateSettingsPatch(input);
     for (const key of Object.keys(patch) as SettingKey[]) {
-        if (!settingSupported(key, platform) || key === 'devMode' || (SETTINGS_SCHEMA[key].developer && !current.devMode)) throw new Error(`Setting unavailable: ${key}`);
+        if (!settingSupported(key, platform) || key === 'devMode' || (SETTINGS_SCHEMA[key].developer && key !== 'verboseDiagnostics' && !current.devMode)) throw new Error(`Setting unavailable: ${key}`);
     }
     return patch;
 }

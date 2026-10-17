@@ -550,7 +550,7 @@ function TakeSampleCommand()
     return queued ~= "" and queued or consume(join(RUNTIME_DIR, ".sample"))
 end
 
---- Read-only challenge and correlated execution receipts for local tools.
+--- Readiness challenges, explicit settings reloads and correlated local replies.
 ---@ffi
 ---@return string
 function TakeDiagnosticCommand()

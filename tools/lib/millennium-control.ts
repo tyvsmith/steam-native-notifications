@@ -25,6 +25,14 @@ export async function mailboxRequest(kind: 'status' | 'sample' | 'dev', command:
 export async function probeMillennium(): Promise<any | null> {
     return mailboxRequest('status', undefined, 3500);
 }
+/** A saved config write and a confirmed live reload are separate outcomes. */
+export async function refreshMillenniumSettings(): Promise<{ refreshed: boolean; message: string }> {
+    try {
+        const reply = await mailboxRequest('status', 'refresh-settings', 3500);
+        if (reply?.settingsRefreshed === true) return { refreshed: true, message: 'Running settings refreshed' };
+    } catch { /* The config is already saved; do not imply the write failed. */ }
+    return { refreshed: false, message: 'Settings saved; live reload unconfirmed. Reopen plugin settings or restart Steam.' };
+}
 export function millenniumReadiness(reply: any): { state: string; frontendBuild: any; hook: string; control: boolean; action: string | null; capabilities: { settingsWrite: boolean; sample: boolean; developerCommands: boolean } } {
     const compatible = reply?.frontendBuild?.buildId === BUILD_IDENTITY.buildId && reply?.frontendBuild?.protocolVersion === BUILD_IDENTITY.protocolVersion;
     const ready = compatible && reply?.hook === 'installed' && reply?.control === true;

@@ -131,7 +131,7 @@ function readWhenPainted(win: Window, name: string, attempt: number = 0): void {
 	}
 
 	void deliverToast(win, name, text).catch((e: unknown) =>
-		dlog(`toast ${name} left open: notify failed: ${(e as Error)?.message ?? e}`));
+		dlog(`toast ${name} left open: notify failed: (enable verboseDiagnostics for details)`, () => `toast ${name} left open: notify failed: ${(e as Error)?.message ?? e}`));
 }
 
 /**
@@ -163,20 +163,21 @@ async function deliverToast(win: Window, name: string, text: string): Promise<vo
 			kind = fromToast.source === 'millennium' ? fromToast.kind : typeName(type);
 			catalogRoute = routeFor(fromToast);
 			if (fromToast.source === 'client') overlayAction = clientOverlayAction(type, fromToast.fields);
-			const detail =
-				fromToast.source === 'server'
-					? `server type=${fromToast.server.type} url=${fromToast.server.url ?? ''} body=${safeJson(fromToast.server.body)}`
-					: fromToast.source === 'millennium'
-						? `millennium fallback=${fromToast.fallback}`
-						: `fields=${safeJson(fromToast.fields)}`;
-			dlog(`from-toast ${name} type=${type} (${kind}) source=${fromToast.source} ${detail}`.slice(0, 700));
+            dlog(`from-toast ${name} type=${type} (${kind}) source=${fromToast.source}`, () => {
+                const detail = fromToast.source === 'server'
+                    ? `server type=${fromToast.server.type} url=${fromToast.server.url ?? ''} body=${safeJson(fromToast.server.body)}`
+                    : fromToast.source === 'millennium'
+                        ? `millennium fallback=${fromToast.fallback}`
+                        : `fields=${safeJson(fromToast.fields)}`;
+                return `from-toast ${name} type=${type} (${kind}) source=${fromToast.source} ${detail}`.slice(0, 700);
+            });
 		} else {
 			kind = 'Unknown';
 			catalogRoute = DEFAULT_STEAM_ROUTE;
 			dlog(`from-toast ${name} unknown: no attached notification`);
 		}
 	} catch (e) {
-		dlog(`from-toast ${name} failed: ${(e as Error)?.message ?? e}`);
+		dlog(`from-toast ${name} failed: (enable verboseDiagnostics for details)`, () => `from-toast ${name} failed: ${(e as Error)?.message ?? e}`);
 		catalogRoute = null;
 		overlayAction = null;
 	}
@@ -201,7 +202,7 @@ async function deliverToast(win: Window, name: string, text: string): Promise<vo
 					});
 			}
 		} catch (e) {
-			dlog(`click envelope failed for ${name}: ${(e as Error)?.message ?? e}`);
+			dlog(`click envelope failed for ${name}: (enable verboseDiagnostics for details)`, () => `click envelope failed for ${name}: ${(e as Error)?.message ?? e}`);
 		}
 	}
 	// Capture the handler before any await: Steam may unmount this popup while
@@ -210,14 +211,16 @@ async function deliverToast(win: Window, name: string, text: string): Promise<vo
 		policy = presentationFor(snapshot, captureAppId, await loadPlatform());
 	}
 	dlog(
-		`toast ${name} -> ${safeJson({ title, body, image, type, kind, replayable, fallback, click: Boolean(clickPayload), ...policy })}` +
+        `toast ${name} -> ${safeJson({ type, kind, replayable, click: Boolean(clickPayload), ...policy })}` +
+            (suppressed ? ' (suppressed: notifications off)' : ''),
+        () => `toast ${name} -> ${safeJson({ title, body, image, type, kind, replayable, fallback, click: Boolean(clickPayload), ...policy })}` +
 			(suppressed ? ` (suppressed: ${captureAppId === null ? 'unknown surface' : `${overlayCtx ? 'in-game' : 'desktop'} notifications off`})` : ''),
 	);
 	if (policy.sendNative) {
 		const result = await notify(title, body, image ?? '', clickPayload, '', String(policy.suppressPopup));
 		// The acknowledgement confirms helper launch, not actual banner display.
 		if (result !== 'ok' && result !== '"ok"') {
-			dlog(`toast ${name} left open: backend answered ${String(result).slice(0, 60)}`);
+			dlog(`toast ${name} left open: backend refused delivery`, () => `toast ${name} left open: backend answered ${String(result).slice(0, 60)}`);
 			return;
 		}
 	}
@@ -228,7 +231,7 @@ async function deliverToast(win: Window, name: string, text: string): Promise<vo
 		// stale popups. Its bound callback removes the toast and unmounts it.
 		if (!dismiss) { dlog(`toast ${name} left open: native dismissal unavailable`); return; }
 		try { if (!win.closed) dismiss(); }
-		catch (e) { dlog(`could not dismiss ${name}: ${(e as Error)?.message ?? e}`); }
+		catch (e) { dlog(`could not dismiss ${name}: (enable verboseDiagnostics for details)`, () => `could not dismiss ${name}: ${(e as Error)?.message ?? e}`); }
 	}
 }
 
@@ -236,9 +239,9 @@ async function loadIdentity(): Promise<void> {
 	try {
 		const parsed = parseCallableJson<{ steamid64?: string }>(await identity(), {});
 		const id = setIdentity(parsed?.steamid64);
-		dlog(`identity: steamid64=${id ?? '(none)'}`);
+		dlog('identity: loaded', () => `identity: steamid64=${id ?? '(none)'}`);
 	} catch (e) {
-		dlog(`identity failed: ${(e as Error)?.message ?? e}`);
+		dlog(`identity failed: (enable verboseDiagnostics for details)`, () => `identity failed: ${(e as Error)?.message ?? e}`);
 	}
 }
 
@@ -275,7 +278,7 @@ function installHook(attempt: number = 0): void {
 		dlog('hook installed');
 	} catch (e) {
 		(globalThis as any).__snnHookState = 'failed';
-		dlog(`hook failed: ${(e as Error)?.message ?? e}`);
+		dlog(`hook failed: (enable verboseDiagnostics for details)`, () => `hook failed: ${(e as Error)?.message ?? e}`);
 	}
 }
 
@@ -284,7 +287,7 @@ export function startNativeNotifications(report?: (id: string, result: unknown) 
 	void loadSettings();
 	void loadPlatform();
 	void loadIdentity();
-	void loadUrlTemplates().then((summary) => dlog(`url templates: ${summary}`));
+	void loadUrlTemplates().then((summary) => dlog('url templates: loaded', () => `url templates: ${summary}`));
 	trackOverlayFocus();
 	installHook();
 	const stopDevFire = startDevFirePoll(report);

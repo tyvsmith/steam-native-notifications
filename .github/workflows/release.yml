@@ -27,6 +27,11 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
       - uses: actions/download-artifact@v8
         with:
           name: me.tysmith.steam-native-notifications.star
@@ -68,5 +73,6 @@ jobs:
           TAG: ${{ steps.version.outputs.tag }}
         run: |
           case $TAG in *-*) pre=--prerelease ;; *) pre= ;; esac
+          bun tools/release-notes.ts "$TAG" > dist/release-notes.md
           gh release create "$TAG" dist/me.tysmith.steam-native-notifications.star dist/releases/*.tgz dist/releases/*.tgz.sha256 \
-            --verify-tag --generate-notes $pre
+            --verify-tag --notes-file dist/release-notes.md $pre

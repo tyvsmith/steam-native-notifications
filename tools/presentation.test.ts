@@ -304,13 +304,19 @@ test('dismissal discovery requires a matching portal and unambiguous bound notif
     expect(toastDismissal(win)).toBeNull();
 });
 
-test('throwing native dismissal logs failure without raw window closure', async () => {
-    const popup = toast('desktop', () => { throw Error('native lifecycle unavailable'); });
-    await flush();
-    expect(notifications).toHaveLength(1);
-    expect(popup.rawClosed()).toBe(0); expect(popup.dismissed()).toBe(0);
-    expect(logs.some(line => line.includes('could not dismiss') && line.includes('native lifecycle unavailable'))).toBe(true);
-});
+for (const verbose of [false, true]) {
+    test(`throwing native dismissal retains safe failure and gates details (verbose=${verbose})`, async () => {
+        set('verboseDiagnostics', verbose);
+        const popup = toast('desktop', () => { throw Error('native lifecycle unavailable'); });
+        await flush();
+        expect(notifications).toHaveLength(1);
+        expect(popup.rawClosed()).toBe(0); expect(popup.dismissed()).toBe(0);
+        const failures = logs.filter(line => line.includes('could not dismiss'));
+        expect(failures).toHaveLength(1);
+        expect(failures[0].includes('native lifecycle unavailable')).toBe(verbose);
+        if (!verbose) expect(failures[0]).toContain('enable verboseDiagnostics for details');
+    });
+}
 
 test('delivery acknowledgement uses the callback captured before the tree changes', async () => {
     let acknowledge!: (reply: string) => void;

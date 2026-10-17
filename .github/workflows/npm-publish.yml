@@ -1,0 +1,69 @@
+name: Publish npm package
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Verify the release tarball without publishing
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  npm:
+    if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-22.04
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - run: bun tools/gen-proto.mjs
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+      # OIDC requires npm >=11.5.1; no registry token is used.
+      - run: npm install --global npm@11
+      - name: Download the numbered release package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || exit 1
+          gh release download "$TAG" --pattern '*.tgz' --pattern '*.tgz.sha256' --dir dist/releases
+      - name: Check the exact release package
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          cd dist/releases
+          shopt -s nullglob
+          packages=(*.tgz)
+          checksums=(*.tgz.sha256)
+          test "${#packages[@]}" -eq 1 && test "${#checksums[@]}" -eq 1
+          test "${checksums[0]}" = "${packages[0]}.sha256"
+          sha256sum --check "${checksums[0]}"
+          tar -xOf "${packages[0]}" package/package.json > package-metadata.json
+          node --input-type=module <<'JS'
+          import { readFileSync } from 'node:fs';
+          const pkg = JSON.parse(readFileSync('package-metadata.json', 'utf8'));
+          if (pkg.name !== '@tyvsmith/steam-native-notifications' || `v${pkg.version}` !== process.env.TAG ||
+              JSON.stringify(pkg.os) !== '["linux"]' || JSON.stringify(pkg.cpu) !== '["x64"]') {
+            throw new Error('Unexpected package identity, version, or target');
+          }
+          JS
+          cd ../..
+          bun tools/verify-release-source.ts "dist/releases/${packages[0]}"
+      - name: Publish the validated tarball through npm OIDC
+        if: ${{ !inputs.dry_run }}
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          case "$TAG" in *-*) channel=next ;; *) channel=latest ;; esac
+          npm publish dist/releases/*.tgz --access public --provenance --ignore-scripts --tag "$channel"

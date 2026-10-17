@@ -18,7 +18,7 @@ import { currentClickSurface } from './overlay';
  * This is a name-and-args door into Steam's stores for anything that can write
  * the plugin's cache directory, so it is OFF by default and gated on the devFire
  * setting -- checked per tick, so the settings toggle takes effect without a
- * restart, and a disabled gate costs one boolean read every 3s.
+ * restart. Settings refresh is requested explicitly after external CLI writes.
  */
 const takeDevCommand = hostMethod('TakeDevCommand');
 const takeSampleCommand = hostMethod('TakeSampleCommand');
@@ -49,7 +49,7 @@ function findServerNotificationStore(): any {
 			}
 		});
 	} catch (e) {
-		dlog(`server store lookup failed: ${(e as Error)?.message ?? e}`);
+		dlog(`server store lookup failed: (enable verboseDiagnostics for details)`, () => `server store lookup failed: ${(e as Error)?.message ?? e}`);
 	}
 	return serverStore;
 }
@@ -85,7 +85,7 @@ function injectServerNotification(type: number, body: unknown): void {
 		rgread: [] as number[],
 		timestamp: now,
 	};
-	dlog(`dev-fire: OnServerNotification type=${type} body=${safeJson(body)}`);
+	dlog(`dev-fire: OnServerNotification type=${type}`, () => `dev-fire: OnServerNotification type=${type} body=${safeJson(body)}`);
 	store.OnServerNotification(rollup, 0 /* New */);
 }
 
@@ -101,10 +101,10 @@ async function runOverlayProbe(probe: { call?: string }): Promise<unknown> {
         const sc: any = Reflect.get(globalThis, 'SteamClient');
         if (typeof sc?.Overlay?.GetOverlayBrowserInfo !== 'function') throw new Error('Overlay browser info API is unavailable');
         const info = await sc.Overlay.GetOverlayBrowserInfo();
-        dlog(`overlay-info: ${safeJson(info)}`.slice(0, 1500));
+        dlog('overlay-info: details disabled', () => `overlay-info: ${safeJson(info)}`.slice(0, 1500));
         return info;
     } catch (e) {
-        dlog(`overlay probe failed: ${(e as Error)?.message ?? e}`);
+        dlog(`overlay probe failed: (enable verboseDiagnostics for details)`, () => `overlay probe failed: ${(e as Error)?.message ?? e}`);
         throw e;
     }
 }
@@ -134,7 +134,7 @@ export async function executeDevCommand(envelope: DevEnvelope, sample = false): 
         const store: any = Reflect.get(globalThis, 'NotificationStore');
         const fn = store?.[cmd.call];
         if (typeof fn !== 'function') throw new Error(`NotificationStore.${cmd.call} is unavailable`);
-        dlog(`dev-fire: NotificationStore.${cmd.call}(${safeJson(cmd.args)})`);
+        dlog('dev-fire: NotificationStore command', () => `dev-fire: NotificationStore.${cmd.call}(${safeJson(cmd.args)})`);
         value = await fn.apply(store, cmd.args);
     }
     return { id: envelope.id, stage: 'executed', value: value ?? null, measurement: 'Execution completed; capture, delivery and banner visibility are unmeasured' };
@@ -146,14 +146,16 @@ export function startDevFirePoll(report?: (id: string, result: unknown) => Promi
         try { return { ok: true, value: await executeDevCommand(envelope, sample) }; }
         catch (e: any) { return { ok: false, error: e.message }; }
     };
+    let polling = false;
     const timer = window.setInterval(async () => {
-        if (!active || generation !== epoch) return;
+        if (!active || generation !== epoch || polling) return;
+        polling = true;
         try {
             const sampleRaw = await takeSampleCommand();
             const sample = parseCallableJson<any>(sampleRaw, null);
             if (sample && typeof sample.id === 'string' && Number.isSafeInteger(sample.deadline)) {
                 const result = await (globalThis as any).__snnDevControl(sample, true);
-                dlog(`dev-fire: sample result ${safeJson({ id: sample.id, ...result })}`);
+                dlog('dev-fire: sample result received', () => `dev-fire: sample result ${safeJson({ id: sample.id, ...result })}`);
                 await report?.(sample.id, result);
             }
             if (!settings().devFire) return;
@@ -163,9 +165,10 @@ export function startDevFirePoll(report?: (id: string, result: unknown) => Promi
             if (!parsed.command) throw new Error('Legacy developer command lacks expiry; rerun tools/fire from the current build');
             const envelope: DevEnvelope = parsed;
             const result = await (globalThis as any).__snnDevControl(envelope);
-            dlog(`dev-fire: result ${safeJson({ id: envelope.id, ...result })}`);
+            dlog('dev-fire: result received', () => `dev-fire: result ${safeJson({ id: envelope.id, ...result })}`);
             await report?.(envelope.id, result);
-        } catch (e: any) { dlog(`dev-fire failed: ${e.message}`); }
+        } catch (e: any) { dlog(`dev-fire failed: (enable verboseDiagnostics for details)`, () => `dev-fire failed: ${e.message}`); }
+        finally { polling = false; }
     }, DEV_POLL_MS);
     return () => {
         window.clearInterval(timer);
