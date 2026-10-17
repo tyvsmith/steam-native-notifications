@@ -1,5 +1,15 @@
 # Standalone candidate validation
 
+## Follow-up: explicit Millennium settings refresh
+
+- replace periodic settings reads with one reload request after each CLI write
+- distinguish saved preferences from a confirmed live reload; old or unavailable
+  frontends report an unconfirmed reload rather than a failed save
+- retain startup loads, immediate panel writes and existing command transport
+- cover idle ticks, explicit reload, failure, expiry and CLI acknowledgement offline
+- record the user's successful Steam restart and physical history-click test on
+  the preceding installed candidate; no logout/login or OS-reboot claim
+
 ## Production-readiness candidate, 2026-10-17
 
 Base: experimental after [PR #44](https://github.com/tyvsmith/steam-native-notifications/pull/44).
@@ -91,8 +101,8 @@ converged the panel and repaired Millennium bindings and settings snapshots.
 ### Deferred acceptance and release-owner tasks
 
 - verify logout/login, OS restart and desktop-session environment recovery
-- verify physical retained-history clicks after restart and a real notification
-  event on the final candidate; stored-argv invocation remains distinct evidence
+- verify a real notification event on the final candidate; the user reported a
+  successful physical history click after Steam restart on the preceding build
 - cover Gamescope and compositor reconnect separately from ordinary gameplay
 - repeat Millennium live regression for the new external-write refresh when its
   client is installed; do not switch clients solely for this RT3 pass

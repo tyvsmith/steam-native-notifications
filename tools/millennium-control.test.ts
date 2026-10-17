@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { mkdtemp, writeFile, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { waitForReply, millenniumReadiness, mailboxRequest } from './lib/millennium-control';
+import { waitForReply, millenniumReadiness, mailboxRequest, refreshMillenniumSettings } from './lib/millennium-control';
 import { BUILD_IDENTITY } from '../shared/host';
 test('readiness requires matching build, protocol, hook and live control', () => {
     const good = { frontendBuild: BUILD_IDENTITY, hook: 'installed', control: true };
@@ -44,4 +44,34 @@ test('overlapping readiness callers have independent replies and clean up on suc
         expect(await mailboxRequest('status', undefined, 15, root)).toBeNull();
         expect(await readdir(root)).toEqual([]);
     } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('explicit refresh uses the existing mailbox and requires a refresh acknowledgement', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'snn-refresh-'));
+    const previous = process.env.XDG_CACHE_HOME;
+    process.env.XDG_CACHE_HOME = root;
+    try {
+        const mailbox = join(root, 'steam-native-notifications', '.control-requests');
+        for (const acknowledgement of [true, false, undefined]) {
+            const pending = refreshMillenniumSettings();
+            let request: any;
+            for (let attempt = 0; attempt < 100 && !request; attempt++) {
+                try {
+                    for (const name of await readdir(mailbox)) {
+                        try { request = JSON.parse(await readFile(join(mailbox, name, 'status'), 'utf8')); } catch {}
+                    }
+                } catch {}
+                if (!request) await Bun.sleep(5);
+            }
+            expect(request?.command).toBe('refresh-settings');
+            await writeFile(join(mailbox, request.id, 'result'), JSON.stringify({ id: request.id, settingsRefreshed: acknowledgement }));
+            const result = await pending;
+            expect(result.refreshed).toBe(acknowledgement === true);
+            if (!result.refreshed) expect(result.message).toContain('Settings saved');
+            expect(await readdir(mailbox)).toEqual([]);
+        }
+    } finally {
+        if (previous === undefined) delete process.env.XDG_CACHE_HOME; else process.env.XDG_CACHE_HOME = previous;
+        await rm(root, { recursive: true, force: true });
+    }
 });

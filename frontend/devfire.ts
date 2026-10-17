@@ -2,7 +2,7 @@ import { validateDevCommand, type DevEnvelope } from '../shared/dev-command';
 import { findModuleExport } from 'millennium';
 import { hostMethod } from './host';
 import { dlog, safeJson } from './log';
-import { parseCallableJson, settings, settingsHost } from './settings';
+import { parseCallableJson, settings } from './settings';
 import { inspectReplayStash, invokeReplayHandler } from './replay';
 import { currentClickSurface } from './overlay';
 
@@ -18,7 +18,7 @@ import { currentClickSurface } from './overlay';
  * This is a name-and-args door into Steam's stores for anything that can write
  * the plugin's cache directory, so it is OFF by default and gated on the devFire
  * setting -- checked per tick, so the settings toggle takes effect without a
- * restart. The poll also refreshes settings when isolated-world pushes are missed.
+ * restart. Settings refresh is requested explicitly after external CLI writes.
  */
 const takeDevCommand = hostMethod('TakeDevCommand');
 const takeSampleCommand = hostMethod('TakeSampleCommand');
@@ -116,7 +116,6 @@ function assertLiveRequest(envelope: DevEnvelope, epoch: number, sample: boolean
 
 export async function executeDevCommand(envelope: DevEnvelope, sample = false): Promise<unknown> {
     const epoch = generation;
-    await settingsHost.read();
     assertLiveRequest(envelope, epoch, sample);
     const cmd = validateDevCommand(sample ? { call: 'TestFriendOnline', args: [] } : envelope.command);
     let value: unknown = null;
@@ -152,9 +151,6 @@ export function startDevFirePoll(report?: (id: string, result: unknown) => Promi
         if (!active || generation !== epoch || polling) return;
         polling = true;
         try {
-            // External CLI writes do not always reach Millennium's isolated subscription.
-            await settingsHost.read();
-            if (!active || generation !== epoch) return;
             const sampleRaw = await takeSampleCommand();
             const sample = parseCallableJson<any>(sampleRaw, null);
             if (sample && typeof sample.id === 'string' && Number.isSafeInteger(sample.deadline)) {

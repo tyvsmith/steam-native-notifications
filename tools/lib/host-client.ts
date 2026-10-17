@@ -1,4 +1,4 @@
-import { probeMillennium, millenniumReadiness, millenniumCommand } from './millennium-control';
+import { probeMillennium, millenniumReadiness, millenniumCommand, refreshMillenniumSettings } from './millennium-control';
 import { runtimeAsset } from '../../standalone/runtime-paths';
 import { BUILD_IDENTITY, parseCallableJson, type BuildIdentity, type HostKind } from '../../shared/host';
 import { preferenceDefaults } from '../../shared/settings-policy';
@@ -74,9 +74,24 @@ export async function readConfig(selection: HostSelection = 'standalone'): Promi
     if (host === 'millennium') return { values: normalizeSettings((await millennium('plugin.config.get_all', { name: PLUGIN_ID })).config), error: null };
     return (await standaloneConfig()).read();
 }
-export async function updateConfig(patch: unknown, selection: HostSelection = 'standalone'): Promise<ConfigSnapshot> {
+export async function updateConfig(patch: unknown, selection: HostSelection = 'standalone'): Promise<ConfigSnapshot & { runtime?: Awaited<ReturnType<typeof refreshMillenniumSettings>> }> {
     const values = validateSettingsPatch(patch); const host = selection === 'auto' ? selectConfigHost(await hostStatus()) : selection;
-    if (host === 'millennium') { for (const [key, value] of Object.entries(values)) await millennium('plugin.config.set', { name: PLUGIN_ID, key, value }); return readConfig(host); }
+    if (host === 'millennium') {
+        try {
+            for (const [key, value] of Object.entries(values)) await millennium('plugin.config.set', { name: PLUGIN_ID, key, value });
+        } catch (error) {
+            const runtime = await refreshMillenniumSettings();
+            throw new Error(`Settings write interrupted; some values may have been saved. Live reload ${runtime.refreshed ? 'confirmed' : 'unconfirmed'}. ${String(error)}`);
+        }
+        let snapshot: ConfigSnapshot;
+        try { snapshot = await readConfig(host); }
+        catch (error) {
+            const runtime = await refreshMillenniumSettings();
+            throw new Error(`Settings saved, but readback failed. Live reload ${runtime.refreshed ? 'confirmed' : 'unconfirmed'}. ${String(error)}`);
+        }
+        const runtime = await refreshMillenniumSettings();
+        return { ...snapshot, runtime };
+    }
     // Offline edits use the same serialized, atomic store. Never retry a possibly applied socket mutation.
     return (await standaloneConfig()).update(values);
 }

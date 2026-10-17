@@ -58,17 +58,18 @@ test('Millennium poll acknowledges fixed samples with developer commands disable
     } finally { f.stop(); }
 });
 
-test('external settings refresh enables and disables commands without a subscription event', async () => {
+test('idle and developer command ticks never reload saved settings', async () => {
     const f = await fixture(); let invoked = 0;
     f.context.enabled = false; f.context.savedEnabled = true;
     f.context.NotificationStore = { TestFriendOnline: () => { invoked++; } };
     f.context.pending = { TakeDevCommand: JSON.stringify(f.request({ call: 'TestFriendOnline', args: [] })) };
     try {
-        await f.context.tick();
-        expect(invoked).toBe(1);
-        f.context.savedEnabled = false;
-        await f.context.tick();
-        expect(invoked).toBe(1);
+        await f.context.tick(); await f.context.tick();
+        expect(f.context.enabled).toBe(false); expect(invoked).toBe(0);
         await expect(f.api.executeDevCommand(f.request({ call: 'TestFriendOnline', args: [] }))).rejects.toThrow('disabled');
+        // Explicit refresh/panel writes update the snapshot outside this poll.
+        f.context.enabled = true; f.context.savedEnabled = false;
+        await f.context.tick(); expect(invoked).toBe(1);
+        expect(f.context.enabled).toBe(true);
     } finally { f.stop(); }
 });

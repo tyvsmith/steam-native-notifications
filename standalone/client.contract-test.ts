@@ -1,11 +1,14 @@
 import { expect, mock, test } from 'bun:test';
 import { BUILD_IDENTITY } from '../shared/host';
 import { DEFAULTS } from '../shared/settings';
-let standalone = true, millennium = true, failWrite = false; let probeError = 'ENOENT'; let settings = { ...DEFAULTS }; const queued: any[] = [];
+let failRead = false, failSetKey = '', exitOnRefresh = false;
+let standalone = true, millennium = true, failWrite = false; let refreshes = 0, refreshed = true; let probeError = 'ENOENT'; let settings = { ...DEFAULTS }; const queued: any[] = [];
 mock.module('../tools/lib/mep', () => ({ mepCall: async (method: string, params: any): Promise<any> => {
     if (!millennium) throw Object.assign(new Error('offline'), { code: probeError });
     if (method === 'plugin.status') return { error: null, result: { running: true } };
+    if (method === 'plugin.config.get_all' && failRead) throw new Error('readback unavailable');
     if (method === 'plugin.config.get_all') return { error: null, result: { config: settings } };
+    if (method === 'plugin.config.set' && params.key === failSetKey) throw new Error('write interrupted');
     if (method === 'plugin.config.set') { (settings as any)[params.key] = params.value; return { error: null, result: null }; }
     throw new Error('unsupported');
 } }));
@@ -18,6 +21,7 @@ mock.module('./control', () => ({ controlCall: async (operation: string, payload
     return { lines: [] };
 } }));
 mock.module('../tools/lib/millennium-control', () => ({
+    refreshMillenniumSettings: async () => { refreshes++; if (exitOnRefresh) millennium = false; return { refreshed, message: refreshed ? 'Running settings refreshed' : 'Settings saved; live reload unconfirmed' }; },
     probeMillennium: async () => ({ frontendBuild: BUILD_IDENTITY, hook: 'installed', control: true }),
     millenniumReadiness: () => ({ state: 'ready', frontendBuild: BUILD_IDENTITY, capabilities: {settingsWrite:true,sample:true,developerCommands:true} }),
     millenniumCommand: async (command: any, sample: boolean) => { queued.push({ command, kind: sample ? 'sample' : 'dev' }); return { stage: 'executed' }; },
@@ -105,4 +109,42 @@ test('connection refusal proves absence for automatic config selection', async (
     millennium = false; probeError = 'ECONNREFUSED';
     try { await updateConfig({ devMode: true }, 'auto'); expect(settings.devMode).toBe(true); }
     finally { millennium = true; probeError = 'ENOENT'; settings = { ...DEFAULTS }; }
+});
+
+test('Millennium config writes explicitly reload once and preserve saved/unconfirmed outcome', async () => {
+    refreshes = 0;
+    await readConfig('millennium'); expect(refreshes).toBe(0);
+    const confirmed = await updateConfig({ devMode: true, devFire: true }, 'millennium');
+    expect(refreshes).toBe(1); expect(confirmed.runtime?.refreshed).toBe(true);
+    refreshed = false;
+    try {
+        const result = await updateConfig({ devFire: false }, 'millennium');
+        expect(result.values.devFire).toBe(false); expect(result.error).toBeNull();
+        expect(result.runtime?.refreshed).toBe(false); expect(refreshes).toBe(2);
+    } finally { refreshed = true; settings = { ...DEFAULTS }; }
+});
+
+test('saved settings survive Steam exiting during the reload wait', async () => {
+    exitOnRefresh = true; refreshed = false;
+    try {
+        const result = await updateConfig({ devMode: true }, 'millennium');
+        expect(result.values.devMode).toBe(true);
+        expect(result.runtime?.refreshed).toBe(false);
+    } finally { exitOnRefresh = false; millennium = true; refreshed = true; settings = { ...DEFAULTS }; }
+});
+
+test('post-save readback failure reports saved state and still requests reload', async () => {
+    failRead = true; refreshed = false; refreshes = 0;
+    try {
+        await expect(updateConfig({ devMode: true }, 'millennium')).rejects.toThrow('Settings saved, but readback failed. Live reload unconfirmed');
+        expect(settings.devMode).toBe(true); expect(refreshes).toBe(1);
+    } finally { failRead = false; refreshed = true; settings = { ...DEFAULTS }; }
+});
+
+test('partial writes request reload without retrying the failed mutation', async () => {
+    failSetKey = 'devFire'; refreshes = 0;
+    try {
+        await expect(updateConfig({ devMode: true, devFire: true }, 'millennium')).rejects.toThrow('some values may have been saved');
+        expect(settings.devMode).toBe(true); expect(settings.devFire).toBe(false); expect(refreshes).toBe(1);
+    } finally { failSetKey = ''; settings = { ...DEFAULTS }; }
 });

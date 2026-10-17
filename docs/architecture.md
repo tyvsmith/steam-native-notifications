@@ -338,10 +338,10 @@ action.
   starts with a quote.
 - Settings are per-key values in Millennium's config store (`usePluginConfig`
   in the panel, `pluginConfig`/`subscribePluginConfig` behind `settings()`);
-  successful panel writes update the runtime snapshot immediately. The existing
-  three-second developer poll refreshes external writes when Millennium misses
-  subscription events. Command execution reads fresh settings before checking
-  its gate. Missing settings use defaults; obsolete development settings have
+  successful panel writes update the runtime snapshot immediately. CLI writes
+  request one explicit reload through the existing diagnostic mailbox and
+  report whether the live frontend acknowledged it. Idle readiness/developer
+  polls do not read settings. Missing settings use defaults; obsolete development settings have
   no migration path.
 
 ## Testing methodology, which is easy to get wrong
@@ -387,8 +387,8 @@ action.
   Steam owns the popup lifecycle and destroys it on its own schedule.
 - **Relying only on Millennium config subscriptions**: external writes can land
   in the main IPC context while the plugin runs in an isolated world. Local
-  panel writes publish their result; the existing command poll refreshes
-  external changes without adding another timer.
+  panel writes publish their result; CLI writes explicitly request a reload
+  without adding a timer or reading settings on idle ticks.
 - **Compositor rules for hiding Steam's toast** — the plugin invokes Steam's
   native dismissal after capture and delivery acknowledgement.
 - The routing catalog's own dead ends (external steam:// URLs into the

@@ -1,6 +1,7 @@
 import { ffi } from 'millennium';
 import { BUILD_IDENTITY, parseCallableJson } from '../shared/host';
 import { safeJson } from './log';
+import { settingsHost } from './settings';
 
 const take = ffi<[], string>('TakeDiagnosticCommand');
 const report = ffi<[string, string], string>('ReportDiagnostic');
@@ -19,9 +20,15 @@ export function startMillenniumDiagnostics(): () => void {
                 if (!request) break;
                 if (!active) return;
                 if (typeof request?.id !== 'string' || !Number.isSafeInteger(request.deadline) || request.deadline <= Date.now()) continue;
+                let refresh: { settingsRefreshed?: boolean; error?: string } = {};
+                if (request.command === 'refresh-settings') {
+                    try { await settingsHost.read(); refresh = { settingsRefreshed: true }; }
+                    catch { refresh = { settingsRefreshed: false, error: 'Settings reload failed' }; }
+                    if (!active || request.deadline <= Date.now()) continue;
+                }
                 const root = globalThis as any;
                 await report('status', safeJson({ id: request.id, frontendBuild: BUILD_IDENTITY,
-                    hook: root.__snnHookState ?? 'unknown', control: typeof root.__snnDevControl === 'function' }));
+                    hook: root.__snnHookState ?? 'unknown', control: typeof root.__snnDevControl === 'function', ...refresh }));
             }
         } catch { /* status remains unconfirmed when the bridge is unavailable */ }
         finally { pending = false; }

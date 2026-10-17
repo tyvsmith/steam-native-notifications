@@ -87,9 +87,12 @@ snn config set devFire false
 The fixed `sample` command uses normal presentation settings without developer
 opt-in. Replay and server commands use the same developer gate as fire. Never
 synthesize `TestIncomingVoiceChat`; the unresolved call can block Steam's queue.
-Millennium external writes refresh within the existing three-second command
-poll; command execution reads fresh settings before checking the gate. Reopen
-the Millennium panel after an external change if its controls have not refreshed.
+Millennium CLI writes request one settings reload through the existing control
+channel. Output distinguishes saved preferences from a confirmed live reload.
+There are no periodic settings reads in the developer poll. If reload is
+unconfirmed, reopen plugin settings or restart Steam. Raw `tools/mep` writes
+depend on Millennium delivering its event; reopen settings if it does not.
+Reopen an already-visible Millennium panel if its controls have not refreshed.
 
 Repository `tools/fire` and `tools/capture` share the CLI dispatch, host options
 and JSON output. `tools/fire --sample` equals `snn sample`; `snn dev fire` accepts
