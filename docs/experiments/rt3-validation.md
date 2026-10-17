@@ -1,4 +1,40 @@
-# RT3 candidate validation, 2026-10-15
+# RT3 candidate validation
+
+## Convergence candidate, 2026-10-16
+
+Candidate: `8ddfe1e0d452047299845d1e8e7acb7a0b46b006a14aab6c51095e5152c897e8`,
+version 0.1.0, Bun 1.4.3, native Linux RT3 on Hyprland.
+
+- installed the compiled package and restarted Steam; installed, daemon and frontend identities matched
+- verified hook, panel and control readiness again after a daemon-only restart
+- exercised all four panel toggles, reset cancel/confirm, external updates and navigation away/back
+- executed the fixed panel sample with developer settings disabled
+- saved and restored a browser-editor preference, executed its sample, reloaded after daemon restart and closed the editor server
+- observed the synthetic Aircar download banner with artwork; a pointer click from a non-Steam window reached the canonical URL, replayed the captured handler, focused Steam and displayed Aircar's library page
+- restored the original preferences byte-for-byte; left the installed service ready
+- retained screenshots and personal notification logs locally
+
+Millennium live parity remains blocked: no installed loader was found and its
+external protocol socket was absent. Offline tests and the noninstalling pack
+do not establish live FFI compatibility. Its panel actions, external updates,
+fresh readiness and correlated success/failure/expiry still need a live host.
+
+### Follow-up after experimental merge, 2026-10-16
+
+- captured a fresh synthetic Aircar notification in Quattro history, stopped Steam completely, then relaunched it
+- confirmed the same installed, daemon and frontend identity with hook, panel and control ready
+- invoked the exact fixed argv retained by Quattro; the log showed the missing replay stash, then durable dispatch to `steam://nav/games/details/1073390`
+- observed Aircar's library page after dispatch; this exercised stored-argv activation, not a pointer click in the history UI
+- repeated all four panel toggles, reset cancel/confirm, external updates, navigation and the fixed sample with developer settings disabled
+- restored preferences byte-for-byte and left Steam and the standalone service ready
+
+Remaining release evidence: a retained-history pointer click after Steam restart,
+real events, in-game/Gamescope behavior, compositor reconnect, logout/login,
+and complete runtime redistribution materials. Millennium, Windows, OS restart
+and logout/login checks are explicitly deferred. The immediate banner click and
+stored-argv fallback establish separate parts of the notification journey.
+
+## Earlier candidate, 2026-10-15
 
 Candidate: `a2efd134a9552b12507d63af70237e4dfc210a3ee674c1c92e048907a2fe187c`,
 version 0.1.0, Bun 1.4.3, native Linux RT3 on Hyprland.
@@ -37,15 +73,3 @@ version 0.1.0, Bun 1.4.3, native Linux RT3 on Hyprland.
 
 Fixtures, protocol invocation and helper acknowledgement do not replace these
 visible user journeys. This is a local test candidate, not a release-readiness claim.
-
-## Pending convergence regression
-
-The host-neutral tools, Millennium panel actions, correlated Millennium status
-and execution replies, and shared sample wording require live regression after
-the current game session. Build and package fixtures do not establish live FFI
-compatibility. Do not install or restart Steam until that session is finished.
-
-- verify Millennium settings visibility, external updates, sample and reset/cancel
-- verify fresh readiness, stale-build refusal, command success/failure and expiry
-- recheck standalone panel/editor, host selection and notification delivery
-- record exact installed, backend and frontend builds for each host separately
