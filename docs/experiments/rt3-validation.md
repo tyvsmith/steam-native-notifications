@@ -39,7 +39,7 @@ stored-argv fallback establish separate parts of the notification journey.
 Candidate: `a2efd134a9552b12507d63af70237e4dfc210a3ee674c1c92e048907a2fe187c`,
 version 0.1.0, Bun 1.4.3, native Linux RT3 on Hyprland.
 
-## Milestones
+### Milestones
 
 | Milestone | Current result | Remaining gate |
 |---|---|---|
@@ -50,7 +50,7 @@ version 0.1.0, Bun 1.4.3, native Linux RT3 on Hyprland.
 | Polish/cleanup | normalized XDG paths, bounded private logs, reviewed async state handling | external editor layout review on other desktops |
 | Documentation | package instructions and notice audit included; development setup labeled | public redistribution materials and final release approval |
 
-## Evidence
+### Evidence
 
 - typecheck and normal backend/frontend regression suite passed; Millennium pack written to `dist`, without installing it
 - standalone tests: 101 passed, plus 3 isolated host contract tests
@@ -65,7 +65,7 @@ version 0.1.0, Bun 1.4.3, native Linux RT3 on Hyprland.
 - synthetic download-complete banner displayed the Aircar artwork and copy; pointer attempts did not establish click delivery, so no live-click success is claimed
 - temporary preferences restored; raw personal notification logs/screenshots remain local and are not included here
 
-## Outstanding release evidence
+### Outstanding evidence at that time
 
 - verify a banner click from a neutral window and a retained history click after Steam restart, including visible destination and focus
 - verify real download/social events, in-game behavior, Gamescope, compositor reconnect and logout/login where available
