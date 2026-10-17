@@ -20,7 +20,7 @@ async function fixture() {
     };
     const context: any = { Error, module: { exports: {} }, setInterval: (fn: () => Promise<void>) => { poll = fn; return 0; }, clearInterval() {}, fixtureRPC: async (method: string) => {
         calls.push(method);
-        if (method === 'PanelRemove') { await hold?.(); if (failure) throw Error('Cleanup refused'); return '{"ok":true}'; }
+        if (method === 'PanelRemove') { await hold?.(); if (failure) throw Error('Cleanup refused'); context.__snnIntegrationRemoved = true; return '{"ok":true}'; }
         return JSON.stringify({ config: { values: DEFAULTS, error: null }, state: 'ready', compatible: true, hook: 'installed' });
     } };
     runInNewContext(await built.outputs[0]!.text(), context);
@@ -57,7 +57,7 @@ test('removal requires confirmation, cancellation does nothing and success disab
     expect(f.render().filter(n => n.type === 'toggle').every(n => n.props.disabled)).toBe(true);
     expect(f.button('Send test notification').props.disabled).toBe(true);
     expect(f.button('Remove OS notification integration').props.disabled).toBe(true);
-    expect(f.render().some(n => n.props.children.includes('Integration removed. Your settings are kept. Remove the Bun package separately, then restart Steam.'))).toBe(true);
+    expect(f.render().some(n => n.props.children.includes('Integration removed. Restart Steam to finish unloading it.'))).toBe(true);
 });
 test('failed removal reports error and permits retry without disabling settings', async () => {
     const f = await fixture(); f.fail();
@@ -76,7 +76,7 @@ test('closing settings during removal retains the removed state on reopening', a
     f.button('Remove integration').props.onClick();
     f.close(); release(); await f.flush();
     expect(f.button('Remove OS notification integration').props.disabled).toBe(true);
-    expect(f.render().some(n => n.props.children.includes('Integration removed. Your settings are kept. Remove the Bun package separately, then restart Steam.'))).toBe(true);
+    expect(f.render().some(n => n.props.children.includes('Integration removed. Restart Steam to finish unloading it.'))).toBe(true);
 });
 
 test('reopening settings before removal completes observes completion from the old panel', async () => {
@@ -87,7 +87,7 @@ test('reopening settings before removal completes observes completion from the o
     f.close(); f.render(); await f.flush();
     release(); await f.flush(); await f.poll();
     expect(f.button('Remove OS notification integration').props.disabled).toBe(true);
-    expect(f.render().some(n => n.props.children.includes('Integration removed. Your settings are kept. Remove the Bun package separately, then restart Steam.'))).toBe(true);
+    expect(f.render().some(n => n.props.children.includes('Integration removed. Restart Steam to finish unloading it.'))).toBe(true);
 });
 
 test('reset uses a native modal and cancellation preserves preferences', async () => {

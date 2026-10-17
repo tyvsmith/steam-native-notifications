@@ -48,7 +48,8 @@ bun remove --global @tyvsmith/steam-native-notifications
 Without Steam, run `snn teardown` before removing the package. Cleanup stops the
 owned user service and removes owned service/autostart files and installation
 state. Preferences, logs, cached artwork and the shared CEF marker remain.
-Restart Steam to unload the injected hooks. Teardown never deletes package files.
+Removal immediately restores Steam notification behavior in the running session.
+Restart Steam to finish unloading the injected hooks. Teardown never deletes package files.
 
 The package declares a guarded `preuninstall` hook, but Bun 1.4.3 does not invoke
 it. Trusted local/global tests with tarballs and registry packages confirm this

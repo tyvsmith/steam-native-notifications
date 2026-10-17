@@ -141,12 +141,14 @@ test('a delayed config poll cannot overwrite the fresh command snapshot', async 
     } finally { running = false; release?.(); await attached; }
 });
 
-for (const outcome of ['accepted', 'expired', 'exception', 'failed'] as const) test(`panel removal waits for successful reply acceptance: ${outcome}`, async () => {
+for (const outcome of ['accepted', 'expired', 'exception', 'failed', 'outdated'] as const) test(`panel removal waits for successful reply acceptance: ${outcome}`, async () => {
     let running = true; const events: string[] = [];
     const client: any = { onEvent() {}, closed: new Promise(() => {}), async call(_method: string, params: any) {
         if (params?.expression?.startsWith('Boolean')) return { result: { value: true } };
+        if (params?.expression === "typeof globalThis.__snnRemove === 'function'") return { result: { value: outcome !== 'outdated' } };
         if (params?.expression?.includes('removal fixture')) this.onEvent({ method: 'Runtime.bindingCalled', params: { name: '__snnHost', executionContextId: 1, payload: JSON.stringify({ id: 5, method: 'PanelRemove', args: [] }) } });
-        if (params?.expression?.startsWith("typeof globalThis.__snnReply")) {
+        if (params?.expression?.replace(/^globalThis\.__snnRemove\(\);/, '').startsWith("typeof globalThis.__snnReply")) {
+            expect(params.expression.includes('globalThis.__snnRemove();')).toBe(outcome !== 'failed' && outcome !== 'outdated');
             events.push('reply');
             await Promise.resolve();
             expect(events).not.toContain('stop');
@@ -159,5 +161,5 @@ for (const outcome of ['accepted', 'expired', 'exception', 'failed'] as const) t
         dispatch: async () => { events.push('cleanup'); if (outcome === 'failed') throw Error('cleanup failed'); return '{"ok":true}'; },
         removal: { acknowledged: () => { events.push('stop'); } } };
     await attach(client, '/* removal fixture */', host, () => running, [1]);
-    expect(events).toEqual(outcome === 'accepted' ? ['cleanup', 'reply', 'stop'] : ['cleanup', 'reply']);
+    expect(events).toEqual(outcome === 'accepted' ? ['cleanup', 'reply', 'stop'] : outcome === 'outdated' ? ['reply'] : ['cleanup', 'reply']);
 });

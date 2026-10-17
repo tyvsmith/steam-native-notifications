@@ -5,7 +5,7 @@ import { ffi, pluginConfig, subscribePluginConfig } from './adapter';
 import { SETTINGS_SCHEMA, type SettingKey, type Settings } from '../shared/settings';
 import { discoverSettings, discoverControls, mountSettings } from './steam-settings';
 
-const removedMessage = 'Integration removed. Your settings are kept. Remove the Bun package separately, then restart Steam.';
+const removedMessage = 'Integration removed. Restart Steam to finish unloading it.';
 type State = { config: { values: Settings; error: string | null }; state: string; compatible: boolean; hook: string };
 const rpc = async (method: string, ...args: unknown[]): Promise<any> => JSON.parse(await ffi<unknown[], string>(method)(...args));
 export function createSteamPanel(React: typeof import('react'), controls: ReturnType<typeof discoverControls>) {
@@ -35,7 +35,6 @@ export function createSteamPanel(React: typeof import('react'), controls: Return
         const command = (method: string, ...args: unknown[]) => run(async () => {
             const result = await rpc(method, ...args);
             if (result?.ok === false) throw new Error(result.error || 'Operation unavailable');
-            if (method === 'PanelRemove') (globalThis as any).__snnIntegrationRemoved = true;
             return result;
         }, result => {
             if (method === 'PanelRemove') {

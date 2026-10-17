@@ -8,6 +8,8 @@ const bridge = globalThis as typeof globalThis & {
     __snnHost(payload: string): void;
     __snnReply(id: number, value: string, error?: string): boolean;
     __snnConfig(values: Record<string, unknown>): void;
+    __snnRemove(): void;
+    __snnIntegrationRemoved?: boolean;
 };
 bridge.__snnReply = (id, value, error) => {
     const request = pending.get(id);
@@ -19,8 +21,13 @@ bridge.__snnReply = (id, value, error) => {
 };
 bridge.__snnConfig = (values) => {
     const keys = new Set([...Object.keys(config), ...Object.keys(values)]);
-    config = values;
+    config = bridge.__snnIntegrationRemoved ? { ...values, integrationEnabled: false } : values;
     for (const key of keys) for (const listener of listeners) listener(key, config[key]);
+};
+// Removal changes this browser session only; saved preferences remain untouched.
+bridge.__snnRemove = () => {
+    bridge.__snnIntegrationRemoved = true;
+    bridge.__snnConfig({ ...config, integrationEnabled: false });
 };
 export function ffi<Args extends unknown[], Result>(method: string): (...args: Args) => Promise<Result> {
     return (...args) => new Promise<string>((resolve, reject) => {

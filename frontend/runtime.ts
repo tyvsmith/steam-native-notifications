@@ -221,6 +221,8 @@ async function deliverToast(win: Window, name: string, text: string): Promise<vo
 			return;
 		}
 	}
+	// A removal or master-off toggle during delivery must preserve Steam’s toast.
+	if (!settings().integrationEnabled) return;
 	if (!policy.showSteam) {
 		// Closing the CEF window directly leaves Steam's animation queue holding
 		// stale popups. Its bound callback removes the toast and unmounts it.

@@ -33,10 +33,17 @@ export async function attach(client: CDP, bundle: string, host: Host, alive: () 
             try {
                 const request = requestPayload(message.params.payload);
                 let value = '', error: string | undefined;
-                try { value = await host.dispatch(request.method, request.args); }
+                try {
+                    if (request.method === 'PanelRemove') {
+                        const capability = await client.call('Runtime.evaluate', { contextId: message.params.executionContextId,
+                            returnByValue: true, expression: "typeof globalThis.__snnRemove === 'function'" });
+                        if (capability.exceptionDetails || capability.result?.value !== true) throw new Error('Restart Steam before removing the integration.');
+                    }
+                    value = await host.dispatch(request.method, request.args);
+                }
                 catch (reason: any) { error = reason.message; }
                 const reply = await client.call('Runtime.evaluate', { contextId: message.params.executionContextId, returnByValue: true,
-                    expression: `typeof globalThis.__snnReply === 'function' && globalThis.__snnReply(${request.id},${JSON.stringify(value)},${JSON.stringify(error ?? null)})` });
+                    expression: `${request.method === 'PanelRemove' && !error ? 'globalThis.__snnRemove();' : ''}typeof globalThis.__snnReply === 'function' && globalThis.__snnReply(${request.id},${JSON.stringify(value)},${JSON.stringify(error ?? null)})` });
                 if (request.method === 'PanelRemove' && !error && !reply.exceptionDetails && reply.result?.value === true) host.removal?.acknowledged();
             } catch (error: any) { await host.log(`standalone: binding refused: ${error.message}`); }
             finally { busy--; }
