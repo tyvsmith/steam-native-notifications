@@ -1,29 +1,10 @@
 import { validateDevCommand, type DevEnvelope } from '../shared/dev-command';
 import { findModuleExport } from 'millennium';
-import { hostMethod } from './host';
 import { dlog, safeJson } from './log';
-import { parseCallableJson, settings } from './settings';
+import { settings } from './settings';
 import { inspectReplayStash, invokeReplayHandler } from './replay';
 import { currentClickSurface } from './overlay';
 
-/**
- * The tools/fire door: dev machinery, fenced off from the capture path.
- *
- * `tools/fire` writes a command file; the backend hands it over exactly once
- * via TakeDevCommand; the poll here executes it. A command either names a test
- * method on Steam's own NotificationStore (whose Test* functions push a real
- * synthesized notification through the full toast pipeline) or carries a
- * synthetic server rollup for injection.
- *
- * This is a name-and-args door into Steam's stores for anything that can write
- * the plugin's cache directory, so it is OFF by default and gated on the devFire
- * setting -- checked per tick, so the settings toggle takes effect without a
- * restart. Settings refresh is requested explicitly after external CLI writes.
- */
-const takeDevCommand = hostMethod('TakeDevCommand');
-const takeSampleCommand = hostMethod('TakeSampleCommand');
-
-const DEV_POLL_MS = 3000;
 const startedAt = Date.now();
 let generation = 0;
 let active = false;
@@ -139,39 +120,19 @@ export async function executeDevCommand(envelope: DevEnvelope, sample = false): 
     }
     return { id: envelope.id, stage: 'executed', value: value ?? null, measurement: 'Execution completed; capture, delivery and banner visibility are unmeasured' };
 }
-export function startDevFirePoll(report?: (id: string, result: unknown) => Promise<void>): () => void {
+export function startDevControl(): () => void {
     const epoch = ++generation;
     active = true;
-    (globalThis as any).__snnDevControl = async (envelope: DevEnvelope, sample = false) => {
+    const control = async (envelope: DevEnvelope, sample = false) => {
         try { return { ok: true, value: await executeDevCommand(envelope, sample) }; }
         catch (e: any) { return { ok: false, error: e.message }; }
     };
-    let polling = false;
-    const timer = window.setInterval(async () => {
-        if (!active || generation !== epoch || polling) return;
-        polling = true;
-        try {
-            const sampleRaw = await takeSampleCommand();
-            const sample = parseCallableJson<any>(sampleRaw, null);
-            if (sample && typeof sample.id === 'string' && Number.isSafeInteger(sample.deadline)) {
-                const result = await (globalThis as any).__snnDevControl(sample, true);
-                dlog('dev-fire: sample result received', () => `dev-fire: sample result ${safeJson({ id: sample.id, ...result })}`);
-                await report?.(sample.id, result);
-            }
-            if (!settings().devFire) return;
-            const raw = await takeDevCommand();
-            const parsed = parseCallableJson<any>(raw, null);
-            if (!parsed) return;
-            if (!parsed.command) throw new Error('Legacy developer command lacks expiry; rerun tools/fire from the current build');
-            const envelope: DevEnvelope = parsed;
-            const result = await (globalThis as any).__snnDevControl(envelope);
-            dlog('dev-fire: result received', () => `dev-fire: result ${safeJson({ id: envelope.id, ...result })}`);
-            await report?.(envelope.id, result);
-        } catch (e: any) { dlog(`dev-fire failed: (enable verboseDiagnostics for details)`, () => `dev-fire failed: ${e.message}`); }
-        finally { polling = false; }
-    }, DEV_POLL_MS);
+    (globalThis as any).__snnDevControl = control;
     return () => {
-        window.clearInterval(timer);
-        if (generation === epoch) { active = false; generation++; delete (globalThis as any).__snnDevControl; }
+        if (generation === epoch) {
+            active = false;
+            generation++;
+            if ((globalThis as any).__snnDevControl === control) delete (globalThis as any).__snnDevControl;
+        }
     };
 }

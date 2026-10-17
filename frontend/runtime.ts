@@ -6,10 +6,9 @@ import { typeName } from './generated/notifications';
 import { setIdentity } from './identity';
 import { notificationFromToast, type DecodedNotification } from './notification';
 import { dlog, safeJson } from './log';
-import { startClickBridge } from './clickbridge';
 import { trackOverlayFocus } from './overlay';
 import { clientOverlayAction, clientRoute, DEFAULT_STEAM_ROUTE, serverRoute } from './routes';
-import { startDevFirePoll } from './devfire';
+import { startDevControl } from './devfire';
 import { stashToastHandler } from './replay';
 import { registerSteamUrlClicks } from './steamurl';
 import { loadSettings, parseCallableJson, settings } from './settings';
@@ -266,6 +265,7 @@ function installHook(attempt: number = 0): void {
 			setTimeout(() => installHook(attempt + 1), MANAGER_RETRY_MS);
 		} else {
 			(globalThis as any).__snnHookState = 'failed';
+			(globalThis as any).__snnHostStateChanged?.();
 			dlog('g_PopupManager never appeared; bridge inactive');
 		}
 		return;
@@ -275,14 +275,16 @@ function installHook(attempt: number = 0): void {
 		registrations.push(mgr.AddPopupCreatedCallback(onPopupCreated));
 		registrations.push(mgr.AddPopupDestroyedCallback(onPopupDestroyed));
 		(globalThis as any).__snnHookState = 'installed';
+		(globalThis as any).__snnHostStateChanged?.();
 		dlog('hook installed');
 	} catch (e) {
 		(globalThis as any).__snnHookState = 'failed';
+		(globalThis as any).__snnHostStateChanged?.();
 		dlog(`hook failed: (enable verboseDiagnostics for details)`, () => `hook failed: ${(e as Error)?.message ?? e}`);
 	}
 }
 
-export function startNativeNotifications(report?: (id: string, result: unknown) => Promise<void>): () => void {
+export function startNativeNotifications(): () => void {
 	(globalThis as any).__snnFrontendBuild = BUILD_IDENTITY;
 	void loadSettings();
 	void loadPlatform();
@@ -290,8 +292,7 @@ export function startNativeNotifications(report?: (id: string, result: unknown) 
 	void loadUrlTemplates().then((summary) => dlog('url templates: loaded', () => `url templates: ${summary}`));
 	trackOverlayFocus();
 	installHook();
-	const stopDevFire = startDevFirePoll(report);
-	startClickBridge();
+	const stopDevFire = startDevControl();
 	// Linux and Windows return the durable envelope through the canonical
 	// steam://steam-native-notifications/notification/<payload> URL.
 	const steamUrl = registerSteamUrlClicks();

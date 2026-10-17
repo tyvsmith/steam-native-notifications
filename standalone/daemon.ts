@@ -10,103 +10,155 @@ import { inspectEndpoint } from './diagnostics';
 import { discoverSteam, setupPaths } from './paths';
 import { acquireDaemonLock } from './lock';
 import { healthExpression } from './health';
+import { BUILD_IDENTITY } from '../shared/host';
 
 export async function attach(client: CDP, bundle: string, host: Host, alive: () => boolean = () => true, initialContexts: number[] = []): Promise<void> {
     let context: number | undefined;
-    let injected = false;
+    let injected = false, stopped = false, enabled = false, generation = 0, busy = 0;
+    let retry: ReturnType<typeof setTimeout> | undefined;
     const defaults = new Set<number>(initialContexts);
-    let generation = 0;
-    let busy = 0;
-    let disconnected = false;
-    const resetControl = () => { host.frontendCommand = undefined; Object.assign(host.live, { state: 'waiting-for-context', frontendBuild: null, hook: 'unknown', control: false }); };
-    void client.closed.then(() => { disconnected = true; });
+    let queue: Promise<unknown> = Promise.resolve();
+    let finish!: () => void, fail!: (error: Error) => void;
+    const done = new Promise<void>((resolve, reject) => { finish = resolve; fail = reject; });
+    // Initialization can fail before the lifecycle promise is awaited.
+    void done.catch(() => {});
+    const current = (epoch: number, id = context) => !stopped && alive() && epoch === generation && id !== undefined && id === context;
+    const schedule = (operation: () => Promise<void>) => {
+        if (!enabled) return;
+        queue = queue.then(async () => { if (!stopped && alive()) await operation(); })
+            .catch(error => { fail(error); }).finally(() => { if (!alive()) finish(); });
+    };
+    const resetControl = () => {
+        generation++; context = undefined; injected = false;
+        host.frontendCommand = undefined;
+        Object.assign(host.live, { state: 'waiting-for-context', frontendBuild: null, hook: 'unknown', control: false });
+    };
+    let previousConfig = '';
+    const push = async () => {
+        const epoch = generation, id = context;
+        if (!injected || !current(epoch, id)) return;
+        const snapshot = await host.store.read();
+        if (!current(epoch, id)) return;
+        const encoded = JSON.stringify(snapshot.values);
+        const panel = { config: snapshot, ...host.live,
+            compatible: host.live.frontendBuild?.buildId === BUILD_IDENTITY.buildId && host.live.control === true };
+        const result = await client.call('Runtime.evaluate', { contextId: id,
+            expression: `${encoded !== previousConfig ? `globalThis.__snnConfig(${encoded});` : ''}globalThis.__snnState?.(${JSON.stringify(panel)})` });
+        if (result.exceptionDetails) throw new Error('Frontend state update failed');
+        if (current(epoch, id)) previousConfig = encoded;
+    };
+    const refresh = async () => {
+        const epoch = generation, id = context;
+        if (!injected || !current(epoch, id)) return;
+        try {
+            const probe = await client.call('Runtime.evaluate', { contextId: id, returnByValue: true, awaitPromise: true,
+                expression: healthExpression(2 ** 52 + Math.floor(Math.random() * 1000000000)) });
+            const info = await client.call('Runtime.evaluate', { contextId: id, returnByValue: true,
+                expression: '({frontendBuild:globalThis.__snnFrontendBuild ?? null,hook:globalThis.__snnHookState ?? "unknown",panel:globalThis.__snnPanelState ?? "unavailable",control:typeof globalThis.__snnDevControl === "function"})' });
+            if (!current(epoch, id)) return;
+            if (probe.exceptionDetails || info.exceptionDetails) throw new Error('Frontend health evaluation failed');
+            Object.assign(host.live, info.result?.value ?? {});
+            host.live.state = probe.result?.value === true ? 'ready' : 'waiting-for-context';
+            await push();
+        } catch (error) {
+            if (current(epoch, id)) Object.assign(host.live, { state: 'unresponsive', control: false });
+            await host.log('standalone: frontend health check failed');
+        }
+    };
+    host.refreshFrontend = () => {
+        const operation = queue.then(refresh);
+        queue = operation.catch(() => {});
+        return operation;
+    };
+    const inject = async () => {
+        if (injected) return;
+        for (const candidate of defaults) {
+            const epoch = generation;
+            const probe = await client.call('Runtime.evaluate', { contextId: candidate, returnByValue: true,
+                expression: 'Boolean(globalThis.g_PopupManager && globalThis.SteamClient)' });
+            if (probe.result?.value !== true || generation !== epoch || !defaults.has(candidate)) continue;
+            context = candidate;
+            const values = await host.settings();
+            if (!current(epoch, candidate)) continue;
+            const result = await client.call('Runtime.evaluate', { contextId: candidate,
+                expression: `if (!globalThis.__snnStandaloneStarted) { globalThis.__snnInitialConfig=${JSON.stringify(values)};\n${bundle}\n} globalThis.__snnConfig(${JSON.stringify(values)});` });
+            if (!current(epoch, candidate) || !defaults.has(candidate)) continue;
+            if (result.exceptionDetails) throw new Error(`Injection failed: ${result.exceptionDetails.text}`);
+            injected = true; previousConfig = JSON.stringify(values);
+            host.frontendCommand = async (envelope, sample) => {
+                if (!current(epoch, candidate) || envelope.deadline <= Date.now()) throw new Error('Frontend changed or request expired');
+                // Commands and config pushes share the same queue, preserving saved-config order.
+                const operation = queue.then(async () => {
+                    if (!current(epoch, candidate) || envelope.deadline <= Date.now()) throw new Error('Frontend changed or request expired');
+                    const latest = await host.settings();
+                    if (!current(epoch, candidate) || envelope.deadline <= Date.now()) throw new Error('Frontend changed or request expired');
+                    const reply = await client.call('Runtime.evaluate', { contextId: candidate, returnByValue: true, awaitPromise: true,
+                        expression: `globalThis.__snnConfig(${JSON.stringify(latest)}); globalThis.__snnDevControl ? globalThis.__snnDevControl(${JSON.stringify(envelope)},${sample}) : ({ok:false,error:"Older frontend lacks control support; restart Steam"})` });
+                    if (!current(epoch, candidate)) throw new Error('Frontend changed or request expired');
+                    if (reply.exceptionDetails || !reply.result?.value?.ok) throw new Error(reply.result?.value?.error ?? 'Frontend execution failed');
+                    previousConfig = JSON.stringify(latest);
+                    return reply.result.value.value;
+                });
+                queue = operation.catch(() => {});
+                return operation;
+            };
+            await host.log('standalone: frontend attached to SharedJSContext');
+            await refresh();
+            // readiness is a host lifecycle notification, never a recurring health tick.
+            void host.readiness(host.live.state).then(() => { if (!alive()) finish(); }).catch(fail);
+            return;
+        }
+        // Retry only while Steam is creating a usable context.
+        if (!stopped && alive() && !injected && !retry) retry = setTimeout(() => { retry = undefined; schedule(inject); }, 500);
+    };
     client.onEvent = message => {
-        if (message.method === 'Runtime.executionContextCreated' && message.params.context.auxData?.isDefault) defaults.add(message.params.context.id);
-        if (message.method === 'Runtime.executionContextsCleared') { generation++; context = undefined; injected = false; defaults.clear(); resetControl(); }
+        if (message.method === 'Runtime.executionContextCreated' && message.params.context.auxData?.isDefault) {
+            defaults.add(message.params.context.id); schedule(inject);
+        }
+        if (message.method === 'Runtime.executionContextsCleared') { defaults.clear(); resetControl(); schedule(inject); }
         if (message.method === 'Runtime.executionContextDestroyed') {
             defaults.delete(message.params.executionContextId);
-            if (context === message.params.executionContextId) { generation++; context = undefined; injected = false; resetControl(); }
+            if (context === message.params.executionContextId) { resetControl(); schedule(inject); }
         }
         if (message.method !== 'Runtime.bindingCalled' || message.params.name !== '__snnHost' || message.params.executionContextId !== context || busy >= 64) return;
+        const epoch = generation, id = context;
+        busy++;
         void (async () => {
-            busy++;
             try {
                 const request = requestPayload(message.params.payload);
                 let value = '', error: string | undefined;
                 try {
                     if (request.method === 'PanelRemove') {
-                        const capability = await client.call('Runtime.evaluate', { contextId: message.params.executionContextId,
+                        const capability = await client.call('Runtime.evaluate', { contextId: id,
                             returnByValue: true, expression: "typeof globalThis.__snnRemove === 'function'" });
                         if (capability.exceptionDetails || capability.result?.value !== true) throw new Error('Restart Steam before removing the integration.');
                     }
                     value = await host.dispatch(request.method, request.args);
-                }
-                catch (reason: any) { error = reason.message; }
-                const reply = await client.call('Runtime.evaluate', { contextId: message.params.executionContextId, returnByValue: true,
+                } catch (reason: any) { error = reason.message; }
+                if (!current(epoch, id)) return;
+                const reply = await client.call('Runtime.evaluate', { contextId: id, returnByValue: true,
                     expression: `${request.method === 'PanelRemove' && !error ? 'globalThis.__snnRemove();' : ''}typeof globalThis.__snnReply === 'function' && globalThis.__snnReply(${request.id},${JSON.stringify(value)},${JSON.stringify(error ?? null)})` });
                 if (request.method === 'PanelRemove' && !error && !reply.exceptionDetails && reply.result?.value === true) host.removal?.acknowledged();
             } catch (error: any) { await host.log(`standalone: binding refused: ${error.message}`); }
-            finally { busy--; }
-        })().catch(() => {});
+            finally { busy--; if (!alive()) finish(); }
+        })().catch(fail);
     };
-    await client.call('Runtime.enable');
-    await client.call('Runtime.addBinding', { name: '__snnHost' });
-    let previousConfig = '';
-    let configGeneration = 0;
-    while (alive()) {
-        if (!injected) {
-            for (const candidate of defaults) {
-                const epoch = generation;
-                const probe = await client.call('Runtime.evaluate', { contextId: candidate, returnByValue: true,
-                    expression: 'Boolean(globalThis.g_PopupManager && globalThis.SteamClient)' });
-                if (probe.result?.value !== true || generation !== epoch || !defaults.has(candidate)) continue;
-                context = candidate;
-                const values = await host.settings();
-                if (generation !== epoch || context !== candidate) continue;
-                const result = await client.call('Runtime.evaluate', { contextId: context,
-                    expression: `if (!globalThis.__snnStandaloneStarted) { globalThis.__snnInitialConfig=${JSON.stringify(values)};\n${bundle}\n} globalThis.__snnConfig(${JSON.stringify(values)});` });
-                if (generation !== epoch || context !== candidate || !defaults.has(candidate)) continue;
-                if (result.exceptionDetails) throw new Error(`Injection failed: ${result.exceptionDetails.text}`);
-                injected = true; previousConfig = JSON.stringify(values);
-                await host.log('standalone: frontend attached to SharedJSContext');
-                break;
-            }
-        } else {
-            const update = configGeneration;
-            const epoch = generation;
-            const values = JSON.stringify(await host.settings());
-            if (update === configGeneration && epoch === generation && injected && context !== undefined && values !== previousConfig) {
-                await client.call('Runtime.evaluate', { contextId: context, expression: `globalThis.__snnConfig(${values})` });
-                previousConfig = values;
-            }
-        }
-        let ready = false;
-        if (injected && context !== undefined) {
-            const epoch = generation;
-            const probe = await client.call('Runtime.evaluate', { contextId: context, returnByValue: true, awaitPromise: true,
-                expression: healthExpression(2 ** 52 + Math.floor(Math.random() * 1000000000)) });
-            ready = probe.result?.value === true && injected && context !== undefined && epoch === generation;
-            const info = await client.call('Runtime.evaluate', { contextId: context, returnByValue: true,
-                expression: '({frontendBuild:globalThis.__snnFrontendBuild ?? null,hook:globalThis.__snnHookState ?? "unknown",panel:globalThis.__snnPanelState ?? "unavailable",control:typeof globalThis.__snnDevControl === "function"})' });
-            if (epoch === generation) Object.assign(host.live, info.result?.value ?? {});
-            if (epoch !== generation || context === undefined) { ready = false; continue; }
-            host.frontendCommand = async (envelope, sample) => {
-                if (!injected || context === undefined || epoch !== generation || envelope.deadline <= Date.now()) throw new Error('Frontend changed or request expired');
-                const update = ++configGeneration;
-                const values = await host.settings();
-                if (update !== configGeneration || !alive() || disconnected || !injected || context === undefined || epoch !== generation || envelope.deadline <= Date.now()) throw new Error('Frontend changed or request expired');
-                // A write acknowledgement can precede the periodic config push.
-                // Apply the saved snapshot in the same turn as the test command.
-                const reply = await client.call('Runtime.evaluate', { contextId: context, returnByValue: true, awaitPromise: true,
-                    expression: `globalThis.__snnConfig(${JSON.stringify(values)}); globalThis.__snnDevControl ? globalThis.__snnDevControl(${JSON.stringify(envelope)},${sample}) : ({ok:false,error:"Older frontend lacks control support; restart Steam"})` });
-                if (reply.exceptionDetails || !reply.result?.value?.ok) throw new Error(reply.result?.value?.error ?? 'Frontend execution failed');
-                return reply.result.value.value;
-            };
-
-        }
-        await host.readiness(ready ? 'ready' : 'waiting-for-context');
-        await Bun.sleep(1000);
-        if (disconnected) throw new Error('Steam CDP disconnected');
+    let unsubscribe: (() => void) | undefined;
+    void client.closed.then(() => { if (stopped) return; stopped = true; resetControl(); fail(new Error('Steam CDP disconnected')); });
+    try {
+        unsubscribe = await host.store.subscribe(() => schedule(push));
+        await client.call('Runtime.enable');
+        await client.call('Runtime.addBinding', { name: '__snnHost' });
+        enabled = true;
+        schedule(inject);
+        await done;
+    } finally {
+        stopped = true;
+        if (retry) clearTimeout(retry);
+        unsubscribe?.();
+        client.onEvent = () => {};
+        host.refreshFrontend = undefined;
+        resetControl();
     }
 }
 

@@ -1,12 +1,11 @@
 import { useSettingsActions } from '../shared/settings-actions';
 import { sampleMessage } from '../shared/command-result';
 import { settingsContent } from '../shared/settings-content';
-import { ffi, pluginConfig, subscribePluginConfig } from './adapter';
-import { type Settings } from '../shared/settings';
+import { ffi, subscribeHostState, type PanelState } from './adapter';
 import { discoverSettings, discoverControls, mountSettings } from './steam-settings';
 
 const removedMessage = 'Integration removed. Restart Steam to finish unloading it.';
-type State = { config: { values: Settings; error: string | null }; state: string; compatible: boolean; hook: string };
+type State = PanelState;
 const rpc = async (method: string, ...args: unknown[]): Promise<any> => JSON.parse(await ffi<unknown[], string>(method)(...args));
 export function createSteamPanel(React: typeof import('react'), controls: ReturnType<typeof discoverControls>) {
     return function Panel(): React.ReactElement {
@@ -16,23 +15,23 @@ export function createSteamPanel(React: typeof import('react'), controls: Return
         const { busy, message, error, refresh, run } = useSettingsActions(React);
         React.useEffect(() => {
             if (removed) return undefined;
-            let polling = false;
-            const read = async () => {
-                if ((globalThis as any).__snnIntegrationRemoved) { setRemoved(true); return; }
-                if (polling) return;
-                polling = true;
-                try { await refresh(() => rpc('PanelRead'), next => { setState(next); setConnected(true); }, () => setConnected(false)); }
-                finally { polling = false; }
+            let active = true;
+            const apply = (next: State) => {
+                if (!active) return;
+                if (next.removed || (globalThis as any).__snnIntegrationRemoved) { setRemoved(true); return; }
+                setState(next); setConnected(true);
             };
-            void read();
-            const timer = setInterval(read, 2000);
-            const unsubscribe = subscribePluginConfig(() => {
-                void refresh(() => pluginConfig.getAll<Settings>(), values => setState(previous => previous && ({ ...previous, config: { ...previous.config, values } })));
-            });
-            return () => { clearInterval(timer); unsubscribe(); };
+            let pushed = false;
+            const unsubscribe = subscribeHostState(next => { pushed = true; apply(next); });
+            pushed = false; // Cached state does not supersede this mount's fresh health read.
+            void refresh(() => rpc('PanelRead'), next => { if (!pushed) apply(next); }, () => { if (active) setConnected(false); });
+            return () => { active = false; unsubscribe(); };
         }, [removed]);
         const command = (method: string, ...args: unknown[]) => run(async () => {
-            const result = await rpc(method, ...args);
+            const result = await rpc(method, ...args).catch((reason: Error) => {
+                if (reason.message.endsWith('host timeout')) setConnected(false);
+                throw reason;
+            });
             if (result?.ok === false) throw new Error(result.error || 'Operation unavailable');
             return result;
         }, result => {
@@ -41,7 +40,6 @@ export function createSteamPanel(React: typeof import('react'), controls: Return
                 return removedMessage;
             }
             if (method === 'PanelSample') return sampleMessage(result);
-            setState(previous => previous && ({ ...previous, config: result }));
             return method === 'PanelReset' ? 'Defaults restored.' : 'Saved.';
         });
         const values = state?.config.values;
@@ -77,8 +75,9 @@ export function startSteamPanel(): () => void {
         attach();
         if (stop) return stop;
         report('waiting-for-settings-close');
+        let attempts = 0;
         const timer = setInterval(() => {
-            try { attach(); if (stop) clearInterval(timer); }
+            try { attach(); if (stop || ++attempts >= 60) { clearInterval(timer); if (!stop) report('unavailable-restart-steam'); } }
             catch { clearInterval(timer); report('unavailable'); }
         }, 500);
         return () => { clearInterval(timer); stop?.(); };

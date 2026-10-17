@@ -23,7 +23,8 @@ export interface HostStatus {
 export async function hostStatus(): Promise<HostStatus[]> {
     return Promise.all((['standalone', 'millennium'] as const).map(async kind => {
         try {
-            if (kind === 'standalone') return { ...await controlCall('status', undefined, { timeoutMs: 1200 }), present: true };
+            // Status includes a renderer challenge and state readback, not just a socket ping.
+            if (kind === 'standalone') return { ...await controlCall('status', undefined, { timeoutMs: 5000 }), present: true };
             const status = await millennium('plugin.status', { name: PLUGIN_ID });
             const running = status?.running === true || status?.backend?.running === true;
             const measured = running ? millenniumReadiness(await probeMillennium()) : { state: 'stopped', frontendBuild: null as BuildIdentity | null, capabilities: { settingsWrite: true, sample: false, developerCommands: false } };

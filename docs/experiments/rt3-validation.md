@@ -302,3 +302,56 @@ version 0.1.0, Bun 1.4.3, native Linux RT3 on Hyprland.
 
 Fixtures, protocol invocation and helper acknowledgement do not replace these
 visible user journeys. This is a local test candidate, not a release-readiness claim.
+
+## Push runtime follow-up
+
+- replace idle configuration, panel, command, click and health polling with push
+- cover idle silence, external atomic config replacement, watcher failure,
+  context replacement, startup disconnect and panel reply ordering in fixtures
+- verify Millennium request/reply transport against a stub MEP server, SDK
+  source and the installed host described below
+- keep earlier live results scoped to their installed builds
+
+
+### Installed push candidate, 2026-10-17
+
+Build: `2bd895ae95edb8114e521d750dde9bf1c1173769cbe56f1e2d497d72c1ce30c2`.
+
+- verified tarball source identity, installed through Bun and restarted idle Steam
+- confirmed matching package, daemon and frontend identities with hook/panel/control ready
+- toggled all five panel controls, checked CLI pushes and external atomic file replacement
+- observed zero host RPC calls during 11 idle seconds with the settings panel open
+- exercised 15 CLI checks covering auto host selection, settings, master-off policy,
+  sample execution, developer gating, replay inspection and diagnostic privacy
+- observed synthetic download and friend-online OS banners with artwork; invoked
+  the download notification's retained argv and confirmed exact replay
+- restarted the daemon without restarting Steam and confirmed ready reattachment
+- restored preferences byte-for-byte and left DND unchanged
+- fixed a live-discovered status timeout: discovery now allows the on-demand
+  renderer challenge to complete; a delayed real-socket regression covers it
+
+No real game event, physical history click, logout/login, Windows or live
+Millennium test was performed on this candidate. Screenshots and personal
+notification records remain local. Millennium's final regression should cover
+panel routing, CLI config refresh, sample/developer push, restart/history actions
+and diagnostics; no further Millennium-affecting implementation is planned in
+the current Linux convergence workstream unless validation finds a defect.
+
+### Millennium push candidate, 2026-10-17
+
+Build: `3eb00f7b00c1114f9d4e12245a4c0aaa551e6addc0a033f0983365f376c19aa8`.
+
+- installed and enabled the current `.star` on Millennium 3.6.1; disabled the standalone service
+- fixed a live failure: 32-bit Lua JSON decoding truncated command deadlines;
+  decimal-string deadlines now preserve timestamps through the backend
+- confirmed matching backend/frontend build, installed hook and responsive control
+- verified CLI settings refresh, developer gating and sample execution with developer commands off
+- checked desktop routing through CLI changes: master off, both outputs off,
+  Steam only and OS only; observed friend-online and Aircar OS banners with artwork
+- invoked the retained Aircar action and confirmed exact replay without a throw
+- restored original plugin preferences, including absent diagnostic keys
+
+Steam relaunched successfully, but three shutdowns crashed in its audio/PulseAudio
+thread. These traces do not establish a plugin cause; clean shutdown remains
+unverified. Panel pointer interaction, in-game routing, physical history clicks,
+logout/login and Windows were not tested in this pass.

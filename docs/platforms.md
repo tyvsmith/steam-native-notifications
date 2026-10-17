@@ -31,7 +31,7 @@ Millennium host; it does not imply standalone support on other platforms.
 |---|---|---|---|
 | Linux, native Steam | **shipped**; Quattro history clicks observed with Steam running and fully stopped; live-banner and in-game clicks untested | `notify-send` to the FreeDesktop daemon | live `default` action launches the canonical Steam URL; Quickshell persists the fixed argv for exact replay or durable fallback |
 | Linux, Flatpak Steam | paths ready; the host is unsupported by Millennium | same helper; inside the sandbox libnotify routes through the notification portal (plan) | canonical URL; portal action semantics unverified |
-| macOS | backend paths ready; delivery refused, loudly | terminal-notifier `-execute` (plan) | `-execute` writes `.click` (plan) |
+| macOS | backend paths ready; delivery refused, loudly | terminal-notifier `-execute` (plan) | `-execute` opens the canonical Steam URL (plan) |
 | Windows | **shipped**, EXPERIMENTAL; canonical history, FriendOnline/Achievement exact replay, and Achievement restart/cold-start fallback observed; UI clicks and visual focus untested | WinRT toast via notify-action.ps1 (Windows PowerShell 5.1, no vendored binary): branding, artwork, re-encode | canonical notification URL; exact replay or durable live-focus fallback, then one-shot route-aware focus |
 
 Refused (macOS today) means: the backend loads, logs `desktop delivery is
@@ -72,8 +72,8 @@ in one directory per platform.
 Files in the runtime directory: `plugin.log` (truncated at each backend
 load; the helper appends its refusals there), the materialized helper
 (`notify-action` on Linux; `notify-action.ps1` on Windows), `steam-dir` (one line: Millennium's `steam_path()` answer,
-rewritten at each load, removed when there is no answer), `.dev-fire` and the
-legacy/test-only `.click` input (consume-once handoffs), `icons/` (the helper's avatar cache),
+rewritten at each load, removed when there is no answer), request-scoped
+`.control-requests/<id>/result` replies, `icons/` (the helper's avatar cache),
 and on Windows `<id>.notify` payload files (helper-consumed), `steam.ico`
 (the extracted branding icon) and `.wpn-backoff` (the platform-wedge
 back-off stamp). `tools/test-backend` loads the backend under Linux,
@@ -357,12 +357,10 @@ marked.
    requires macOS 10.14 or later.
    - `-execute COMMAND` is stored with the notification and runs through
      `/bin/sh -c` when the notification is clicked, "in the graphical
-     session's environment", even after terminal-notifier has exited. That
-     is the click: a one-line command that writes `<epoch>|<route>` to
-     `.click.<pid>` and moves it over `.click`. No blocking, no `-A`. The
-     notification survives in Notification Center. The session-long bridge
-     consumes a fresh write whenever the user clicks it; the envelope's
-     catalog fallback survives a Steam restart if the OS preserves the action.
+     session's environment", even after terminal-notifier has exited. The proposed
+     click action opens the canonical Steam notification URL, as on Linux
+     and Windows. The catalog fallback can survive a Steam restart if the
+     OS preserves that action; this macOS path remains unimplemented.
    - `-contentImage PATH` shows an image inside the notification: the game
      art or the avatar, resolved and cached exactly as on Linux.
    - `-appIcon` is gone: "macOS has no API to override a notification's
@@ -452,8 +450,8 @@ A macOS tester, in order. Pass signals are in
    the plugin (add `type(jit)` to the load log for this step).
 2. **Helper environment.** With the Darwin branch reduced to `curl` of an
    avatar URL: confirm the download works from Steam's child environment.
-3. **Delivery.** `tools/fire TestFriendOnline` (the macOS `tools/fire` writes
-   `.dev-fire` under `~/Library/Caches`): expect a banner from
+3. **Delivery.** `tools/fire TestFriendOnline` uses the Millennium push
+   control channel: expect a banner from
    terminal-notifier, then `TestDownloadComplete 1073390` for library art
    through `-contentImage`, `TestFriendMessage` for a CDN avatar, and a
    body with quotes, backslashes and non-ASCII text.
