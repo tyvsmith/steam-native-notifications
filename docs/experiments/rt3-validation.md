@@ -9,11 +9,26 @@
 - preserve package-manager ownership, preferences and disabled/stopped service state
 - retain explicit teardown because Bun 1.4.3 removal does not execute package removal hooks
 
-Validation uses isolated homes, fake Steam and a service-manager fixture driving
-the real packaged daemon. It establishes package and control behavior, not live
-Steam delivery or graphical-session recovery. The currently installed compiled
-candidate is unchanged. No Windows, Millennium runtime, login or OS restart
-validation was performed for this change.
+Offline validation uses isolated homes, fake Steam and a service-manager fixture
+driving the real packaged daemon. Upgrade/downgrade and removal tests preserve
+preferences and distinguish package files from owned integration.
+
+### Installed Bun candidate, 2026-10-17
+
+- installed build `f9bfd0b27e48c642bc879e38f139f36934a31abcba6c17d8d139247d309bb152` from the exact tested npm tarball
+- saved the original compiled package and preferences locally, then uninstalled it through its own installer
+- trusted global Bun installation automatically configured and started the user service
+- restarted idle Steam; installed, daemon and frontend identities matched, with hook/panel/control ready
+- exercised all five panel switches and reset cancellation; restored preference bytes exactly
+- submitted three panel sample requests; two FriendOnline events reached capture/history, while one request had no capture event
+- displayed a synthetic Aircar download-complete desktop banner; temporarily disabled DND for observation and restored it afterward
+- invoked that notification's retained argv action; exact replay completed and Steam showed Aircar's library page
+- validated user service and desktop-entry syntax; service active and enabled, executing the Bun-owned package
+
+The retained action was invoked programmatically, not through a pointer click.
+No real game, Millennium runtime, Windows, login or OS restart validation was
+performed. Bun global commands live in `~/.bun/bin`, which was absent from this
+session's PATH; the service uses absolute executable paths and is unaffected.
 
 ## Experimental merge checklist
 
