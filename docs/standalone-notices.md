@@ -13,5 +13,8 @@ notice also lists other linked libraries and embedded polyfills.
   ELF GLIBC requirement in the package manifest
 
 Public binary distribution remains blocked on assembling and checking the
-complete runtime notices and rebuild/relink materials. This file records
+complete runtime notices and rebuild/relink materials. CI builds and tests the
+package without uploading it; release workflows publish only the Millennium
+`.star`. Restore standalone upload/publication wiring only after this audit is
+complete and the materials are included in the package. This file records
 the remaining work; it is not a substitute for those materials.
