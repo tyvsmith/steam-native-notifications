@@ -1,13 +1,13 @@
 import { preferencePatch, preferenceDefaults } from '../shared/settings-policy';
 import { BUILD_IDENTITY } from '../shared/host';
 import { SETTINGS_SCHEMA } from '../shared/settings';
-import { configStore, type ConfigStore } from './config-store';
-import { hostStatus, sample, type HostSelection } from '../tools/lib/host-client';
+import { type ConfigStore } from './config-store';
+import { hostStatus, sample, readConfig, updateConfig, type HostSelection } from '../tools/lib/host-client';
 import { settingsHtml, settingsScript, settingsStyle } from './settings-assets';
 export interface SettingsServerOptions { store?: ConfigStore; host?: HostSelection; status?: typeof hostStatus; sample?: typeof sample; idleMs?: number }
 /** Per-command capability session; no daemon/config lock is held by its lifetime. */
 export function startSettingsServer(options: SettingsServerOptions = {}) {
-    const store = options.store ?? configStore(); const host = options.host === 'millennium' ? 'millennium' : 'standalone';
+    const store = options.store ?? { read: () => readConfig('standalone'), update: (patch: unknown) => updateConfig(patch, 'standalone') }; const host = options.host === 'millennium' ? 'millennium' : 'standalone';
     if (host === 'millennium') throw new Error('This independent settings page configures standalone; use Millennium’s panel for Millennium');
     const token = crypto.randomUUID() + crypto.randomUUID(); let idle: ReturnType<typeof setTimeout>; let resolveClosed!: () => void;
     const closed = new Promise<void>(resolve => { resolveClosed = resolve; });

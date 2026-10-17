@@ -113,3 +113,12 @@ test('panel sample is fixed and rejects stale frontend and arbitrary arguments',
     expect(JSON.parse(await host.dispatch('PanelSample', []))).toEqual({ command: { call: 'TestFriendOnline', args: [] }, sample: true });
     await expect(host.dispatch('PanelSample', ['TestIncomingVoiceChat'])).rejects.toThrow();
 });
+
+for (const line of (await Bun.file(join(import.meta.dir, '../shared/login-users.fixtures.tsv')).text()).trimEnd().split('\n')) {
+    const [name, expected, text] = line.split('\t');
+    test(`identity corpus: ${name}`, async () => {
+        const { root, host } = await fixture(); await mkdir(join(root, 'config'));
+        await writeFile(join(root, 'config/loginusers.vdf'), text);
+        expect(JSON.parse(await host.dispatch('Identity', [])).steamid64).toBe(expected === '-' ? undefined : expected);
+    });
+}
