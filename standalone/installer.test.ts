@@ -150,3 +150,50 @@ test('teardown preserves files edited while the service is stopping', async () =
         expect(await exists(f.p.autostart)).toBe(true);
     } finally { await rm(f.home, { recursive: true, force: true }); }
 });
+
+test('panel removal cleans owned files before acknowledgement and exits only once', async () => {
+    const { integrationRemoval } = await import('./removal');
+    const f = await fixture(); try {
+        await setupIntegration(f.p, f.runtime, f.steam, run, ready);
+        const calls: string[][] = []; let stops = 0;
+        const removal = integrationRemoval(() => { stops++; }, f.p, async args => { calls.push(args); return run(args); });
+        removal.acknowledged(); expect(stops).toBe(0);
+        await Promise.all([removal.remove(), removal.remove()]);
+        expect(stops).toBe(0);
+        expect(await exists(f.p.unit)).toBe(false);
+        expect(await exists(f.p.autostart)).toBe(false);
+        expect(await exists(f.p.config)).toBe(true);
+        expect(await readFile(f.runtime.cli, 'utf8')).toBe('package-owned bytes');
+        expect(await exists(join(f.steam, '.cef-enable-remote-debugging'))).toBe(true);
+        expect(calls.filter(args => args[0] === 'disable')).toEqual([['disable', 'steam-native-notifications-standalone.service']]);
+        expect(calls.some(args => args.includes('--now') || args[0] === 'stop')).toBe(false);
+        removal.acknowledged(); removal.acknowledged(); expect(stops).toBe(1);
+    } finally { await rm(f.home, { recursive: true, force: true }); }
+});
+test('panel teardown failure never stops its service and can retry pending cleanup', async () => {
+    const { integrationRemoval } = await import('./removal');
+    const f = await fixture(); try {
+        await setupIntegration(f.p, f.runtime, f.steam, run, ready);
+        let stops = 0, fail = true;
+        const removal = integrationRemoval(() => { stops++; }, f.p, async args => {
+            if (fail && args[0] === 'disable') throw Error('manager unavailable');
+            return run(args);
+        });
+        await expect(removal.remove()).rejects.toThrow('manager unavailable');
+        removal.acknowledged(); expect(stops).toBe(0);
+        expect(await exists(f.p.unit)).toBe(true);
+        fail = false; await removal.remove(); removal.acknowledged(); expect(stops).toBe(1);
+    } finally { await rm(f.home, { recursive: true, force: true }); }
+});
+
+test('completed removal exits within grace even if its panel closes or reply expires', async () => {
+    const { integrationRemoval } = await import('./removal');
+    const f = await fixture(); try {
+        await setupIntegration(f.p, f.runtime, f.steam, run, ready);
+        let stops = 0;
+        const removal = integrationRemoval(() => { stops++; }, f.p, run, 10);
+        await removal.remove(); expect(stops).toBe(0);
+        await Bun.sleep(30); expect(stops).toBe(1);
+        removal.acknowledged(); expect(stops).toBe(1);
+    } finally { await rm(f.home, { recursive: true, force: true }); }
+});

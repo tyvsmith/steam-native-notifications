@@ -26,6 +26,6 @@ export async function validateRelease(root: string): Promise<Manifest> {
     if (identity.protocolVersion !== 1 || identity.buildId !== m.buildId || identity.version !== m.version) throw new Error('Frontend identity differs from release');
     const pkg = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
     if (pkg.name !== '@tyvsmith/steam-native-notifications' || pkg.version !== m.version || pkg.private || pkg.type !== 'module' || pkg.bin?.snn !== 'standalone/cli.js' || pkg.engines?.bun !== m.bun || pkg.os?.join() !== 'linux' || pkg.cpu?.join() !== 'x64') throw new Error('Invalid package metadata');
-    if (JSON.stringify(pkg.scripts) !== JSON.stringify({ postinstall: 'bun standalone/cli.js setup --hook' }) || pkg.dependencies || pkg.devDependencies || pkg.files?.slice().sort().join('\n') !== [...assets.filter(p => p !== 'package.json'), 'manifest.json'].sort().join('\n')) throw new Error('Unexpected package scripts, dependencies or files');
+    if (JSON.stringify(pkg.scripts) !== JSON.stringify({ postinstall: 'bun standalone/cli.js setup --hook', preuninstall: 'bun standalone/cli.js teardown --hook' }) || pkg.dependencies || pkg.devDependencies || pkg.files?.slice().sort().join('\n') !== [...assets.filter(p => p !== 'package.json'), 'manifest.json'].sort().join('\n')) throw new Error('Unexpected package scripts, dependencies or files');
     return m;
 }

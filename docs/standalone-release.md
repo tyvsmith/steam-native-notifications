@@ -38,17 +38,24 @@ focus dependencies leave focus unknown. Setup never downloads OS dependencies.
 
 ## Remove
 
+In Steam Settings → Notifications, select **Remove OS notification integration**
+and confirm. Then remove the package:
+
 ```sh
-snn teardown
 bun remove --global @tyvsmith/steam-native-notifications
 ```
 
-Bun 1.4.3 did not execute removal lifecycle scripts in an isolated trusted-global
-package test. Teardown is therefore explicit. It stops the owned user service
-and removes owned integration files, preserving preferences and the shared CEF
-marker. Package files belong to Bun and are never deleted by teardown. Removing
-only the package can leave service/autostart entries behind. Injected hooks
-remain until Steam exits.
+Without Steam, run `snn teardown` before removing the package. Cleanup stops the
+owned user service and removes owned service/autostart files and installation
+state. Preferences, logs, cached artwork and the shared CEF marker remain.
+Restart Steam to unload the injected hooks. Teardown never deletes package files.
+
+The package declares a guarded `preuninstall` hook, but Bun 1.4.3 does not invoke
+it. Trusted local/global tests with tarballs and registry packages confirm this
+for both `remove` and `uninstall`. Although [Bun's documentation](https://bun.com/docs/pm/lifecycle)
+lists it, the [1.4.3 implementation](https://github.com/oven-sh/bun/blob/bun-v1.4.3/src/install/lockfile/Package/Scripts.rs#L22-L58)
+recognizes only install and prepare hooks. Use the button or `snn teardown`;
+removing only the package leaves integration entries behind.
 
 ## Settings and diagnostics
 

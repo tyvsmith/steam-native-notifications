@@ -24,6 +24,8 @@ try {
     await call([bin, 'daemon', '--help']);
     // No display/session is present: a trusted hook must not create user integration.
     if (await Bun.file(join(home, 'config/systemd/user/steam-native-notifications-standalone.service')).exists()) throw new Error('Headless installation configured desktop integration');
+    await call([process.execPath, 'run', 'preuninstall'], 0, root);
+    if (await Bun.file(join(home, 'config/systemd/user/steam-native-notifications-standalone.service')).exists()) throw new Error('Unowned uninstall hook created integration');
     await call([process.execPath, 'remove', '-g', '@tyvsmith/steam-native-notifications']);
     const steam = join(home, 'data/Steam');
     await mkdir(join(steam, 'steamrt64'), { recursive: true });
@@ -65,6 +67,7 @@ exit 0
     const project = join(home, 'local project'); await mkdir(project);
     const before = await readFile(join(home, 'systemctl.log'), 'utf8');
     await call([process.execPath, 'add', '--trust', archive], 0, project);
+    await call([process.execPath, 'run', 'preuninstall'], 0, join(project, 'node_modules/@tyvsmith/steam-native-notifications'));
     if (await readFile(join(home, 'systemctl.log'), 'utf8') !== before) throw new Error('Local dependency hook modified desktop integration');
     await call([bin, 'config', 'set', 'integrationEnabled', 'false']);
     const config = join(home, 'config/steam-native-notifications/standalone.json');
@@ -96,7 +99,7 @@ exit 0
         if (installed.version !== expected.version || installed.buildId !== expected.buildId || running[0]?.build?.buildId !== expected.buildId || running[0]?.build?.version !== expected.version) throw new Error('Package upgrade/downgrade did not activate matching daemon');
         if (!(await readFile(config)).equals(saved)) throw new Error('Package upgrade/downgrade changed preferences');
     }
-    // Bun has no removal lifecycle hook: deleting files alone leaves integration.
+    // Bun 1.4.3 ignores declared uninstall hooks; keep this capability check explicit.
     const ownedUnit = await readFile(unit);
     await call([process.execPath, 'remove', '-g', '@tyvsmith/steam-native-notifications']);
     if (await Bun.file(join(root, 'package.json')).exists()) throw new Error('Bun removal left application files');
@@ -105,10 +108,16 @@ exit 0
     // Reinstall repairs the missing executable; explicit teardown removes ownership.
     await call([process.execPath, 'add', '-g', '--trust', archive]);
     await call([bin, 'setup']);
-    await call([bin, 'teardown']);
+    // A hook failure must stop removal, not pretend cleanup succeeded.
+    const validUnit = await readFile(unit);
+    await writeFile(unit, 'modified by another owner');
+    await call([process.execPath, 'run', 'preuninstall'], 1, root);
+    if (await readFile(unit, 'utf8') !== 'modified by another owner') throw new Error('Failed hook changed unowned service');
+    await writeFile(unit, validUnit);
+    await call([process.execPath, 'run', 'preuninstall'], 0, root);
     if (await Bun.file(unit).exists()) throw new Error('Teardown left user service');
     if (!(await readFile(config)).equals(saved)) throw new Error('Teardown changed preferences');
     await call([process.execPath, 'remove', '-g', '@tyvsmith/steam-native-notifications']);
     if (await Bun.file(join(root, 'package.json')).exists()) throw new Error('Bun removal left application files');
-    console.log('Packaged Bun CLI passed: trusted global install, headless hook, asset inventory, arbitrary cwd/spaces, global versus local hooks, daemon PID/build readiness, reinstall, simulated next-release upgrade/downgrade, setup/teardown, removal without hooks and recovery');
+    console.log('Packaged Bun CLI passed: trusted global install, headless hook, asset inventory, arbitrary cwd/spaces, global versus local hooks, daemon PID/build readiness, reinstall, simulated next-release upgrade/downgrade, setup/teardown hooks, guarded local and unowned hooks, propagated cleanup failure, removal without automatic hooks and recovery');
 } finally { try { process.kill(Number(await readFile(join(home, 'daemon.pid'), 'utf8')), 'SIGTERM'); } catch {} await rm(home, { recursive: true, force: true }); }
