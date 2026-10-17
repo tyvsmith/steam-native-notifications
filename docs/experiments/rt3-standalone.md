@@ -53,7 +53,7 @@ frontend to preserve callbacks; status reports mismatched build identities.
 ## Settings and diagnostics
 
 - use the Operating system notifications section at the bottom of Steam Settings → Notifications
-- use `snn config get|set|reset` for offline recovery while Steam is stopped
+- use `snn --host standalone config get|set|reset` for offline recovery while Steam is stopped
 - use `snn --host standalone status --json`, `doctor` and `capture`
 - enable `devFire` before `snn --host standalone dev fire TestDownloadComplete 1073390`
 - never synthesize `TestIncomingVoiceChat`; it can wedge Steam's toast queue
@@ -64,7 +64,8 @@ Status uses the private user socket and live frontend health. Healthy transport
 and helper acknowledgement do not prove visible notification delivery.
 
 Logs use `$XDG_STATE_HOME/steam-native-notifications/standalone.log`, with one
-5 MiB backup. They contain notification text and remain private. Required
+5 MiB backup. Detailed notification content requires `verboseDiagnostics=true`;
+old logs are not scrubbed when it is disabled. Required
 native delivery dependencies are `notify-send`, `gdbus` and `curl`. LuaJIT and
 libwayland-client enable focus discovery; unavailable focus stays unknown.
 

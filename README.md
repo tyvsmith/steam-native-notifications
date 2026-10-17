@@ -4,7 +4,8 @@ Under Active Development
 
 Mirror Steam notifications to the desktop, preserving artwork and click actions.
 The Millennium plugin supports the existing client; an experimental standalone
-host supports native Linux RT3 without Millennium.
+host supports native Linux Steam without Millennium. RT3 has the recorded live
+coverage; the non-RT3 client also passed user testing.
 
 Clicks replay Steam's captured handler when its surface still matches. A
 verified catalog fallback handles supported notifications after Steam restarts
@@ -92,7 +93,9 @@ bottom of the page. Millennium: use the plugin settings panel.
   notifications are enabled; hiding a control preserves its preference
 - let Windows decide banner visibility through its notification settings,
   including Do Not Disturb, unless Notification Center only is enabled
-- leave Linux banner and history policy to the notification daemon
+- leave Linux banner and history policy to the notification daemon; live-banner
+  actions use FreeDesktop notifications, while retained executable history
+  actions are verified with Quickshell/Quattro only
 
 Context follows where Steam renders the toast. Steam can keep using the game
 overlay after alt-tab, so Inside games settings can still apply then. Native
@@ -106,8 +109,9 @@ acknowledgement does not confirm a displayed OS banner.
 Windows history clicks can still target a hidden overlay while a game is
 running; focus detection is tracked in [#14](https://github.com/tyvsmith/steam-native-notifications/issues/14).
 
-The `tools/fire` test door ships off and appears only with `devMode` enabled
-out of band. See `docs/architecture.md` for testing instructions.
+Developer commands ship off. Both hosts use the same CLI settings and test
+commands; see [developer commands](docs/standalone-release.md#settings-and-diagnostics).
+The fixed sample requires no developer opt-in.
 
 ## Diagnosing
 
@@ -121,10 +125,12 @@ The plugin logs to `~/.cache/steam-native-notifications/plugin.log` on Linux and
 `%LOCALAPPDATA%\steam-native-notifications\plugin.log` on Windows (truncated at
 each backend load); Millennium's loader lines are in
 `~/.steam/steam/logs/console-linux.txt` under `me.tysmith.steam-native-notifications`.
-Every stage of a click logs one line, and every failure mode names itself —
-the vocabulary table is in `docs/architecture.md`.
+Health and routing summaries remain enabled. Notification text, payloads, routes
+and callback details require `verboseDiagnostics=true`. Existing logs may still
+contain details from older builds or earlier opt-in sessions; inspect them
+before sharing. See the vocabulary in `docs/architecture.md`.
 
-## Experimental RT3 client without Millennium
+## Experimental standalone client without Millennium
 
 The experimental standalone host runs over Steam CEF DevTools on native Linux.
 Build with `bun run build:standalone`; see

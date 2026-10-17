@@ -1,4 +1,40 @@
-# RT3 candidate validation
+# Standalone candidate validation
+
+## Production-readiness candidate, 2026-10-17
+
+Base: experimental after [PR #44](https://github.com/tyvsmith/steam-native-notifications/pull/44).
+Build: `83a804a33ac9e80cf2a9136dff161bbb381e235ec1f0e1fbc0dc2dfc99099a5e`,
+Bun 1.4.3, Starlight 1.1.6, native Linux RT3 on Hyprland.
+
+- passed typecheck and shared regression suites, 113 standalone tests and 10
+  isolated host-contract tests, nine build/publication tests, packaged Bun
+  lifecycle smoke and noninstalling `.star` pack/verification
+- reviewed CLI selection, logging privacy, settings refresh and publication;
+  added refusal for inconclusive host probes and source identity checks for
+  same-version release assets
+- installed the merged baseline, then the completed candidate; package, daemon
+  and frontend identities matched with hook, panel and control ready
+- exercised installed CLI auto selection, config reads/writes, sample execution,
+  developer opt-in/refusal, fire and replay inspection
+- verified master-off capture policy preserved Steam without native delivery;
+  sample execution itself remains possible through CLI under that policy
+- verified safe capture summaries with verbose logging off and payload details
+  only after explicit opt-in; restored configuration bytes afterward
+- toggled all five native Steam controls twice, verified persisted values, and
+  exercised sample, reset cancellation and removal cancellation
+- confirmed removal displayed the expected success message, disabled the
+  injected runtime immediately, removed service/autostart entries and preserved
+  saved preferences; observed Steam's own synthetic download banner before restart
+- restored setup and restarted Steam; observed an OS download banner and its
+  matching Quattro record, then invoked its stored argv and confirmed exact replay
+- restored DND and preferences, leaving developer/verbose flags off and the
+  standalone service, hook and panel ready
+
+Samples and download events in this pass were synthetic. The retained action
+was invoked programmatically, not through a pointer click. No real game event,
+logout/login, OS restart or Windows test was performed. Millennium configuration
+refresh has offline coverage but was not live-tested after returning to RT3.
+Personal screenshots and raw logs remain local.
 
 ## Bun distribution and settings convergence
 
@@ -30,32 +66,46 @@ No real game, Millennium runtime, Windows, login or OS restart validation was
 performed. Bun global commands live in `~/.bun/bin`, which was absent from this
 session's PATH; the service uses absolute executable paths and is unaffected.
 
-## Experimental merge checklist
+## Current merge checklist
 
-Each milestone targets `experimental/rt3-standalone-cdp`, receives independent
-review and CI, then merges. Main remains gated on the deferred host/session
-checks below. The Bun package supersedes compiled standalone distribution;
-older evidence below describes the artifacts tested at that time.
+The original six workstreams have landed on experimental: Steam settings UI,
+shared host policy, developer tooling, Bun packaging, cleanup and documentation.
+The browser editor and compiled standalone distribution are retired. Historical
+entries below describe their own artifacts, not current release requirements.
 
-| Milestone | Plan and maintainability checkpoint | Verification and evidence |
+| Workstream | Current implementation | Acceptance still required |
 |---|---|---|
-| 1. Steam UI | exercise existing panel and notification journeys; keep one shared notification pipeline | [PR #32](https://github.com/tyvsmith/steam-native-notifications/pull/32): panel controls and sample, exact build readiness, stored-argv fallback after Steam restart; build-specific evidence below |
-| 2. Consistency | parse quoted VDF values correctly; pin editor storage to the daemon-advertised configuration path or initial offline default | [PR #34](https://github.com/tyvsmith/steam-native-notifications/pull/34): account-selection and alternate-config regression fixtures, shared suites |
-| 3. Developer tools | fingerprint semantic build inputs; use one identity generator, no extra version registry | [PR #33](https://github.com/tyvsmith/steam-native-notifications/pull/33): identity sensitivity and deterministic generation fixtures; integrated pack checks complete |
-| 4. Packaging/install | gate compiled-binary publication; preserve one per-user installer and explicit local packages | [PR #35](https://github.com/tyvsmith/steam-native-notifications/pull/35): publication guard, release matrix and package fixtures; runtime redistribution materials remain incomplete |
-| 5. Polish/cleanup | bundle a typed browser editor with ordinary imports; remove unused model and obsolete reports | [PR #36](https://github.com/tyvsmith/steam-native-notifications/pull/36): typed editor behavior, compiled assets and shared regression checks |
-| 6. Documentation/final audit | reconcile support and exact-build evidence here; retain one authoritative readiness checklist | final integrated package/live evidence below; diagnostic skills checked against current transport and commands |
+| Steam UI | shared native controls and confirmation dialogs; standalone-only removal | final candidate live results recorded below |
+| Consistency | shared presentation, settings, command dispatch and diagnostic policy | Millennium external-write refresh has offline coverage; repeat live on its client |
+| Developer tools | `snn` config/sample/capture/dev commands for both hosts; thin repository wrappers | same final candidate checks; no separate CLI migration |
+| Packaging/install | Bun-owned application, per-user setup/teardown, explicit registry workflow | npm package ownership/trusted publisher setup before publication |
+| Polish/cleanup | verbose payloads off by default; external browser editor removed | inspect old opt-in logs before sharing |
+| Documentation | one current checklist with build-specific records | record deferred session/hardware results when performed |
 
-### Deferred acceptance
+User testing after the earlier records established standalone delivery on the
+non-RT3 client, repeated notifications during gameplay, and repaired Millennium
+sample/settings behavior. Those reports are user observations, not automated
+proof for the current candidate. [PR #44](https://github.com/tyvsmith/steam-native-notifications/pull/44)
+converged the panel and repaired Millennium bindings and settings snapshots.
 
-- run Millennium live regression on the non-RT3 client: settings actions,
-  external updates, fresh readiness and correlated command success/failure/expiry
-- verify real logout/login, OS restart and desktop-session environment recovery
-- retain Windows behavior as explicitly untested by this workstream
-- verify retained-history pointer clicks, real notification events and
-  in-game/Gamescope behavior where unavailable in the final pass
-- publish registry versions only through an explicit release operation; the new
-  Bun package does not embed the runtime covered by the former binary audit
+### Deferred acceptance and release-owner tasks
+
+- verify logout/login, OS restart and desktop-session environment recovery
+- verify physical retained-history clicks after restart and a real notification
+  event on the final candidate; stored-argv invocation remains distinct evidence
+- cover Gamescope and compositor reconnect separately from ordinary gameplay
+- repeat Millennium live regression for the new external-write refresh when its
+  client is installed; do not switch clients solely for this RT3 pass
+- keep Windows hardware/focus work separate; standalone is Linux x64 only
+- resolve the older Windows blockers in the public-release tracker explicitly
+  before describing a release as cross-platform production-ready
+- configure npm ownership and trusted publishing, then explicitly run publication
+- treat Millennium store listing and AUR packaging as separate distribution work
+
+A main-branch merge does not publish a numbered release or certify deferred
+platform behavior. Public-release tracking remains in
+[issue #30](https://github.com/tyvsmith/steam-native-notifications/issues/30).
+No release, registry version or store listing is created by this checklist.
 
 Synthetic events, fixture interruption, stored-argv invocation and helper
 acknowledgement each establish only their own layer. They do not prove real

@@ -50,7 +50,8 @@ calls it once with the original props, and clones only the discovered body
 element. Other component shapes or body outputs remain unchanged. It adds no sidebar entry and
 leaves Steam's page metadata and navigation callbacks intact. Both hosts offer
 a fixed sample and confirmed reset; both panels share
-visibility, reset policy and sample-result wording.
+visibility, reset policy, native controls, confirmation dialogs and sample-result wording.
+`shared/settings-content.ts` owns the common view; removal is standalone-only.
 
 
 Bun owns application files and command installation. Trusted package installation
@@ -109,7 +110,7 @@ The popup exists before it paints, so delivery polls for text (~1.2s) rather
 than trusting a settle delay. Each popup name delivers at most once. Delivery
 uses one settings snapshot per captured surface. The default-on
 `integrationEnabled` master disables OS delivery and preserves Steam when off,
-without modifying the saved context preferences. All three editors disable
+without modifying the saved context preferences. Both host panels disable
 dependent controls and their test button while the master is off. Developer
 opt-in remains independent. Changes affect subsequent captures.
 
@@ -237,6 +238,11 @@ recovery remains untested. Evidence belongs to its tested host and build; see
 
 ### Log vocabulary
 
+Health and safe policy summaries are always available. `verboseDiagnostics`
+defaults false and gates lazy formatting of payloads, routes, callbacks and
+exception details. The table includes the detailed forms available after opt-in.
+A formatter or logging transport failure never interrupts delivery.
+
 All in `~/.cache/steam-native-notifications/plugin.log` (the Linux runtime
 directory; `docs/platforms.md` has the others), truncated at each backend
 load (Millennium buffers a packed plugin's logger output away from Steam's
@@ -332,9 +338,11 @@ action.
   starts with a quote.
 - Settings are per-key values in Millennium's config store (`usePluginConfig`
   in the panel, `pluginConfig`/`subscribePluginConfig` behind `settings()`);
-  a config write from any source pushes to the running frontend (verified
-  2026-08-30). Missing settings use defaults; obsolete development settings
-  have no migration path.
+  successful panel writes update the runtime snapshot immediately. The existing
+  three-second developer poll refreshes external writes when Millennium misses
+  subscription events. Command execution reads fresh settings before checking
+  its gate. Missing settings use defaults; obsolete development settings have
+  no migration path.
 
 ## Testing methodology, which is easy to get wrong
 
@@ -377,10 +385,10 @@ action.
   handlers; it is all React state.
 - **Keeping the toast popup alive to dispatch a real DOM click later** —
   Steam owns the popup lifecycle and destroys it on its own schedule.
-- **Config-change propagation to a running frontend** — Millennium delivers
-  external config writes by evaluating JS in the main IPC context; a plugin
-  frontend runs in its own isolated CDP world and never sees them. Presets
-  take effect at the next Steam start.
+- **Relying only on Millennium config subscriptions**: external writes can land
+  in the main IPC context while the plugin runs in an isolated world. Local
+  panel writes publish their result; the existing command poll refreshes
+  external changes without adding another timer.
 - **Compositor rules for hiding Steam's toast** — the plugin invokes Steam's
   native dismissal after capture and delivery acknowledgement.
 - The routing catalog's own dead ends (external steam:// URLs into the
