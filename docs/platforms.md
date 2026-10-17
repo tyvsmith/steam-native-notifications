@@ -17,8 +17,10 @@ Native Linux x64 has a compiled experimental host without Millennium. It shares
 capture, presentation, text, replay and routing code. Its Steam settings panel,
 private control socket, systemd lifecycle and browser editor are host-specific.
 The installed candidate has matching daemon/frontend identities and verified
-settings persistence and visible synthetic banners. Banner/history pointer
-clicks, in-game delivery and login recovery remain unverified for this candidate.
+settings persistence, visible synthetic banners, and a banner pointer click
+with the destination and Steam focus observed. Stored-argv history activation
+after Steam restart reached the durable fallback; a history pointer click,
+in-game delivery and login recovery remain unverified.
 See [current validation](experiments/rt3-validation.md) and
 [package instructions](standalone-release.md). The matrix below describes the
 Millennium host; it does not imply standalone support on other platforms.
