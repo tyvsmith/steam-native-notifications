@@ -32,11 +32,6 @@ jobs:
           name: me.tysmith.steam-native-notifications.star
           path: dist
 
-      - uses: actions/download-artifact@v8
-        with:
-          name: snn-linux-x64
-          path: dist
-
       # The tag names the release; millennium.toml is the version the bundle
       # reports to Millennium. They must agree or users install a .star that
       # claims a different version than the release it came from.
@@ -68,5 +63,5 @@ jobs:
           TAG: ${{ steps.version.outputs.tag }}
         run: |
           case $TAG in *-*) pre=--prerelease ;; *) pre= ;; esac
-          gh release create "$TAG" dist/me.tysmith.steam-native-notifications.star dist/*.tar.gz dist/*.sha256 \
+          gh release create "$TAG" dist/me.tysmith.steam-native-notifications.star \
             --verify-tag --generate-notes $pre
