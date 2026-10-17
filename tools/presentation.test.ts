@@ -54,15 +54,20 @@ await loadSettings();
 
 function set(key: string, value: unknown) { store[key] = value; for (const listener of settingListeners) listener(key, value); }
 async function flush() { for (let i = 0; i < 20; i++) await Promise.resolve(); }
-function toast(surface: 'desktop' | 'game' | 'unknown' = 'desktop') {
-	let closed = 0;
+function toast(surface: 'desktop' | 'game' | 'unknown' = 'desktop', onDismiss?: () => void) {
+	let dismissed = 0; let rawClosed = 0;
 	const name = surface === 'desktop' ? `notificationtoasts_${++sequence}_desktop`
 		: surface === 'game' ? `notificationtoasts_uid570-${++sequence}` : `notificationtoasts_unknown-${++sequence}`;
-	const win = { name, closed: false, close() { closed++; }, document: {
+	const win = { name, closed: false, close() { rawClosed++; }, document: {
 		body: { innerText: 'Download complete\nAircar' }, images: [] as unknown[], querySelectorAll: (): unknown[] => [],
 	} };
-	onPopup({ window: win });
-	return { closed: () => closed, name, win };
+    const doc = win.document;
+    const notification = { notificationID: String(sequence) };
+    const bound = { memoizedProps: { notification, onDismiss: () => { onDismiss?.(); dismissed++; } },
+        return: { tag: 4, stateNode: { containerInfo: { ownerDocument: doc } } } };
+    doc.querySelectorAll = (): any[] => [{ __reactFiber$test: bound }];
+    onPopup({ window: win });
+    return { dismissed: () => dismissed, rawClosed: () => rawClosed, name, win };
 }
 function nodes(node: any): any[] {
 	if (Array.isArray(node)) return node.flatMap(nodes);
@@ -104,8 +109,9 @@ test('fresh defaults replace desktop Steam toasts and preserve game Steam toasts
 	const desktop = toast();
 	const game = toast('game');
 	await flush();
-	expect(desktop.closed()).toBe(1);
-	expect(game.closed()).toBe(0);
+	expect(desktop.dismissed()).toBe(1);
+    expect(desktop.rawClosed()).toBe(0);
+	expect(game.dismissed()).toBe(0);
 	expect(notifications).toHaveLength(2);
 });
 
@@ -119,7 +125,7 @@ for (const surface of ['desktop', 'game'] as const) {
 			const popup = toast(surface);
 			await flush();
 			expect(notifications).toHaveLength(os ? 1 : 0);
-			expect(popup.closed()).toBe(steam ? 0 : 1);
+			expect(popup.dismissed()).toBe(steam ? 0 : 1);
 			if (os) expect(notifications[0][5]).toBe(String(history));
 			else expect(logs.some((line) => line.startsWith('replay: candidates'))).toBe(false);
 		});
@@ -130,7 +136,7 @@ test('unknown capture surface leaves Steam alone and sends no OS copy', async ()
 	const popup = toast('unknown');
 	await flush();
 	expect(notifications).toHaveLength(0);
-	expect(popup.closed()).toBe(0);
+	expect(popup.dismissed()).toBe(0);
 });
 
 for (const failure of ['unsupported', 'reject', 'throw']) {
@@ -140,7 +146,7 @@ for (const failure of ['unsupported', 'reject', 'throw']) {
 		let popup: ReturnType<typeof toast>;
 		expect(() => { popup = toast(); }).not.toThrow();
 		await flush();
-		expect(popup!.closed()).toBe(0);
+		expect(popup!.dismissed()).toBe(0);
 	});
 }
 
@@ -152,7 +158,7 @@ test('capture freezes settings while delivery acknowledgement is pending', async
 	set('showSteamOutsideGame', true);
 	acknowledge('"ok"');
 	await flush();
-	expect(popup.closed()).toBe(1);
+	expect(popup.dismissed()).toBe(1);
 });
 
 test('the same popup delivers only once', async () => {
@@ -241,13 +247,13 @@ for (const surface of ['desktop', 'game', 'unknown'] as const) {
             const before = { ...settings() };
             set('integrationEnabled', false);
             const popup = toast(surface); await flush();
-            expect(notifications).toHaveLength(0); expect(popup.closed()).toBe(0);
+            expect(notifications).toHaveLength(0); expect(popup.dismissed()).toBe(0);
             expect(settings()).toEqual({ ...before, integrationEnabled: false });
             set('integrationEnabled', true);
             expect(settings()).toEqual(before);
             const resumed = toast(surface); await flush();
             expect(notifications).toHaveLength(os && surface !== 'unknown' ? 1 : 0);
-            expect(resumed.closed()).toBe(steam || surface === 'unknown' ? 0 : 1);
+            expect(resumed.dismissed()).toBe(steam || surface === 'unknown' ? 0 : 1);
         });
     }
 }
@@ -259,4 +265,57 @@ test('master bypasses every platform and capture surface including Windows histo
                     notifyInGame: os, notifyOutsideGame: os, showSteamInGame: steam, showSteamOutsideGame: steam,
                     notificationCenterOnlyInGame: true, notificationCenterOnlyOutsideGame: true,
                 }, capture, platform)).toEqual({ sendNative: false, showSteam: true, suppressPopup: false });
+});
+
+test('missing native dismissal fails open instead of closing a CEF window', async () => {
+    let closed = 0;
+    onPopup({ window: { name: `notificationtoasts_${++sequence}_desktop`, close() { closed++; },
+        document: { body: { innerText: 'Download complete\nAircar' }, images: [] as unknown[], querySelectorAll: (): unknown[] => [] } } });
+    await flush();
+    expect(notifications).toHaveLength(1); expect(closed).toBe(0);
+    expect(logs.some(line => line.includes('native dismissal unavailable'))).toBe(true);
+});
+
+test('dismissal discovery requires a matching portal and unambiguous bound notification', async () => {
+    const { toastDismissal } = await import('../frontend/dismiss');
+    const doc: any = {};
+    const notification = { notificationID: 42 };
+    const fn = () => {};
+    const portal: any = { tag: 4, stateNode: { containerInfo: { ownerDocument: doc } }, return: null };
+    const bound: any = { memoizedProps: { notification, onDismiss: fn }, return: portal };
+    doc.querySelectorAll = () => [{ __reactFiber$test: bound }];
+    const win = { name: 'notificationtoasts_42_desktop', document: doc } as Window;
+    expect(toastDismissal(win)).toBe(fn);
+    bound.return = { memoizedProps: { notification, onDismiss: fn }, return: portal };
+    expect(toastDismissal(win)).toBe(fn);
+    bound.return.memoizedProps.onDismiss = () => {};
+    expect(toastDismissal(win)).toBeNull();
+    bound.return = portal; bound.memoizedProps.notification = { notificationID: 43 };
+    expect(toastDismissal(win)).toBeNull();
+    bound.memoizedProps.notification = notification;
+    portal.stateNode.containerInfo.ownerDocument = {};
+    expect(toastDismissal(win)).toBeNull();
+    portal.stateNode.containerInfo.ownerDocument = doc;
+    bound.return = null;
+    expect(toastDismissal(win)).toBeNull();
+    bound.return = portal;
+    Object.defineProperty(bound, 'memoizedProps', { get() { throw Error('unmounted'); } });
+    expect(toastDismissal(win)).toBeNull();
+});
+
+test('throwing native dismissal logs failure without raw window closure', async () => {
+    const popup = toast('desktop', () => { throw Error('native lifecycle unavailable'); });
+    await flush();
+    expect(notifications).toHaveLength(1);
+    expect(popup.rawClosed()).toBe(0); expect(popup.dismissed()).toBe(0);
+    expect(logs.some(line => line.includes('could not dismiss') && line.includes('native lifecycle unavailable'))).toBe(true);
+});
+
+test('delivery acknowledgement uses the callback captured before the tree changes', async () => {
+    let acknowledge!: (reply: string) => void;
+    notifyReply = () => new Promise(resolve => { acknowledge = resolve; });
+    const popup = toast(); await flush();
+    popup.win.document.querySelectorAll = (): unknown[] => [];
+    acknowledge('ok'); await flush();
+    expect(popup.dismissed()).toBe(1); expect(popup.rawClosed()).toBe(0);
 });

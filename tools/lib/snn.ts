@@ -42,7 +42,7 @@ const NOTIFICATION = [
 	'from-toast ',
 	'toast .* -> ',
 	'left open: ',
-	'could not close ',
+	'could not dismiss ',
 	'dev-fire',
 	'replay: candidates',
 	'replay: invoke',

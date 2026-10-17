@@ -43,6 +43,7 @@ export async function attach(client: CDP, bundle: string, host: Host, alive: () 
     await client.call('Runtime.enable');
     await client.call('Runtime.addBinding', { name: '__snnHost' });
     let previousConfig = '';
+    let configGeneration = 0;
     while (alive()) {
         if (!injected) {
             for (const candidate of defaults) {
@@ -62,8 +63,10 @@ export async function attach(client: CDP, bundle: string, host: Host, alive: () 
                 break;
             }
         } else {
+            const update = configGeneration;
+            const epoch = generation;
             const values = JSON.stringify(await host.settings());
-            if (values !== previousConfig) {
+            if (update === configGeneration && epoch === generation && injected && context !== undefined && values !== previousConfig) {
                 await client.call('Runtime.evaluate', { contextId: context, expression: `globalThis.__snnConfig(${values})` });
                 previousConfig = values;
             }
@@ -80,8 +83,13 @@ export async function attach(client: CDP, bundle: string, host: Host, alive: () 
             if (epoch !== generation || context === undefined) { ready = false; continue; }
             host.frontendCommand = async (envelope, sample) => {
                 if (!injected || context === undefined || epoch !== generation || envelope.deadline <= Date.now()) throw new Error('Frontend changed or request expired');
+                const update = ++configGeneration;
+                const values = await host.settings();
+                if (update !== configGeneration || !alive() || disconnected || !injected || context === undefined || epoch !== generation || envelope.deadline <= Date.now()) throw new Error('Frontend changed or request expired');
+                // A write acknowledgement can precede the periodic config push.
+                // Apply the saved snapshot in the same turn as the test command.
                 const reply = await client.call('Runtime.evaluate', { contextId: context, returnByValue: true, awaitPromise: true,
-                    expression: `globalThis.__snnDevControl ? globalThis.__snnDevControl(${JSON.stringify(envelope)},${sample}) : ({ok:false,error:"Older frontend lacks control support; restart Steam"})` });
+                    expression: `globalThis.__snnConfig(${JSON.stringify(values)}); globalThis.__snnDevControl ? globalThis.__snnDevControl(${JSON.stringify(envelope)},${sample}) : ({ok:false,error:"Older frontend lacks control support; restart Steam"})` });
                 if (reply.exceptionDetails || !reply.result?.value?.ok) throw new Error(reply.result?.value?.error ?? 'Frontend execution failed');
                 return reply.result.value.value;
             };

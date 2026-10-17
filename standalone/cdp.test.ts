@@ -96,3 +96,47 @@ test('reload during awaited injection cannot mark a destroyed context attached',
     await attach(client, '/* race bundle */', host, () => running);
     expect(ids).toEqual([1, 2]);
 }, 4000);
+
+test('context replacement while reading command settings refuses stale dispatch', async () => {
+    let running = true, reads = 0, commands = 0;
+    const client: any = { onEvent() {}, closed: new Promise(() => {}), async call(method: string, params: any) {
+        if (method === 'Runtime.enable') this.onEvent({ method: 'Runtime.executionContextCreated', params: { context: { id: 1, auxData: { isDefault: true } } } });
+        if (params?.expression?.includes('globalThis.__snnDevControl ?')) commands++;
+        return { result: { value: true } };
+    } };
+    const host: any = { live: {}, log: async () => {}, async settings() {
+        if (++reads === 2) client.onEvent({ method: 'Runtime.executionContextsCleared' });
+        return {};
+    }, async readiness() {
+        const command = host.frontendCommand;
+        await expect(command({ deadline: Date.now() + 2000 }, true)).rejects.toThrow('Frontend changed');
+        running = false;
+    } };
+    await attach(client, '/* fixture */', host, () => running);
+    expect(commands).toBe(0);
+});
+
+test('a delayed config poll cannot overwrite the fresh command snapshot', async () => {
+    let running = true, reads = 0, readiness = 0, release!: () => void, started!: () => void;
+    const polling = new Promise<void>(resolve => { started = resolve; });
+    const writes: boolean[] = [];
+    const client: any = { onEvent() {}, closed: new Promise(() => {}), async call(method: string, params: any) {
+        if (method === 'Runtime.enable') this.onEvent({ method: 'Runtime.executionContextCreated', params: { context: { id: 1, auxData: { isDefault: true } } } });
+        const match = params?.expression?.match(/globalThis\.__snnConfig\((\{"integrationEnabled":(?:true|false)\})\)/);
+        if (match) writes.push(JSON.parse(match[1]).integrationEnabled);
+        if (params?.expression?.includes('globalThis.__snnDevControl ?')) return { result: { value: { ok: true, value: { stage: 'executed' } } } };
+        return { result: { value: true } };
+    } };
+    const host: any = { live: {}, log: async () => {}, async settings() {
+        const read = ++reads;
+        if (read === 2) { started(); await new Promise<void>(resolve => { release = resolve; }); }
+        return { integrationEnabled: read >= 3 };
+    }, async readiness() { if (++readiness === 2) running = false; } };
+    const attached = attach(client, '/* fixture */', host, () => running);
+    try {
+        await polling;
+        await host.frontendCommand({ deadline: Date.now() + 2000 }, true);
+        release(); await attached;
+        expect(writes).toEqual([false, true]);
+    } finally { running = false; release?.(); await attached; }
+});

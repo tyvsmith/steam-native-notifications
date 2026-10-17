@@ -98,9 +98,10 @@ Context follows where Steam renders the toast. Steam can keep using the game
 overlay after alt-tab, so Inside games settings can still apply then. Native
 notifications cannot capture events that Steam never renders.
 
-When replacing Steam's toast, the plugin closes it after the backend
-acknowledges launching native delivery. A rejected request leaves Steam's
-toast visible; the acknowledgement does not confirm a displayed OS banner.
+When replacing Steam's toast, the plugin invokes Steam's native dismissal after
+the backend acknowledges launching native delivery. A rejected request leaves Steam's
+toast visible; unavailable native dismissal also preserves Steam. The
+acknowledgement does not confirm a displayed OS banner.
 
 Windows history clicks can still target a hidden overlay while a game is
 running; focus detection is tracked in [#14](https://github.com/tyvsmith/steam-native-notifications/issues/14).

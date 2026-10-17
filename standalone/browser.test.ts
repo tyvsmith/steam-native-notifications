@@ -71,7 +71,14 @@ test('shared developer execution gates unsafe/disabled/expired/restarted request
 test('real standalone bundle applies master off and restores preferences without duplicate hooks', async () => {
     const f = await fixture(); let closed = 0;
     const preferences = { notifyOutsideGame: true, showSteamOutsideGame: false, notifyInGame: false, showSteamInGame: false };
-    const popup = (name: string) => ({ window: { name, close() { closed++; }, document: { body: { innerText: 'Download complete\nAircar', children: [] as unknown[], querySelectorAll: (): unknown[] => [] }, images: [] as unknown[] } } });
+    const popup = (name: string) => {
+        const doc: any = { body: { innerText: 'Download complete\nAircar', children: [] }, images: [] };
+        const id = name.endsWith('_desktop') ? name.split('_')[1] : name.split('-')[1];
+        const fiber = { memoizedProps: { notification: { notificationID: id }, onDismiss() { closed++; } },
+            return: { tag: 4, stateNode: { containerInfo: { ownerDocument: doc } } } };
+        doc.querySelectorAll = () => [{ __reactFiber$test: fiber }];
+        return { window: { name, close() { throw Error('Raw CEF close bypasses lifecycle'); }, document: doc } };
+    };
     f.context.__snnConfig({ ...preferences, integrationEnabled: false });
     f.hooks[0](popup('notificationtoasts_20_desktop')); f.hooks[0](popup('notificationtoasts_uid570-21'));
     await Bun.sleep(30);
@@ -81,4 +88,38 @@ test('real standalone bundle applies master off and restores preferences without
     await Bun.sleep(30);
     expect(f.calls.filter(call => call.method === 'Notify')).toHaveLength(1); expect(closed).toBe(2);
     expect(f.hooks).toHaveLength(1);
+});
+
+test('commands apply newly saved settings to the real runtime before the polling refresh', async () => {
+    const { attach } = await import('./daemon');
+    const { ConfigStore } = await import('./config-store');
+    const { mkdtemp, rm } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const dir = await mkdtemp(tmpdir() + '/snn-command-config-');
+    const store = new ConfigStore(dir + '/settings.json');
+    const f = await fixture(); let running = true; let sequence = 800;
+    await store.update({ integrationEnabled: false, showSteamOutsideGame: true });
+    f.context.__snnConfig((await store.read()).values);
+    f.context.NotificationStore = { TestFriendOnline() {
+        f.hooks[0]({ window: { name: `notificationtoasts_${sequence++}_desktop`, close() { throw Error('must preserve Steam'); },
+            document: { body: { innerText: 'Sample\nCurrent preferences' }, images: [] as unknown[], querySelectorAll: (): unknown[] => [] } } });
+    } };
+    const client: any = { onEvent() {}, closed: new Promise(() => {}), async call(method: string, params: any) {
+        if (method === 'Runtime.enable') this.onEvent({ method: 'Runtime.executionContextCreated', params: { context: { id: 1, auxData: { isDefault: true } } } });
+        if (!params?.expression) return {};
+        return { result: { value: await runInContext(params.expression, f.context) } };
+    } };
+    const host: any = { live: {}, settings: async () => (await store.read()).values, log: async () => {},
+        async readiness() {
+            const command = () => host.frontendCommand({ id: crypto.randomUUID(), createdAt: Date.now(), deadline: Date.now() + 2000, command: { call: 'TestFriendOnline', args: [] } }, true);
+            await store.update({ integrationEnabled: true });
+            await command(); await Bun.sleep(30);
+            expect(f.calls.filter(call => call.method === 'Notify')).toHaveLength(1);
+            await store.update({ integrationEnabled: false });
+            await command(); await Bun.sleep(30);
+            expect(f.calls.filter(call => call.method === 'Notify')).toHaveLength(1);
+            running = false;
+        } };
+    try { await attach(client, '/* already injected runtime */', host, () => running); }
+    finally { running = false; await rm(dir, { recursive: true, force: true }); }
 });
