@@ -3,6 +3,13 @@ name: live-verify
 description: End-to-end runtime verification against the live Steam client — build, restart Steam, confirm the running bundle with tools/capture, fire test notifications with tools/fire, interpret the log. Use for "verify on the live client", "fire a test notification", "test this route in Steam", "did the change land", or after ANY frontend change.
 ---
 
+Select the host explicitly and preserve settings. Use this Millennium procedure
+only with an installed loader. For standalone, build a local release, upgrade
+with `snn upgrade --release DIR`, then check `snn --host standalone status --json`
+and `snn --host standalone capture`. Follow docs/experiments/rt3-validation.md
+for the host-specific evidence gates. Never install or restart outside the
+user-authorized scope.
+
 All commands run from the repo root. Plugin log:
 `~/.cache/steam-native-notifications/plugin.log` (mirrored by the backend, truncated
 at each backend load); Millennium's loader lines are in
@@ -49,7 +56,7 @@ this step.
 
 | capture says | meaning / next step |
 |---|---|
-| `STALE — Steam is running an older build` | restart Steam (step 1), re-run capture. Ignore capture's own "toggle the plugin off and on" hint — toggling reloads only the Lua backend, never the frontend |
+| stale frontend identity | fully restart Steam within authorized scope, then repeat capture; toggling the plugin is insufficient |
 | `loaded (never)` | enable the plugin in Millennium > Plugins |
 | no `hook installed` in section 2 | bridge inactive — see the `steam-update-smoke` skill |
 | section 3 empty | nothing captured yet — fire something (step 4) |
@@ -75,7 +82,7 @@ With Steam stopped, seed the same per-key values directly in
 `"devMode": true`).
 
 - Settings are per-key booleans in Millennium's config store (the earlier
-  one-document form migrates at backend load). mep parses values as JSON, so
+  one-document form is obsolete). mep parses values as JSON, so
   `value=true` arrives as a boolean.
 - A config write pushes to the running frontend: a mep write of `devFire`
   gates the poll within a tick, no restart (verified 2026-08-30).
@@ -114,14 +121,13 @@ tools/fire --wishlist 1073390                             # Wishlist (appid must
 ```
 
 body_data fields per type: `docs/steam-routing.md`, server catalog.
-"queued" only means the file was written; the poll picks it up within ~3s
-**if** the toggle is on.
+Current tools wait for a correlated execution receipt. Execution is distinct
+from notification capture and visible delivery; an unacknowledged queue proves
+neither.
 
-The only real-event self-service trigger is download completion:
-
-```sh
-steam steam://uninstall/1073390 && steam steam://install/1073390   # Aircar, 0.89GB
-```
+A real download completion provides independent event evidence. Use a download
+already authorized by the user; synthetic test methods do not prove real-event
+ingestion. Do not uninstall a game merely to manufacture a test event.
 
 Diagnostics (results land in the plugin log):
 
@@ -136,13 +142,13 @@ tools/fire --replay invoke [toast-name]  # invoke a stashed handler, no click
 | log signature | meaning |
 |---|---|
 | no `dev-fire:` line at all | toggle off (or stale bundle — step 2 first) |
-| `dev-fire:` but no `from-toast` after it | a **Steam gate**, not a break — see below |
+| `dev-fire:` but no `from-toast` after it | a possible **Steam gate**; inspect capture and host errors before attributing it — see below |
 | `dev-fire: NotificationStore.X is not a function` | wrong test method name |
 | `dev-fire: server notification store not found` | bundle reshuffle — see `steam-update-smoke` |
 | `from-toast ... type=N (Name) source=... fields=...` | extraction worked; check the fields |
-| `toast ... -> {"title":...,"type":N,"route":"replay:..."}` | what was delivered; `route` is the replay token |
+| `toast ... -> {... replayable, fallback, click ...}` | captured replay/fallback envelope and presentation policy sent for delivery |
 | `toast ... -> {...} (suppressed: ... notifications off)` | the surface toggle kept it off the desktop; not a break |
-| `click-bridge: <payload>` | a click was consumed from the click file |
+| `steam-url: click` then `click-bridge:` | accepted activation reached the bridge; inspect its outcome |
 | `overlay: ... appid=N` | a surface door opened (chat room, screenshot, clip, media, playtime, web page) |
 
 Click-path signatures beyond these (stale drops, door failures, the stashed
@@ -167,13 +173,14 @@ Known gates that swallow fires silently:
   unfocused is meaningless (three wrong conclusions came from this).
 - **Watch the client while clicking**: `steam://nav/...` changes a page inside
   the existing window; unwatched, a working navigation looks like nothing.
-- **Every click rides the click bridge**: notify-action writes the click to
-  `~/.cache/steam-native-notifications/.click` and the bridge opens it from inside
-  Steam, picking the surface by live game focus. A consumed click always logs
-  `click-bridge:`; the bridge polls for 120s after each delivery and drops
-  clicks older than 30s.
-- **The desktop notification's click window is bounded**: quickshell expires
-  the popup after ~8s despite `-t 0`, the action dies with it, and the
-  notification-centre copy is inert. Click within ~8s.
-- A click that does nothing is CORRECT when the toast carried no replay token —
-  null — mirror Steam.
+- Linux live actions launch `steam` with the canonical notification URL.
+  Look for `steam-url: click` followed by `click-bridge:` and its outcome. The
+  remaining click-file poll is a legacy/test seam.
+- Quattro can retain the fixed `omarchy-exec-argv` action in history; other
+  FreeDesktop daemons may not preserve executable actions. Test the actual
+  daemon. Distinguish pointer clicks from direct stored-argv invocation.
+- Replay keeps at most 256 handlers for the Steam session, with no time expiry.
+  After Steam restarts, a supported durable fallback can still navigate.
+  No safe replay or verified fallback means an inert click by design.
+- Record the exact build, host, visible destination and focus separately from
+  helper acknowledgement. Restore all temporary preferences after testing.

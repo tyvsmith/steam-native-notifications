@@ -211,9 +211,11 @@ not a persistent executable command, so reboot-durable history clicks are
 daemon-specific. The new Linux
 path has offline coverage and runtime evidence for stored-argv replay and
 Achievement fallback after Steam restart/cold start. Quattro history UI clicks
-worked with Steam running and fully stopped; live-banner clicks, explicit
-focus-owner measurement, and shell/login restart remain untested. See
-`docs/platforms.md`.
+worked with Steam running and fully stopped in the earlier Millennium checks.
+The standalone candidate additionally demonstrated a live-banner pointer click
+and Steam focus, then stored-argv fallback after Steam restart. Shell/login
+recovery remains untested. Evidence belongs to its tested host and build; see
+`docs/platforms.md` and `docs/experiments/rt3-validation.md`.
 
 ### Log vocabulary
 

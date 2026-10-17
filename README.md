@@ -2,14 +2,13 @@ Under Active Development
 
 # steam-native-notifications
 
-A Millennium plugin that mirrors Steam's in-client notification toasts to the
-desktop notification daemon, keeping the artwork and the click. Toasts land
-in your notification centre with everything else, and clicking one does
-exactly what clicking Steam's own toast would — because it *is* Steam's own
-click: at capture time the plugin stashes the click handler Steam attached to
-the toast, and a click on the desktop notification re-runs it. There is no
-per-type routing table to maintain; notification types Steam adds tomorrow
-are clickable on day one.
+Mirror Steam notifications to the desktop, preserving artwork and click actions.
+The Millennium plugin supports the existing client; an experimental standalone
+host supports native Linux RT3 without Millennium.
+
+Clicks replay Steam's captured handler when its surface still matches. A
+verified catalog fallback handles supported notifications after Steam restarts
+or replay becomes unavailable. Ambiguous actions fail closed.
 
 `docs/architecture.md` is the full picture; `docs/notification-types.md`
 lists every notification type and what Steam's click does for it.
@@ -120,8 +119,11 @@ the vocabulary table is in `docs/architecture.md`.
 
 ## Experimental RT3 client without Millennium
 
-The `experimental/rt3-standalone-cdp` branch adds a native Linux Bun host over
-Steam CEF DevTools. Build with `bun run build:standalone`; see
-[setup and validation limits](docs/experiments/rt3-standalone.md). Live RT3
-notification delivery remains unverified. The normal Millennium plugin remains
-available.
+The experimental standalone host runs over Steam CEF DevTools on native Linux.
+Build with `bun run build:standalone`; see
+[setup and validation limits](docs/experiments/rt3-standalone.md).
+Live standalone checks cover settings, visible synthetic banners, a banner
+click and stored-history fallback after Steam restart. See the
+[build-specific evidence and remaining merge gates](docs/experiments/rt3-validation.md).
+Build local packages with `bun run build:release`; public standalone binaries
+remain gated on complete runtime redistribution materials.

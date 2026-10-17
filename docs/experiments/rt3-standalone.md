@@ -5,7 +5,7 @@ without Millennium. This is the client runtime, not a game's compatibility tool.
 Capture, localized text, presentation, replay, durable routing and the Linux
 notification helper are shared with the Millennium plugin.
 
-Use the [packaged installer](../standalone-release.md) for installation. The
+Use the [locally built package](../standalone-release.md) for installation. The
 compiled package includes its runtime; development requires Bun 1.4.3.
 There is one CLI and one package installer. Source installations and migration
 from earlier pre-release package formats are unsupported.

@@ -1,5 +1,66 @@
 # RT3 candidate validation
 
+## Experimental merge checklist
+
+Each milestone targets `experimental/rt3-standalone-cdp`, receives independent
+review and CI, then merges. Main remains gated on the deferred host/session
+checks below. Public standalone binary distribution is a separate gate.
+
+| Milestone | Plan and maintainability checkpoint | Verification and evidence |
+|---|---|---|
+| 1. Steam UI | exercise existing panel and notification journeys; keep one shared notification pipeline | [PR #32](https://github.com/tyvsmith/steam-native-notifications/pull/32): panel controls and sample, exact build readiness, stored-argv fallback after Steam restart; build-specific evidence below |
+| 2. Consistency | parse quoted VDF values correctly; pin editor storage to the daemon-advertised configuration path or initial offline default | [PR #34](https://github.com/tyvsmith/steam-native-notifications/pull/34): account-selection and alternate-config regression fixtures, shared suites |
+| 3. Developer tools | fingerprint semantic build inputs; use one identity generator, no extra version registry | [PR #33](https://github.com/tyvsmith/steam-native-notifications/pull/33): identity sensitivity and deterministic generation fixtures; integrated pack checks complete |
+| 4. Packaging/install | gate compiled-binary publication; preserve one per-user installer and explicit local packages | [PR #35](https://github.com/tyvsmith/steam-native-notifications/pull/35): publication guard, release matrix and package fixtures; runtime redistribution materials remain incomplete |
+| 5. Polish/cleanup | bundle a typed browser editor with ordinary imports; remove unused model and obsolete reports | [PR #36](https://github.com/tyvsmith/steam-native-notifications/pull/36): typed editor behavior, compiled assets and shared regression checks |
+| 6. Documentation/final audit | reconcile support and exact-build evidence here; retain one authoritative readiness checklist | final integrated package/live evidence below; diagnostic skills checked against current transport and commands |
+
+### Deferred acceptance
+
+- run Millennium live regression on the non-RT3 client: settings actions,
+  external updates, fresh readiness and correlated command success/failure/expiry
+- verify real logout/login, OS restart and desktop-session environment recovery
+- retain Windows behavior as explicitly untested by this workstream
+- verify retained-history pointer clicks, real notification events and
+  in-game/Gamescope behavior where unavailable in the final pass
+- keep standalone release uploads disabled until complete pinned-runtime
+  notices and rebuild/relink materials are reviewed
+
+Synthetic events, fixture interruption, stored-argv invocation and helper
+acknowledgement each establish only their own layer. They do not prove real
+server events, power-loss durability, physical history clicks or visible banners.
+
+## Integrated candidate, 2026-10-16
+
+Runtime source: experimental commit `00a7dfc5fdad46f10c0bfa2a9094617a5868a5ea`.
+Build: `a612f12d1cdae4a4b7479ce6303f1399798e10045f5914bb3086702169ca03d7`,
+version 0.1.0, Bun 1.4.3, native Linux RT3 on Hyprland.
+Later documentation-only commits do not change this runtime identity; the local
+installed archive contains the documentation snapshot packaged for this test.
+
+- built the compiled release, ran the full shared regression suite and packed
+  Millennium into `dist` without installing it
+- passed 106 standalone tests and four host-contract fixtures; compiled smoke
+  exercised install, settings assets and uninstall without Bun on PATH
+- upgraded the installed package and fully restarted Steam after checking for
+  running games; installed, daemon and frontend identities matched
+- verified all four Steam panel toggles, reset cancel/confirm, external updates,
+  navigation away/back and fixed sample with developer controls disabled
+- used the bundled typed browser editor to save and restore a preference and
+  execute its fixed sample; reloaded after daemon restart, then closed its server
+- confirmed hook, panel and control readiness after daemon-only restart
+- observed the synthetic Aircar download banner with artwork
+- invoked the fixed argv retained from the earlier candidate; the restarted
+  client logged accepted activation, missing stash and durable desktop dispatch
+  to Aircar; screenshots showed Dota 2 before invocation and Aircar afterward
+- kept stored-action invocation separate from a physical history click
+- restored original preferences byte-for-byte and left Steam and the service ready
+
+The native UI automation surface was unavailable for a fresh physical click.
+The earlier candidate's banner-click result remains separate evidence. No
+Millennium, Windows, OS restart, logout/login, real-event or in-game validation
+was performed in this pass. Personal screenshots and logs remain local.
+
 ## Convergence candidate, 2026-10-16
 
 Candidate: `8ddfe1e0d452047299845d1e8e7acb7a0b46b006a14aab6c51095e5152c897e8`,

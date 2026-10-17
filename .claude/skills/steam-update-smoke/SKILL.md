@@ -13,14 +13,14 @@ toggle mechanics are in the `live-verify` skill.
 ## 1. Did the hook attach?
 
 ```sh
-tools/capture
+tools/capture --host millennium # use --host standalone for RT3 without Millennium
 ```
 
 - Section 1 must say `current.` before anything else is trusted.
 - Section 2 missing `hook installed`, or showing `g_PopupManager never
   appeared` / `hook failed` — the bundle renamed or moved the popup manager.
 
-**Millennium #840 caveat**: on the 64-bit SteamRT3 client the hook installs,
+**[Millennium #840](https://github.com/SteamClientHomebrew/Millennium/issues/840) caveat**: on the 64-bit SteamRT3 client the hook installs,
 reports success, and does nothing. `hook installed` plus zero toast lines
 ever captured despite real toasts on screen matches that bug, not this
 plugin.
@@ -57,4 +57,5 @@ tools/fire --replay invoke     # invokes the latest stashed handler
 visibly opening (watch the client) completes the smoke. A `THREW` line is
 logged verbatim with a stack — the handler's captured stores moved.
 
-New notification types need nothing: replay stashes whatever Steam attaches.
+Replay can capture a new type without a catalog change. Durable fallback
+requires a verified route; do not infer post-restart click support from replay.
