@@ -1,18 +1,40 @@
-/** Real compiled executable fixture: no Bun on PATH, no checkout cwd, fake Steam/systemctl. */
-import { mkdtemp, mkdir, writeFile, readFile, rm, cp, chmod, readlink } from 'node:fs/promises';
-import { tmpdir } from 'node:os';import {join,resolve}from 'node:path';import {validateRelease}from '../standalone/package-manifest';
-const identity=JSON.parse(await readFile('shared/build-identity.json','utf8'));
-const source=resolve('dist/releases',`snn-${identity.version}-${identity.buildId.slice(0,12)}-linux-x64`);await validateRelease(source);
-const home=await mkdtemp(join(tmpdir(),'snn compiled home spaces '));try{
-const release=join(home,'extracted release');await cp(source,release,{recursive:true});const steam=join(home,'Steam root');await mkdir(join(steam,'steamrt64'),{recursive:true});for(const p of ['steam.sh','steamrt64/steam','.cef-enable-remote-debugging'])await writeFile(join(steam,p),'');const shims=join(home,'fake commands');await mkdir(shims);for(const name of ['systemctl','notify-send','gdbus','curl']){const path=join(shims,name);await writeFile(path,'#!/bin/sh\nexit 0\n');await chmod(path,0o700);}
-const env={...process.env,HOME:home,XDG_CONFIG_HOME:join(home,'config'),XDG_DATA_HOME:join(home,'data'),XDG_STATE_HOME:join(home,'state'),XDG_CACHE_HOME:join(home,'cache'),XDG_RUNTIME_DIR:join(home,'run'),DISPLAY:':fixture',DBUS_SESSION_BUS_ADDRESS:'unix:path=/fixture',PATH:`${shims}:/usr/bin:/bin`};
-async function call(bin:string,args:string[]){const c=Bun.spawn([bin,...args],{cwd:home,env,stdout:'pipe',stderr:'pipe'});const [out,err,code]=await Promise.all([new Response(c.stdout).text(),new Response(c.stderr).text(),c.exited]);if(code)throw new Error(`${args.join(' ')} failed: ${err}`);return out;}
-const bin=join(release,'snn');
-// Model real systemctl: disabling after the unit has been removed fails.
-await writeFile(join(shims,'systemctl'),'#!/bin/sh\ncase "$2" in restart) echo "fixture activation failed" >&2; exit 1;; disable) test -f "$XDG_CONFIG_HOME/systemd/user/steam-native-notifications-standalone.service" || { echo "Unit does not exist" >&2; exit 1; };; esac\nexit 0\n');
-const failed=Bun.spawn([bin,'install','--release',release,'--steam-dir',steam],{cwd:home,env,stdout:'pipe',stderr:'pipe'});const failure=await new Response(failed.stderr).text();if(await failed.exited!==1||failure.includes('recovery pending'))throw new Error(`Fresh activation recovery failed: ${failure}`);if(await Bun.file(join(home,'state/steam-native-notifications/standalone-install.json.transaction')).exists())throw new Error('Fresh recovery left transaction');await call(bin,['recover','--json']);
-await mkdir(env.XDG_RUNTIME_DIR,{mode:0o700});
-await writeFile(join(shims,'systemctl'),`#!/bin/sh
+/** Exercise the actual npm tarball in isolated Bun global homes. */
+import { mkdtemp, mkdir, writeFile, chmod, readFile, rm, realpath, cp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve, dirname } from 'node:path';
+import { ASSETS, sha256, validateRelease } from '../standalone/package-manifest';
+const identity = JSON.parse(await readFile('shared/build-identity.json', 'utf8'));
+const name = `snn-${identity.version}-${identity.buildId.slice(0, 12)}`;
+const archive = resolve('dist/releases', `${name}.tgz`);
+const home = await mkdtemp(join(tmpdir(), 'snn bun package spaces '));
+const env = { ...process.env, HOME: home, BUN_INSTALL: join(home, '.bun'), XDG_CONFIG_HOME: join(home, 'config'), XDG_DATA_HOME: join(home, 'data'), XDG_STATE_HOME: join(home, 'state'), XDG_CACHE_HOME: join(home, 'cache'), XDG_RUNTIME_DIR: join(home, 'run'), DISPLAY: '', WAYLAND_DISPLAY: '', DBUS_SESSION_BUS_ADDRESS: '', PATH: `${dirname(process.execPath)}:/usr/bin:/bin` };
+async function call(args: string[], expected = 0, cwd = home) {
+    const child = Bun.spawn(args, { cwd, env, stdout: 'pipe', stderr: 'pipe' });
+    const [stdout, stderr, code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
+    if (code !== expected) throw new Error(`${args.join(' ')}: ${code} ${stderr} ${stdout}`);
+    return stdout;
+}
+try {
+    await call([process.execPath, 'add', '-g', '--trust', archive]);
+    const root = join(home, '.bun/install/global/node_modules/@tyvsmith/steam-native-notifications');
+    await validateRelease(root);
+    const bin = join(home, '.bun/bin/snn');
+    if (await realpath(bin) !== join(root, 'standalone/cli.js')) throw new Error('Global executable link differs');
+    await call([bin, '--help']);
+    await call([bin, 'daemon', '--help']);
+    // No display/session is present: a trusted hook must not create user integration.
+    if (await Bun.file(join(home, 'config/systemd/user/steam-native-notifications-standalone.service')).exists()) throw new Error('Headless installation configured desktop integration');
+    await call([process.execPath, 'remove', '-g', '@tyvsmith/steam-native-notifications']);
+    const steam = join(home, 'data/Steam');
+    await mkdir(join(steam, 'steamrt64'), { recursive: true });
+    await writeFile(join(steam, 'steam.sh'), ''); await writeFile(join(steam, 'steamrt64/steam'), '');
+    const shims = join(home, 'fake commands'); await mkdir(shims);
+    await mkdir(env.XDG_RUNTIME_DIR, { mode: 0o700 });
+    for (const name of ['notify-send', 'gdbus', 'curl']) {
+        await writeFile(join(shims, name), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+    }
+    await writeFile(join(shims, 'systemctl'), `#!/bin/sh
+printf '%s\\n' "$*" >> "$HOME/systemctl.log"
 case "$2" in
  restart)
   if test -f "$HOME/daemon.pid"; then
@@ -24,19 +46,69 @@ case "$2" in
     remaining=$((remaining - 1)); sleep 0.1
    done
   fi
-  "$HOME/.local/bin/snn" daemon --steam-dir "$HOME/Steam root" --port 1 >"$HOME/daemon.log" 2>&1 &
+  "$BUN_INSTALL/bin/snn" daemon --steam-dir "$XDG_DATA_HOME/Steam" --port 1 >"$HOME/daemon.log" 2>&1 &
   echo $! > "$HOME/daemon.pid";;
  show)
   echo UnitFileState=enabled; echo ActiveState=active; echo SubState=running
-  echo "MainPID=$(cat "$HOME/daemon.pid")";;
+  if test -f "$HOME/daemon.pid"; then echo "MainPID=$(cat "$HOME/daemon.pid")"; fi;;
  disable|stop) if test -f "$HOME/daemon.pid"; then kill "$(cat "$HOME/daemon.pid")" 2>/dev/null || true; fi;;
 esac
 exit 0
 `);
-await call(bin,['--help']);await call(bin,['daemon','--help']);await call(bin,['install','--release',release,'--steam-dir',steam,'--json']);const stable=join(home,'.local/bin/snn');const active=await readlink(join(home,'data/steam-native-notifications/active'));await call(stable,['--help']);await call(stable,['daemon','--help']);
-const doctorA=JSON.parse(await call(stable,['doctor','--host','standalone','--json']));
-const doctorB=JSON.parse(await call(stable,['--host','standalone','doctor','--json']));
-if(JSON.stringify(doctorA)!==JSON.stringify(doctorB)||doctorA.hosts.length!==1||doctorA.hosts[0].state==='ready')throw new Error('Doctor dispatch or waiting-state diagnostics differ');
-const settings=Bun.spawn([stable,'settings','--no-open'],{cwd:home,env,stdout:'pipe',stderr:'pipe'});try{const reader=settings.stdout.getReader();let output='';const until=Date.now()+5000;while(!output.includes('http://')&&Date.now()<until){const {value,done}=await reader.read();if(done)break;output+=new TextDecoder().decode(value);}const url=output.match(/http:\/\/127\.0\.0\.1:\d+\/[^\s]*/)?.[0];if(!url)throw new Error('Compiled settings URL absent');const response=await fetch(url);if(!response.ok||!(await response.text()).includes('Steam'))throw new Error('Embedded settings HTML unavailable');const origin=new URL(url).origin;for(const asset of ['settings.css','settings.js'])if(!(await fetch(`${origin}/${asset}`)).ok)throw new Error(`Embedded ${asset} unavailable`);}finally{settings.kill('SIGTERM');await settings.exited;}
-await writeFile(join(home,'config/steam-native-notifications/standalone.json'),' {"unknown":42,"devFire":false}\n');const bytes=await readFile(join(home,'config/steam-native-notifications/standalone.json'));await call(stable,['uninstall','--json']);if(!(await readFile(join(home,'config/steam-native-notifications/standalone.json'))).equals(bytes))throw new Error('Settings changed');console.log(`Compiled smoke passed: no Bun PATH, arbitrary cwd, spaces, install/stable invocation/uninstall, active ${active}`);
-}finally{try{process.kill(Number(await readFile(join(home,'daemon.pid'),'utf8')),'SIGTERM');}catch{}await rm(home,{recursive:true,force:true});}
+    await chmod(join(shims, 'systemctl'), 0o755);
+    env.PATH = `${shims}:${env.PATH}`; env.DISPLAY = ':fixture'; env.DBUS_SESSION_BUS_ADDRESS = 'unix:path=/fixture';
+    await call([process.execPath, 'add', '-g', '--trust', archive]);
+    const unit = join(home, 'config/systemd/user/steam-native-notifications-standalone.service');
+    if (!(await readFile(unit, 'utf8')).includes(join(root, 'standalone/cli.js'))) throw new Error('Trusted global hook did not configure packaged CLI');
+    const status = JSON.parse(await call([bin, '--host', 'standalone', '--json', 'status']));
+    if (status[0]?.build?.buildId !== identity.buildId) throw new Error('Packaged daemon build differs');
+    const project = join(home, 'local project'); await mkdir(project);
+    const before = await readFile(join(home, 'systemctl.log'), 'utf8');
+    await call([process.execPath, 'add', '--trust', archive], 0, project);
+    if (await readFile(join(home, 'systemctl.log'), 'utf8') !== before) throw new Error('Local dependency hook modified desktop integration');
+    await call([bin, 'config', 'set', 'integrationEnabled', 'false']);
+    const config = join(home, 'config/steam-native-notifications/standalone.json');
+    const saved = await readFile(config);
+    await call([process.execPath, 'add', '-g', '--force', '--trust', archive]);
+    if (!(await readFile(config)).equals(saved)) throw new Error('Package reinstall changed preferences');
+    // Simulate a future release without publishing it or modifying source identities.
+    const future = join(home, 'future package'); await cp(root, future, { recursive: true });
+    const next = { ...identity, version: `${identity.version.split('.')[0]}.${identity.version.split('.')[1]}.${Number(identity.version.split('.')[2]) + 1}`, buildId: sha256(`fixture next release:${identity.buildId}`) };
+    for (const asset of ['standalone/cli.js', 'dist/standalone/frontend.js']) {
+        const text = await readFile(join(future, asset), 'utf8');
+        if (!text.includes(identity.buildId) || !text.includes(`version: "${identity.version}"`)) throw new Error(`Fixture identity missing in ${asset}`);
+        await writeFile(join(future, asset), text.replaceAll(identity.buildId, next.buildId).replaceAll(`version: "${identity.version}"`, `version: "${next.version}"`));
+    }
+    await writeFile(join(future, 'dist/standalone/build.json'), JSON.stringify(next));
+    const futurePackage = JSON.parse(await readFile(join(future, 'package.json'), 'utf8'));
+    futurePackage.version = next.version;
+    await writeFile(join(future, 'package.json'), JSON.stringify(futurePackage, null, 2) + '\n');
+    const manifest = { ...await validateRelease(root), version: next.version, buildId: next.buildId, files: {} as Record<string, string> };
+    for (const asset of ASSETS) manifest.files[asset] = sha256(await readFile(join(future, asset)));
+    await writeFile(join(future, 'manifest.json'), JSON.stringify(manifest));
+    await validateRelease(future);
+    const futureArchive = join(home, 'future-release.tgz');
+    await call([process.execPath, 'pm', 'pack', '--ignore-scripts', '--filename', futureArchive], 0, future);
+    for (const [release, expected] of [[futureArchive, next], [archive, identity]] as const) {
+        await call([process.execPath, 'add', '-g', '--trust', release]);
+        const installed = await validateRelease(root);
+        const running = JSON.parse(await call([bin, '--host', 'standalone', '--json', 'status']));
+        if (installed.version !== expected.version || installed.buildId !== expected.buildId || running[0]?.build?.buildId !== expected.buildId || running[0]?.build?.version !== expected.version) throw new Error('Package upgrade/downgrade did not activate matching daemon');
+        if (!(await readFile(config)).equals(saved)) throw new Error('Package upgrade/downgrade changed preferences');
+    }
+    // Bun has no removal lifecycle hook: deleting files alone leaves integration.
+    const ownedUnit = await readFile(unit);
+    await call([process.execPath, 'remove', '-g', '@tyvsmith/steam-native-notifications']);
+    if (await Bun.file(join(root, 'package.json')).exists()) throw new Error('Bun removal left application files');
+    if (!(await readFile(unit)).equals(ownedUnit)) throw new Error('Fixture expected Bun-only removal to leave integration');
+    if (!await Bun.file(join(home, 'config/autostart/steam-native-notifications-standalone.desktop')).exists()) throw new Error('Bun-only removal unexpectedly removed autostart');
+    // Reinstall repairs the missing executable; explicit teardown removes ownership.
+    await call([process.execPath, 'add', '-g', '--trust', archive]);
+    await call([bin, 'setup']);
+    await call([bin, 'teardown']);
+    if (await Bun.file(unit).exists()) throw new Error('Teardown left user service');
+    if (!(await readFile(config)).equals(saved)) throw new Error('Teardown changed preferences');
+    await call([process.execPath, 'remove', '-g', '@tyvsmith/steam-native-notifications']);
+    if (await Bun.file(join(root, 'package.json')).exists()) throw new Error('Bun removal left application files');
+    console.log('Packaged Bun CLI passed: trusted global install, headless hook, asset inventory, arbitrary cwd/spaces, global versus local hooks, daemon PID/build readiness, reinstall, simulated next-release upgrade/downgrade, setup/teardown, removal without hooks and recovery');
+} finally { try { process.kill(Number(await readFile(join(home, 'daemon.pid'), 'utf8')), 'SIGTERM'); } catch {} await rm(home, { recursive: true, force: true }); }

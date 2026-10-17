@@ -58,10 +58,10 @@ test('save completion cannot overwrite a newer subscription snapshot', async () 
         const getAll = f.config.getAll; let calls = 0; let release!: () => void;
         f.config.getAll = async () => {
             const snapshot = await getAll();
-            if (++calls === 2) await new Promise<void>(resolve => { release = resolve; });
+            if (++calls === 1) await new Promise<void>(resolve => { release = resolve; });
             return snapshot;
         };
-        // The first snapshot is the write's subscription; the second is its completion read.
+        // Subscription reads queue during the write; hold its completion snapshot.
         f.render().find(n => n.type === 'toggle' && n.props.label === 'Show OS notifications outside a game').props.onChange(true);
         await f.flush(); expect(typeof release).toBe('function');
         await f.config.set('notifyOutsideGame', false); await f.flush();

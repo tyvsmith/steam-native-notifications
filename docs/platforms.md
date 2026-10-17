@@ -13,9 +13,9 @@ macOS has not run.
 
 ## Standalone RT3 host
 
-Native Linux x64 has a compiled experimental host without Millennium. It shares
+Native Linux x64 has an experimental Bun host without Millennium. It shares
 capture, presentation, text, replay and routing code. Its Steam settings panel,
-private control socket, systemd lifecycle and browser editor are host-specific.
+private control socket and systemd lifecycle are host-specific.
 The installed candidate has matching daemon/frontend identities and verified
 settings persistence, visible synthetic banners, and a banner pointer click
 with the destination and Steam focus observed. Stored-argv history activation

@@ -20,23 +20,22 @@ that differ per OS, and the delivery plan where nothing delivers yet).
 
 ## Standalone RT3 host
 
-The native Linux x64 standalone package runs without Millennium or a separate
-Bun installation. Both hosts share notification capture, localized text,
+The native Linux x64 standalone package runs without Millennium, using a separately installed Bun runtime. Both hosts share notification capture, localized text,
 presentation, replay, durable routes and the Linux notification helper.
 
 | Boundary | Millennium | Standalone |
 |---|---|---|
 | Frontend loading and RPC | plugin loader and FFI | loopback CEF CDP and binding adapter |
 | Preferences | per-key plugin config | serialized atomic JSON store |
-| Settings UI | plugin panel | section in Steam Notifications settings and external browser editor |
+| Settings UI | plugin panel | section in Steam Notifications settings |
 | Developer commands | MEP discovery, expiring file queue and correlated frontend replies | private Unix socket and correlated frontend execution |
-| Installation | packed `.star` | versioned executable, user service and desktop entries |
+| Installation | packed `.star` | Bun-owned application package, user service and autostart |
 
 `shared/settings-policy.ts` owns visibility, dependent-control availability and preference
 reset rules. Standalone test commands apply the latest saved preferences before
 execution; a delayed polling read cannot replace that snapshot. Renderers and
 storage stay with their hosts. An optional Steam panel
-failure does not stop notification capture or the external editor.
+failure does not stop notification capture; offline config recovery uses the CLI.
 
 `tools/lib/host-client.ts` owns host selection and common command dispatch;
 `tools/lib/cli-options.ts` owns shared argument parsing. Millennium readiness
@@ -50,17 +49,18 @@ the observed synchronous page function in a stable component per native type,
 calls it once with the original props, and clones only the discovered body
 element. Other component shapes or body outputs remain unchanged. It adds no sidebar entry and
 leaves Steam's page metadata and navigation callbacks intact. Both hosts offer
-a fixed sample and confirmed reset; all editors share
+a fixed sample and confirmed reset; both panels share
 visibility, reset policy and sample-result wording.
 
 
-The packaged installer verifies daemon PID/build readiness before completing
-activation, preserves stopped/disabled service state, and records recoverable
-file ownership. Development uses the same CLI and package installer. The
-installer never changes Steam launchers or starts/stops Steam. Existing settings and
-the shared CEF marker are preserved. See [installation](standalone-release.md),
+Bun owns application files and command installation. Trusted package installation
+attempts per-user integration setup; explicit setup remains available for repair.
+The integration verifies daemon PID/build readiness, preserves stopped/disabled
+service state and records owned service/autostart files. It never restarts Steam.
+Teardown precedes package removal because Bun removal hooks are not reliable.
+Settings and the shared CEF marker are preserved. See [installation](standalone-release.md),
 [development setup](experiments/rt3-standalone.md), and
-[validated behavior and remaining gates](experiments/rt3-validation.md).
+[validation scope](experiments/rt3-validation.md).
 
 ## The pipeline
 

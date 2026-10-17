@@ -1,10 +1,26 @@
 # RT3 candidate validation
 
+## Bun distribution and settings convergence
+
+- remove the external browser settings editor; Steam remains the settings UI
+- share settings-operation serialization, stale-read protection and reset feedback between host panels
+- replace compiled release deployment with a prebuilt Bun npm package and integration-only setup/teardown
+- restrict automatic trusted setup to the global command; project dependency installs remain inert
+- preserve package-manager ownership, preferences and disabled/stopped service state
+- retain explicit teardown because Bun 1.4.3 removal does not execute package removal hooks
+
+Validation uses isolated homes, fake Steam and a service-manager fixture driving
+the real packaged daemon. It establishes package and control behavior, not live
+Steam delivery or graphical-session recovery. The currently installed compiled
+candidate is unchanged. No Windows, Millennium runtime, login or OS restart
+validation was performed for this change.
+
 ## Experimental merge checklist
 
 Each milestone targets `experimental/rt3-standalone-cdp`, receives independent
 review and CI, then merges. Main remains gated on the deferred host/session
-checks below. Public standalone binary distribution is a separate gate.
+checks below. The Bun package supersedes compiled standalone distribution;
+older evidence below describes the artifacts tested at that time.
 
 | Milestone | Plan and maintainability checkpoint | Verification and evidence |
 |---|---|---|
@@ -23,8 +39,8 @@ checks below. Public standalone binary distribution is a separate gate.
 - retain Windows behavior as explicitly untested by this workstream
 - verify retained-history pointer clicks, real notification events and
   in-game/Gamescope behavior where unavailable in the final pass
-- keep standalone release uploads disabled until complete pinned-runtime
-  notices and rebuild/relink materials are reviewed
+- publish registry versions only through an explicit release operation; the new
+  Bun package does not embed the runtime covered by the former binary audit
 
 Synthetic events, fixture interruption, stored-argv invocation and helper
 acknowledgement each establish only their own layer. They do not prove real
@@ -177,7 +193,7 @@ stored-argv fallback establish separate parts of the notification journey.
 Candidate: `a2efd134a9552b12507d63af70237e4dfc210a3ee674c1c92e048907a2fe187c`,
 version 0.1.0, Bun 1.4.3, native Linux RT3 on Hyprland.
 
-### Milestones
+### Historical compiled-candidate milestones
 
 | Milestone | Current result | Remaining gate |
 |---|---|---|

@@ -12,5 +12,3 @@ if (!result.success) { for (const log of result.logs) console.error(log); proces
 console.log(`Standalone frontend: ${result.outputs[0]?.path}`);
 
 await Bun.write(resolve(import.meta.dir, '../dist/standalone/build.json'), JSON.stringify(BUILD_IDENTITY));
-
-await import('./build-settings');

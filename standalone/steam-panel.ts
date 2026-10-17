@@ -1,3 +1,4 @@
+import { useSettingsActions } from '../shared/settings-actions';
 import { sampleMessage } from '../shared/command-result';
 import { visibleSettings, settingDisabled } from '../shared/settings-policy';
 import { ffi, pluginConfig, subscribePluginConfig } from './adapter';
@@ -10,53 +11,39 @@ function panel(React: typeof import('react'), controls: ReturnType<typeof discov
     const h = React.createElement;
     return function Panel(): React.ReactElement {
         const [state, setState] = React.useState<State | null>(null);
-        const [error, setError] = React.useState('');
-        const [message, setMessage] = React.useState('');
-        const [busy, setBusy] = React.useState(false);
         const [connected, setConnected] = React.useState(false);
-        const [confirmReset, setConfirmReset] = React.useState(false);
-        const active = React.useRef(true);
-        const operation = React.useRef(false);
-        const generation = React.useRef(0);
+        const { busy, message, error, confirmReset, setConfirmReset, refresh, run } = useSettingsActions(React);
         React.useEffect(() => {
-            active.current = true;
             let polling = false;
-            const refresh = async () => {
-                if (polling || operation.current) return;
-                polling = true; const current = ++generation.current;
-                try { const next = await rpc('PanelRead'); if (active.current && !operation.current && current === generation.current) { setState(next); setConnected(true); } }
-                catch { if (active.current && current === generation.current) setConnected(false); }
+            const read = async () => {
+                if (polling) return;
+                polling = true;
+                try { await refresh(() => rpc('PanelRead'), next => { setState(next); setConnected(true); }, () => setConnected(false)); }
                 finally { polling = false; }
             };
-            void refresh();
-            const timer = setInterval(refresh, 2000);
+            void read();
+            const timer = setInterval(read, 2000);
             const unsubscribe = subscribePluginConfig(() => {
-                const current = ++generation.current;
-                void pluginConfig.getAll<Settings>().then(values => { if (active.current && !operation.current && current === generation.current) setState(previous => previous && ({ ...previous, config: { ...previous.config, values } })); });
+                void refresh(() => pluginConfig.getAll<Settings>(), values => setState(previous => previous && ({ ...previous, config: { ...previous.config, values } })));
             });
-            return () => { active.current = false; clearInterval(timer); unsubscribe(); };
+            return () => { clearInterval(timer); unsubscribe(); };
         }, []);
-        const run = async (method: string, ...args: unknown[]): Promise<void> => {
-            if (operation.current) return;
-            operation.current = true; generation.current++; setBusy(true); setError(''); setMessage('');
-            try {
-                const result = await rpc(method, ...args);
-                if (!active.current) return;
-                if (method === 'PanelSample') {
-                    if (result?.ok === false) throw new Error(result.error || 'Sample unavailable');
-                    setMessage(sampleMessage(result));
-                } else { setState(previous => previous && ({ ...previous, config: result })); setMessage(method === 'PanelReset' ? 'Defaults restored.' : 'Saved.'); }
-                setConfirmReset(false);
-            } catch (e) { if (active.current) setError(e instanceof Error ? e.message : 'Operation failed'); }
-            finally { operation.current = false; if (active.current) setBusy(false); }
-        };
+        const command = (method: string, ...args: unknown[]) => run(async () => {
+            const result = await rpc(method, ...args);
+            if (result?.ok === false) throw new Error(result.error || 'Operation unavailable');
+            return result;
+        }, result => {
+            if (method === 'PanelSample') return sampleMessage(result);
+            setState(previous => previous && ({ ...previous, config: result }));
+            return method === 'PanelReset' ? 'Defaults restored.' : 'Saved.';
+        });
         const values = state?.config.values;
         const ready = connected && state?.state === 'ready' && state.compatible && state.hook === 'installed';
         const disabled = busy || !connected || !!state?.config.error;
         const row = (key: SettingKey) => h(controls.Toggle, { key, className: `snn-setting-${key}`,
             label: SETTINGS_SCHEMA[key].label, description: SETTINGS_SCHEMA[key].description,
             checked: values?.[key] ?? false, controlled: true, disabled: disabled || !values || settingDisabled(values, key),
-            onChange: (value: boolean): void => void run('PanelPatch', { [key]: value }),
+            onChange: (value: boolean): void => void command('PanelPatch', { [key]: value }),
         });
         return h(controls.Theme, {}, h(controls.Section, { label: 'Operating system notifications' }, h('section', { 'data-snn-panel': true },
             !ready && h('p', { role: 'status' }, !connected
@@ -66,12 +53,12 @@ function panel(React: typeof import('react'), controls: ReturnType<typeof discov
             ...visibleSettings(values ?? {} as Settings, 'linux').filter(key => !SETTINGS_SCHEMA[key].developer).map(row),
             values?.devMode && row('devFire'),
             h(controls.Buttons, {},
-                h(controls.Button, { disabled: busy || !ready || !values?.integrationEnabled, onClick: (): void => void run('PanelSample') }, 'Send test notification'),
+                h(controls.Button, { disabled: busy || !ready || !values?.integrationEnabled, onClick: (): void => void command('PanelSample') }, 'Send test notification'),
                 h(controls.Button, { disabled, onClick: (): void => setConfirmReset(true) }, 'Reset notification settings')),
             confirmReset && h(controls.Section, { label: 'Restore notification settings to their defaults?' },
                 h(controls.Buttons, {},
-                    h(controls.Button, { disabled, onClick: (): void => void run('PanelReset') }, 'Restore defaults'),
-                    h(controls.Button, { onClick: (): void => setConfirmReset(false) }, 'Cancel'))),
+                    h(controls.Button, { disabled, onClick: (): void => void command('PanelReset') }, 'Restore defaults'),
+                    h(controls.Button, { disabled, onClick: (): void => setConfirmReset(false) }, 'Cancel'))),
             h('div', { role: error ? 'alert' : 'status' }, h(controls.Description, {}, error || (busy ? 'Saving…' : message))))));
     };
 }
