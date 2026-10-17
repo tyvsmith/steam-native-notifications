@@ -4,7 +4,8 @@ import { resolve } from 'node:path';
 import { DEFAULTS } from '../shared/settings';
 async function panelFixture() {
     const sources: Record<string, string> = {
-        react: 'export const useState = globalThis.hooks.useState; export const useRef = globalThis.hooks.useRef; export const useEffect = globalThis.hooks.useEffect;',
+        '../shared/steam-settings-controls': 'export const steamSettingsControls = () => globalThis.controls;',
+        react: 'export const createElement = (type,props,...children) => ({type,props:{...props,children:children.length === 1 ? children[0] : children}}); export const useState = globalThis.hooks.useState; export const useRef = globalThis.hooks.useRef; export const useEffect = globalThis.hooks.useEffect;',
         'react/jsx-dev-runtime': 'export const jsxDEV = (type,props) => ({type,props}); export const Fragment="fragment";',
         'react/jsx-runtime': 'export const jsx = (type,props) => ({type,props}); export const jsxs=jsx; export const Fragment="fragment";',
         millennium: 'export const DialogBodyText="text", DialogControlsSection="section", DialogControlsSectionHeader="header", DialogButton="button", ToggleField="toggle"; export const pluginConfig=globalThis.config; export const subscribePluginConfig=globalThis.subscribe;',
@@ -12,14 +13,15 @@ async function panelFixture() {
         './devfire': 'export const executeDevCommand = globalThis.sample;',
     };
     const built = await Bun.build({ entrypoints: [resolve('frontend/SettingsPanel.tsx')], target: 'browser', format: 'cjs', plugins: [{ name: 'panel-fixture', setup(build) {
-        build.onResolve({ filter: /^(react(?:\/jsx(?:-dev)?-runtime)?|millennium|\.\/(platform|devfire))$/ }, args => ({ path: args.path, namespace: 'fixture' }));
+        build.onLoad({ filter: /frontend\/settings\.ts$/ }, async args => ({ contents: await Bun.file(args.path).text() + '\nglobalThis.runtimeSettings = settings;', loader: 'ts' }));
+        build.onResolve({ filter: /^(react(?:\/jsx(?:-dev)?-runtime)?|millennium|\.\/(platform|devfire)|\.\.\/shared\/steam-settings-controls)$/ }, args => ({ path: args.path, namespace: 'fixture' }));
         build.onLoad({ filter: /.*/, namespace: 'fixture' }, args => ({ contents: sources[args.path]!, loader: 'js' }));
     } }] });
     if (!built.success) throw Error(built.logs.join('\n'));
     let values: any = { ...DEFAULTS, notifyOutsideGame: false, devMode: true, devFire: true, notificationCenterOnlyInGame: true };
     const slots: any[] = [], effects: (() => void)[] = [], cleanups: (() => void)[] = [], listeners = new Set<Function>();
-    let index = 0; const samples: any[] = [];
-    const context: any = { module: { exports: {} }, crypto, Date, setTimeout,
+    let index = 0; const samples: any[] = []; let modal: any; const owner = {};
+    const context: any = { controls: { Theme: 'theme', Section: 'section', Toggle: 'toggle', Button: 'button', Description: 'text', ActionSection: 'native-actions', ConfirmDialog: 'confirm', ShowModal: (element: any, window: any) => { expect(window).toBe(owner); modal = element; } }, module: { exports: {} }, crypto, Date, setTimeout,
         config: { getAll: async () => ({ ...values }), set: async (key: string, value: unknown) => { values[key] = value; for (const f of listeners) f(key, value); } },
         subscribe: (fn: Function) => { listeners.add(fn); return () => listeners.delete(fn); },
         sample: async (...args: any[]) => { samples.push(args); return { stage: 'executed' }; },
@@ -31,17 +33,24 @@ async function panelFixture() {
     };
     runInNewContext(await built.outputs[0]!.text(), context);
     function nodes(node: any): any[] { if (!node || typeof node !== 'object') return []; return [node, ...[node.props?.children].flat(Infinity).flatMap(nodes)]; }
-    const render = () => { index = 0; const tree = nodes(context.module.exports.SettingsPanel()); for (const fn of effects.splice(0)) fn(); return tree; };
+    const render = () => { index = 0; const tree = [...nodes(context.module.exports.SettingsPanel()), ...nodes(modal)]; for (const fn of effects.splice(0)) fn(); return tree; };
     const flush = async () => { for (let i = 0; i < 40; i++) await Promise.resolve(); };
-    const button = (label: string) => render().find(n => n.type === 'button' && n.props.children === label);
+    const button = (label: string) => {
+        if (modal && [modal.props.strOKButtonText, 'Cancel'].includes(label)) return { props: { onClick: () => { const action = label === 'Cancel' ? undefined : modal.props.onOK; modal = undefined; action?.(); } } };
+        const found = render().find(n => n.type === 'button' && n.props.children === label);
+        return found && { ...found, props: { ...found.props, onClick: () => found.props.onClick({ currentTarget: { ownerDocument: { defaultView: owner } } }) } };
+    };
     render(); await flush();
-    return { config: context.config, render, flush, button, values: () => values, samples, close: () => cleanups.forEach(fn => fn?.()) };
+    return { runtimeSettings: () => context.runtimeSettings(), config: context.config, render, flush, button, values: () => values, samples, close: () => cleanups.forEach(fn => fn?.()) };
 }
 test('Millennium panel uses shared visibility, confirms reset and preserves platform/developer opt-ins', async () => {
     const f = await panelFixture();
     try {
         expect(f.render().filter(n => n.type === 'toggle')).toHaveLength(6);
+        expect(f.render().some(n => n.props.className === 'native-actions')).toBe(true);
+        expect(f.button('Remove OS notification integration')).toBeUndefined();
         f.button('Reset notification settings').props.onClick();
+        expect(f.render().some(n => n.type === 'confirm')).toBe(true);
         f.button('Cancel').props.onClick(); expect(f.values().notifyOutsideGame).toBe(false);
         f.button('Reset notification settings').props.onClick();
         f.button('Restore defaults').props.onClick(); await f.flush();
@@ -86,5 +95,22 @@ test('master disables dependent controls and sample while retaining preferences 
         master().props.onChange(true); await f.flush();
         expect(f.values()).toEqual(before);
         expect(f.button('Send test notification').props.disabled).toBe(false);
+    } finally { f.close(); }
+});
+
+test('panel writes update delivery settings when Millennium sends no subscription event', async () => {
+    const f = await panelFixture();
+    try {
+        f.config.set = async (key: string, value: unknown) => { f.values()[key] = value; };
+        const row = (label: string) => f.render().find(n => n.type === 'toggle' && n.props.label === label);
+        row('Show Steam notifications outside a game').props.onChange(true); await f.flush();
+        expect(f.runtimeSettings().showSteamOutsideGame).toBe(true);
+        row('Show OS notifications outside a game').props.onChange(true); await f.flush();
+        expect(f.runtimeSettings().notifyOutsideGame).toBe(true);
+        row('Show OS notifications outside a game').props.onChange(false); await f.flush();
+        row('Show Steam notifications outside a game').props.onChange(false); await f.flush();
+        expect(f.runtimeSettings()).toMatchObject({ notifyOutsideGame: false, showSteamOutsideGame: false });
+        row('Enable native notification integration').props.onChange(false); await f.flush();
+        expect(f.runtimeSettings().integrationEnabled).toBe(false);
     } finally { f.close(); }
 });
