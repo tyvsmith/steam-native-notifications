@@ -355,3 +355,16 @@ Steam relaunched successfully, but three shutdowns crashed in its audio/PulseAud
 thread. These traces do not establish a plugin cause; clean shutdown remains
 unverified. Panel pointer interaction, in-game routing, physical history clicks,
 logout/login and Windows were not tested in this pass.
+
+### Shared delivery dropdowns, 2026-10-17
+
+Build: `b9ee3f95d5f385049bd0d99d537c0fc9f6dcb195be144678cfdfb72252dac34a`.
+
+- replaced four delivery switches with native In game and On desktop dropdowns
+- preserved existing preferences and bottom buttons; shortened explanatory copy
+- installed and checked the shared panel in Millennium and standalone RT3
+- exercised all four choices in both contexts and checked saved preferences
+- checked master-switch disabling, narrow and wide layouts, and visible OS samples
+- restored original preferences after testing; user accepted both host interfaces
+
+This UI validation does not add in-game, logout/login or Windows coverage.
