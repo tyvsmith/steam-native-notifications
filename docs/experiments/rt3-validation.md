@@ -30,6 +30,30 @@ Synthetic events, fixture interruption, stored-argv invocation and helper
 acknowledgement each establish only their own layer. They do not prove real
 server events, power-loss durability, physical history clicks or visible banners.
 
+## Notifications section, 2026-10-16
+
+Build: `c7eab5b6d9d447603be0d7f07b6de26a6bce7f99592da06d5ea1962ac6e0258c`,
+version 0.1.0, Bun 1.4.3, native Linux RT3 on Hyprland.
+
+- moved standalone controls into Desktop notifications at the bottom of Steam's
+  existing Notifications page; removed the custom sidebar page and divider
+- preserved the original notification text and all 16 native toggle controls;
+  verified one appended section as the last child of the same native scroll body
+- verified all four extension toggles, scoped reset cancel/confirm, external
+  settings updates, navigation away/back and fixed sample execution
+- opened and dismissed Steam's existing toast dropdown without changing its
+  selection; closing and reopening Settings retained exactly one section
+- passed shared and standalone tests, noninstalling Millennium pack and compiled
+  package smoke; seam fixtures cover stable wrappers, native props/children,
+  unsupported shapes, duplicate/missing pages and extension-only error isolation
+- upgraded and restarted Steam after checking for running games; installed,
+  daemon and frontend identities matched, with hook, section and control ready
+- restored preferences byte-for-byte; screenshots of the settings window showed
+  the section following Steam's Email Opt-out controls with no extra sidebar item
+
+This pass validates settings placement and sample execution. It adds no new
+physical-click, real-event, game, Millennium, Windows or OS-session evidence.
+
 ## Integrated candidate, 2026-10-16
 
 Runtime source: experimental commit `00a7dfc5fdad46f10c0bfa2a9094617a5868a5ea`.

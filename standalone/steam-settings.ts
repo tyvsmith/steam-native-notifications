@@ -1,18 +1,22 @@
-/** Private Steam seam, observed in desktop build 1791592380. Refuse ambiguity on updates. */
-export const PAGE_ID = 'snn-native-notifications';
+/** Private Steam seam, observed in desktop build 1792110651. Refuse ambiguity on updates. */
+const NOTIFICATIONS_PAGE = '/settings/notifications';
 type Registry = { readonly size: number };
 export function isSettingsRegistry(value: any): value is Registry {
     return Object.prototype.toString.call(value) === '[object Set]' && Number.isSafeInteger(value?.size) && value.size >= 0
         && typeof value.values === 'function' && typeof value.has === 'function';
 }
-type Page = { identifier: string; [key: string]: unknown };
 export function isDesktopSettings(props: any): boolean {
     return typeof props?.page === 'string' && props.page.startsWith('/settings/') && Array.isArray(props.pages)
         && ['/settings/account', '/settings/notifications', '/settings/interface'].every(id => props.pages.some((p: any) => p?.identifier === id));
 }
-export function insertPage(pages: any[], page: Page): any[] {
-    if (pages.some(p => p?.identifier === page.identifier)) return pages;
-    return [...pages, 'separator', page];
+/** Change only the unique Notifications descriptor; refuse changed Steam shapes. */
+export function appendSection(React: typeof import('react'), pages: any[], wrap: (element: React.ReactElement) => React.ReactElement): any[] {
+    const matches = pages.filter(page => page?.identifier === NOTIFICATIONS_PAGE);
+    if (matches.length !== 1 || !React.isValidElement(matches[0].content)) return pages;
+    const page = matches[0];
+    const content = wrap(page.content);
+    if (content === page.content) return pages;
+    return pages.map(value => value === page ? { ...page, content } : value);
 }
 export function discoverSettings(requireModule: any): { React: typeof import('react'); widget: any; instances: Registry } {
     if (typeof requireModule !== 'function') throw new Error('Steam module loader unavailable');
@@ -30,34 +34,45 @@ export function discoverSettings(requireModule: any): { React: typeof import('re
     if (typeof React?.createElement !== 'function' || typeof React?.useState !== 'function' || widgets.length !== 1 || !Object.getOwnPropertyDescriptor(widgets[0], 'render')?.writable) throw new Error('Steam settings interface incompatible');
     return { React, widget: widgets[0], instances };
 }
-/** Keep Steam's hooks in their own component and intercept only our page selection. */
-export function mountSettings(React: typeof import('react'), widget: any, Panel: any, report: (state: string) => void, instances: Registry = new Set(), dividerClass?: string): () => void {
+/** Keep Steam's content and navigation intact; isolate failures to the appended section. */
+export function mountSettings(React: typeof import('react'), widget: any, Body: any, Panel: any, report: (state: string) => void, instances: Registry = new Set()): () => void {
     if (instances.size) throw new Error('Close Steam dialogs before attaching settings');
     const h = React.createElement;
     const original = widget.render;
     const Original = React.forwardRef(original);
-    function Settings(props: any) {
-        const { forwardedRef, ...steam } = props;
-        const [selectedAt, select] = React.useState<string | null>(null);
-        React.useEffect(() => select(null), [steam.page]);
-        const selected = selectedAt === steam.page;
-        const pages = insertPage(steam.pages, { identifier: PAGE_ID, title: 'Native Notifications', visible: true, icon: steam.pages.find((p: any) => p?.identifier === '/settings/notifications')?.icon, content: h(Panel) });
-        // Steam hides dividers beside the selection. Keep our extension boundary visible.
-        const separator = steam.PageListSeparatorComponent;
-        return h(Original, { ...steam, ref: forwardedRef, pages, page: selected ? PAGE_ID : steam.page,
-            PageListSeparatorComponent: selected && (separator || dividerClass) ? (props: any) => separator
-                ? h(separator, { ...props, bTransparent: false }) : h('div', { role: 'separator', className: dividerClass }) : separator,
-            onPageRequested: (id: string) => { select(id === PAGE_ID ? steam.page : null); if (id !== PAGE_ID) steam.onPageRequested?.(id); } });
-    }
     class Boundary extends React.Component<any, { failed: boolean }> {
         state = { failed: false };
         static getDerivedStateFromError() { return { failed: true }; }
         componentDidCatch() { report('unavailable'); }
-        render() { return this.state.failed ? h(Original, { ...this.props.steam, ref: this.props.forwardedRef }) : this.props.children; }
+        render() { return this.state.failed ? null : this.props.children; }
     }
-    const patched = (props: any, ref: any) => isDesktopSettings(props)
-        ? h(Boundary, { steam: props, forwardedRef: ref }, h(Settings, { ...props, forwardedRef: ref }))
-        : h(Original, { ...props, ref });
+    const wrappers = new Map<any, any>();
+    const ownWrappers = new Set<any>();
+    const wrap = (element: React.ReactElement): React.ReactElement => {
+        if (ownWrappers.has(element.type)) return element;
+        const Native = element.type as any;
+        if (typeof Native !== 'function' || Native.prototype?.isReactComponent || /^class\s/.test(String(Native)) || Native.constructor?.name !== 'Function') {
+            report('unavailable'); return element;
+        }
+        let Content = wrappers.get(Native);
+        if (!Content) {
+            // Native hooks run unconditionally in a stable component dedicated to this type.
+            // Keep the observed DialogBody and its children so the extension shares its scroll.
+            Content = function NotificationsContent(props: any) {
+                const body = Native(props);
+                if (!React.isValidElement(body) || body.type !== Body) { report('unavailable'); return body; }
+                return React.cloneElement(body, {}, (body.props as any).children, h(Boundary, {}, h(Panel)));
+            };
+            wrappers.set(Native, Content); ownWrappers.add(Content);
+        }
+        return h(Content, { ...element.props as object, key: element.key, ref: (element as any).ref });
+    };
+    const patched = (props: any, ref: any) => {
+        if (!isDesktopSettings(props)) return h(Original, { ...props, ref });
+        const pages = appendSection(React, props.pages, wrap);
+        if (pages === props.pages && !pages.some(page => ownWrappers.has(page?.content?.type))) report('unavailable');
+        return h(Original, { ...props, ref, pages });
+    };
     widget.render = patched;
     report('installed');
     return () => {
@@ -71,7 +86,7 @@ export function mountSettings(React: typeof import('react'), widget: any, Panel:
 }
 
 /** Resolve the same themed controls used by Steam desktop settings, without export IDs. */
-export function discoverControls(requireModule: any): Record<'DividerClass' | 'Theme' | 'Toggle' | 'Section' | 'Button' | 'Buttons' | 'Description', any> {
+export function discoverControls(requireModule: any): Record<'Body' | 'Theme' | 'Toggle' | 'Section' | 'Button' | 'Buttons' | 'Description', any> {
     const modules = Object.entries(requireModule.m ?? {}).filter(([, factory]) => {
         const source = String(factory);
         return source.includes('PagedSettings:') && source.includes('ToggleField:') && source.includes('BottomButtons');
@@ -83,13 +98,16 @@ export function discoverControls(requireModule: any): Record<'DividerClass' | 'T
         if (matches.length !== 1) throw new Error('Steam settings control incompatible');
         return matches[0];
     };
-    const styles = Object.entries(requireModule.m ?? {}).filter(([, f]) => ['PageListSeparator:', 'Transparent:', 'PagedSettingsDialog_PageListColumn:'].every(s => String(f).includes(s)));
-    if (styles.length !== 1) throw new Error('Steam sidebar styles unavailable or ambiguous');
-    const dividerClass = requireModule(styles[0]![0]).PageListSeparator;
-    if (typeof dividerClass !== 'string') throw new Error('Steam sidebar divider unavailable');
+    const bodyModules = Object.entries(requireModule.m ?? {}).filter(([, factory]) => {
+        const source = String(factory);
+        return source.includes('SettingsDialogBodyFade') && source.includes('disableFade');
+    });
+    if (bodyModules.length !== 1) throw new Error('Steam settings body unavailable or ambiguous');
+    const bodies = Object.values(requireModule(bodyModules[0]![0])).filter((value: any) =>
+        typeof value === 'function' && String(value).includes('SettingsDialogBodyFade') && String(value).includes('disableFade'));
+    if (bodies.length !== 1) throw new Error('Steam settings body incompatible');
     return {
-        DividerClass: dividerClass,
-        Theme: find('PagedSettings:', 'ToggleField:', 'strButtonClassName:'),
+        Body: bodies[0], Theme: find('PagedSettings:', 'ToggleField:', 'strButtonClassName:'),
         Toggle: find('"ToggleField"'), Section: find('"DialogSettingsSection"'),
         Button: find('"DialogButton"', '"Secondary"'), Buttons: find('.BottomButtons'),
         Description: find('.FieldDescription'),

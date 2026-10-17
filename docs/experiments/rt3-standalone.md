@@ -53,7 +53,7 @@ frontend to preserve callbacks; status reports mismatched build identities.
 
 ## Settings and diagnostics
 
-- use the Native Notifications page at the bottom of Steam Settings
+- use the Desktop notifications section at the bottom of Steam Settings → Notifications
 - use `snn settings` for the external editor, including while Steam is stopped
 - use `snn --host standalone status --json`, `doctor` and `capture`
 - enable `devFire` before `snn --host standalone dev fire TestDownloadComplete 1073390`
