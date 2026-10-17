@@ -40,14 +40,14 @@ async function panelFixture() {
 test('Millennium panel uses shared visibility, confirms reset and preserves platform/developer opt-ins', async () => {
     const f = await panelFixture();
     try {
-        expect(f.render().filter(n => n.type === 'toggle')).toHaveLength(5);
-        f.button('Reset to defaults').props.onClick();
+        expect(f.render().filter(n => n.type === 'toggle')).toHaveLength(6);
+        f.button('Reset notification settings').props.onClick();
         f.button('Cancel').props.onClick(); expect(f.values().notifyOutsideGame).toBe(false);
-        f.button('Reset to defaults').props.onClick();
+        f.button('Reset notification settings').props.onClick();
         f.button('Restore defaults').props.onClick(); await f.flush();
         expect(f.values()).toEqual({ ...DEFAULTS, devMode: true, notificationCenterOnlyInGame: true });
         expect(f.render().some(n => n.props?.children === 'Defaults restored.')).toBe(true);
-        f.button('Send sample notification').props.onClick(); await f.flush();
+        f.button('Send test notification').props.onClick(); await f.flush();
         expect(f.samples[0][1]).toBe(true); expect(f.samples[0][0].command.call).toBe('TestFriendOnline');
         expect(f.render().some(n => String(n.props?.children).includes('visibility have not been confirmed'))).toBe(true);
     } finally { f.close(); }
@@ -62,11 +62,29 @@ test('save completion cannot overwrite a newer subscription snapshot', async () 
             return snapshot;
         };
         // The first snapshot is the write's subscription; the second is its completion read.
-        f.render().find(n => n.type === 'toggle').props.onChange(true);
+        f.render().find(n => n.type === 'toggle' && n.props.label === 'Show OS notifications outside a game').props.onChange(true);
         await f.flush(); expect(typeof release).toBe('function');
         await f.config.set('notifyOutsideGame', false); await f.flush();
         release(); await f.flush();
         expect(f.values().notifyOutsideGame).toBe(false);
-        expect(f.render().find(n => n.type === 'toggle').props.checked).toBe(false);
+        expect(f.render().find(n => n.type === 'toggle' && n.props.label === 'Show OS notifications outside a game').props.checked).toBe(false);
+    } finally { f.close(); }
+});
+
+test('master disables dependent controls and sample while retaining preferences and developer opt-in', async () => {
+    const f = await panelFixture();
+    try {
+        const before = { ...f.values() };
+        const master = () => f.render().find(n => n.type === 'toggle' && n.props.label === 'Enable native notification integration');
+        master().props.onChange(false); await f.flush();
+        expect(f.values()).toEqual({ ...before, integrationEnabled: false });
+        expect(master().props.disabled).toBe(false);
+        const rows = f.render().filter(n => n.type === 'toggle');
+        expect(rows.slice(1, 5).every(n => n.props.disabled)).toBe(true);
+        expect(rows.at(-1).props.disabled).toBe(false);
+        expect(f.button('Send test notification').props.disabled).toBe(true);
+        master().props.onChange(true); await f.flush();
+        expect(f.values()).toEqual(before);
+        expect(f.button('Send test notification').props.disabled).toBe(false);
     } finally { f.close(); }
 });

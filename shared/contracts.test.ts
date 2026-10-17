@@ -3,9 +3,9 @@ import { createRuntimeHost, createSettingsHost, parseCallableJson, BUILD_IDENTIT
 import { DEFAULTS, SETTINGS_SCHEMA, normalizeSettings, settingSupported, validateSettingsPatch } from './settings';
 import * as standalone from '../standalone/adapter';
 
-test('schema preserves eight defaults, platform availability and strict write validation', () => {
-    expect(Object.keys(SETTINGS_SCHEMA)).toHaveLength(8);
-    expect(DEFAULTS).toEqual({ notifyOutsideGame: true, notifyInGame: true, showSteamOutsideGame: false, showSteamInGame: true, notificationCenterOnlyOutsideGame: false, notificationCenterOnlyInGame: false, devMode: false, devFire: false });
+test('schema preserves nine defaults, platform availability and strict write validation', () => {
+    expect(Object.keys(SETTINGS_SCHEMA)).toHaveLength(9);
+    expect(DEFAULTS).toEqual({ integrationEnabled: true, notifyOutsideGame: true, notifyInGame: true, showSteamOutsideGame: false, showSteamInGame: true, notificationCenterOnlyOutsideGame: false, notificationCenterOnlyInGame: false, devMode: false, devFire: false });
     expect(normalizeSettings({ notifyInGame: false, devFire: 'true', old: true })).toEqual({ ...DEFAULTS, notifyInGame: false });
     for (const value of ([null, [], { devFire: 'true' }, { old: true }] as unknown[])) expect(() => validateSettingsPatch(value)).toThrow();
     expect(settingSupported('notificationCenterOnlyInGame', 'linux')).toBe(false);

@@ -1,8 +1,4 @@
 import { DEFAULTS, SETTINGS_SCHEMA, settingSupported, validateSettingsPatch, type Platform, type SettingKey, type Settings } from './settings';
-export const SETTINGS_CONTEXT = {
-    outside: { title: 'Outside a game', description: 'For notifications Steam sends to the desktop.' },
-    inside: { title: 'In a game', description: 'For notifications Steam sends to the game overlay. This can continue after alt-tabbing.' },
-};
 export function visibleSettings(values: Settings, platform: Platform, schema = SETTINGS_SCHEMA): SettingKey[] {
     return (Object.keys(schema) as SettingKey[]).filter(key => {
         const field = schema[key];
@@ -11,10 +7,6 @@ export function visibleSettings(values: Settings, platform: Platform, schema = S
         if (key === 'notificationCenterOnlyOutsideGame') return values.notifyOutsideGame;
         return true;
     });
-}
-export function settingsWarning(values: Settings, group: 'outside' | 'inside'): string {
-    return !(group === 'inside' ? values.notifyInGame || values.showSteamInGame : values.notifyOutsideGame || values.showSteamOutsideGame)
-        ? 'Notifications are off for this context.' : '';
 }
 export function preferencePatch(input: unknown, current: Settings, platform: Platform): Partial<Settings> {
     const patch = validateSettingsPatch(input);
@@ -25,4 +17,9 @@ export function preferencePatch(input: unknown, current: Settings, platform: Pla
 }
 export function preferenceDefaults(platform: Platform): Partial<Settings> {
     return Object.fromEntries(Object.entries(DEFAULTS).filter(([key]) => key !== 'devMode' && settingSupported(key as SettingKey, platform)));
+}
+
+/** The master preserves preferences and leaves developer opt-in independent. */
+export function settingDisabled(values: Settings, key: SettingKey): boolean {
+    return !values.integrationEnabled && key !== 'integrationEnabled' && !SETTINGS_SCHEMA[key].developer;
 }

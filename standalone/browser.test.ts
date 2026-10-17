@@ -67,3 +67,18 @@ test('shared developer execution gates unsafe/disabled/expired/restarted request
     expect((await execute(request({ call: 'TestFriendMessage', args: [] }))).error).toContain('fixture failure');
     expect((await execute(request({ call: 'TestFriendOnline', args: [] }))).value.stage).toBe('executed'); expect(fired).toBe(2);
 });
+
+test('real standalone bundle applies master off and restores preferences without duplicate hooks', async () => {
+    const f = await fixture(); let closed = 0;
+    const preferences = { notifyOutsideGame: true, showSteamOutsideGame: false, notifyInGame: false, showSteamInGame: false };
+    const popup = (name: string) => ({ window: { name, close() { closed++; }, document: { body: { innerText: 'Download complete\nAircar', children: [] as unknown[], querySelectorAll: (): unknown[] => [] }, images: [] as unknown[] } } });
+    f.context.__snnConfig({ ...preferences, integrationEnabled: false });
+    f.hooks[0](popup('notificationtoasts_20_desktop')); f.hooks[0](popup('notificationtoasts_uid570-21'));
+    await Bun.sleep(30);
+    expect(f.calls.filter(call => call.method === 'Notify')).toHaveLength(0); expect(closed).toBe(0);
+    f.context.__snnConfig({ ...preferences, integrationEnabled: true });
+    f.hooks[0](popup('notificationtoasts_22_desktop')); f.hooks[0](popup('notificationtoasts_uid570-23'));
+    await Bun.sleep(30);
+    expect(f.calls.filter(call => call.method === 'Notify')).toHaveLength(1); expect(closed).toBe(2);
+    expect(f.hooks).toHaveLength(1);
+});

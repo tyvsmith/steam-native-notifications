@@ -4,7 +4,7 @@ export type { PresentationSettings, Platform } from '../shared/settings';
 
 /** Presentation follows Steam's capture surface, which can lag after alt-tab. */
 export function presentationFor(settings: PresentationSettings, captureAppId: number | null, platform: Platform) {
-	if (captureAppId === null) return { sendNative: false, showSteam: true, suppressPopup: false };
+	if (!settings.integrationEnabled || captureAppId === null) return { sendNative: false, showSteam: true, suppressPopup: false };
 	const inGame = captureAppId > 0;
 	const sendNative = inGame ? settings.notifyInGame : settings.notifyOutsideGame;
 	return {

@@ -1,5 +1,5 @@
 import { sampleMessage } from '../shared/command-result';
-import { visibleSettings, settingsWarning, SETTINGS_CONTEXT } from '../shared/settings-policy';
+import { visibleSettings, settingDisabled } from '../shared/settings-policy';
 import { ffi, pluginConfig, subscribePluginConfig } from './adapter';
 import { SETTINGS_SCHEMA, type SettingKey, type Settings } from '../shared/settings';
 import { discoverSettings, discoverControls, mountSettings } from './steam-settings';
@@ -55,24 +55,20 @@ function panel(React: typeof import('react'), controls: ReturnType<typeof discov
         const disabled = busy || !connected || !!state?.config.error;
         const row = (key: SettingKey) => h(controls.Toggle, { key, className: `snn-setting-${key}`,
             label: SETTINGS_SCHEMA[key].label, description: SETTINGS_SCHEMA[key].description,
-            checked: values?.[key] ?? false, controlled: true, disabled,
+            checked: values?.[key] ?? false, controlled: true, disabled: disabled || !values || settingDisabled(values, key),
             onChange: (value: boolean): void => void run('PanelPatch', { [key]: value }),
         });
-        return h(controls.Theme, {}, h(controls.Section, { label: 'Desktop notifications' }, h('section', { 'data-snn-panel': true },
-            h(controls.Description, {}, 'Send Steam notifications to your desktop'),
+        return h(controls.Theme, {}, h(controls.Section, { label: 'Operating system notifications' }, h('section', { 'data-snn-panel': true },
             !ready && h('p', { role: 'status' }, !connected
                 ? 'Connecting to standalone service. Controls are unavailable until connected.'
                 : 'Standalone needs attention. Restart Steam if you recently updated.'),
             state?.config.error && h('p', { role: 'alert' }, state.config.error),
-            ...(['outside', 'inside'] as const).map(group => h(controls.Section, { key: group, label: SETTINGS_CONTEXT[group].title },
-                h(controls.Description, {}, SETTINGS_CONTEXT[group].description),
-                ...visibleSettings(values ?? {} as Settings, 'linux').filter(key => SETTINGS_SCHEMA[key].group === group).map(row),
-                values && settingsWarning(values, group) && h(controls.Description, {}, settingsWarning(values, group)))),
+            ...visibleSettings(values ?? {} as Settings, 'linux').filter(key => !SETTINGS_SCHEMA[key].developer).map(row),
             values?.devMode && row('devFire'),
             h(controls.Buttons, {},
-                h(controls.Button, { disabled: busy || !ready, onClick: (): void => void run('PanelSample') }, 'Send sample notification'),
-                h(controls.Button, { disabled, onClick: (): void => setConfirmReset(true) }, 'Reset desktop notification settings')),
-            confirmReset && h(controls.Section, { label: 'Restore desktop notification settings to their defaults?' },
+                h(controls.Button, { disabled: busy || !ready || !values?.integrationEnabled, onClick: (): void => void run('PanelSample') }, 'Send test notification'),
+                h(controls.Button, { disabled, onClick: (): void => setConfirmReset(true) }, 'Reset notification settings')),
+            confirmReset && h(controls.Section, { label: 'Restore notification settings to their defaults?' },
                 h(controls.Buttons, {},
                     h(controls.Button, { disabled, onClick: (): void => void run('PanelReset') }, 'Restore defaults'),
                     h(controls.Button, { onClick: (): void => setConfirmReset(false) }, 'Cancel'))),

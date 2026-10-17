@@ -32,7 +32,7 @@ presentation, replay, durable routes and the Linux notification helper.
 | Developer commands | MEP discovery, expiring file queue and correlated frontend replies | private Unix socket and correlated frontend execution |
 | Installation | packed `.star` | versioned executable, user service and desktop entries |
 
-`shared/settings-policy.ts` owns visibility, context descriptions and preference
+`shared/settings-policy.ts` owns visibility, dependent-control availability and preference
 reset rules. Renderers and storage stay with their hosts. An optional Steam panel
 failure does not stop notification capture or the external editor.
 
@@ -105,7 +105,13 @@ kitsune-notifications plugin uses, which is the only reason to trust it.
 
 The popup exists before it paints, so delivery polls for text (~1.2s) rather
 than trusting a settle delay. Each popup name delivers at most once. Delivery
-uses one settings snapshot per captured surface. OS and Steam visibility are
+uses one settings snapshot per captured surface. The default-on
+`integrationEnabled` master disables OS delivery and preserves Steam when off,
+without modifying the saved context preferences. All three editors disable
+dependent controls and their test button while the master is off. Developer
+opt-in remains independent. Changes affect subsequent captures.
+
+With integration enabled, OS and Steam visibility are
 independent: both enabled sends a copy and preserves Steam; both disabled
 closes Steam without sending a copy. Replacing Steam with an OS notification
 closes its popup only after the backend acknowledges launching delivery.

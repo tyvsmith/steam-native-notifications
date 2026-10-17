@@ -1,8 +1,7 @@
 import { sampleMessage } from '../shared/command-result';
 import {
     visibleSettings,
-    settingsWarning,
-    SETTINGS_CONTEXT as contexts,
+    settingDisabled,
 } from '../shared/settings-policy';
 import type { SETTINGS_SCHEMA, Platform } from '../shared/settings';
 import type { ConfigSnapshot } from './config-store';
@@ -51,9 +50,9 @@ function message(text: string) {
 
 function render() {
     el('controls').replaceChildren();
+    if (writing) el<HTMLButtonElement>('sample').disabled = true;
     for (const [group, title] of [
-        ['outside', contexts.outside.title],
-        ['inside', contexts.inside.title],
+        ['presentation', 'Operating system notifications'],
         ['developer', 'Developer options'],
     ] as const) {
         if (group === 'developer' && !state.config.values.devMode) continue;
@@ -61,18 +60,13 @@ function render() {
             h = document.createElement('h2');
         h.textContent = title;
         section.append(h);
-        if (group !== 'developer') {
-            const d = document.createElement('p');
-            d.textContent = contexts[group].description;
-            section.append(d);
-        }
         for (const key of visibleSettings(
             state.config.values,
             state.platform,
             state.schema,
         )) {
             const field = state.schema[key];
-            if (field.group !== group) continue;
+            if (field.developer !== (group === 'developer')) continue;
             const row = document.createElement('div'),
                 label = document.createElement('label'),
                 small = document.createElement('small'),
@@ -81,11 +75,11 @@ function render() {
             label.htmlFor = key;
             label.textContent = field.label;
             small.textContent = field.description;
-            label.append(small);
+            if (field.description) label.append(small);
             input.type = 'checkbox';
             input.id = key;
             input.checked = state.config.values[key];
-            input.disabled = !connected || !!state.config.error || writing;
+            input.disabled = !connected || !!state.config.error || writing || settingDisabled(state.config.values, key);
             input.onchange = async () => {
                 if (writing || !connected) return;
                 const checked = input.checked;
@@ -106,14 +100,6 @@ function render() {
             };
             row.append(label, input);
             section.append(row);
-        }
-        if (group !== 'developer') {
-            const warning = settingsWarning(state.config.values, group);
-            if (warning) {
-                const p = document.createElement('p');
-                p.textContent = warning;
-                section.append(p);
-            }
         }
         el('controls').append(section);
     }
@@ -144,7 +130,7 @@ async function refresh() {
             : host?.action || '';
         el('session').textContent = state.session;
         el<HTMLButtonElement>('sample').disabled =
-            !host?.present || host.state !== 'ready';
+            !host?.present || host.state !== 'ready' || !state.config.values.integrationEnabled;
         render();
     } catch (e: unknown) {
         if (closed || current !== generation) return;
