@@ -42,17 +42,26 @@ export async function selectHost(selection: HostSelection = 'auto', mutation = f
     if (!mutation) { const present = statuses.filter(s => s.present); if (present.length === 1) return present[0].host; }
     throw new Error(statuses.find(s => s.action)?.action ?? 'No ready host; start Steam with the chosen host');
 }
+/** Probe without mutating; only an absent daemon permits the default offline store. */
+async function standaloneConfig() {
+    let snapshot: ConfigSnapshot;
+    try { snapshot = await controlCall('config.read'); }
+    catch (error: any) {
+        if (!process.env.XDG_RUNTIME_DIR || error.code === 'ENOENT' || error.code === 'ECONNREFUSED') return configStore();
+        throw error;
+    }
+    return { read: async () => snapshot, update: (patch: unknown) => controlCall('config.update', patch) };
+}
 export async function readConfig(selection: HostSelection = 'standalone'): Promise<ConfigSnapshot> {
     const host = selection === 'auto' ? await selectHost(selection) : selection;
     if (host === 'millennium') return { values: normalizeSettings(await millennium('plugin.config.get_all', { name: PLUGIN_ID })), error: null };
-    try { return await controlCall('config.read'); } catch { return configStore().read(); }
+    return (await standaloneConfig()).read();
 }
 export async function updateConfig(patch: unknown, selection: HostSelection = 'standalone'): Promise<ConfigSnapshot> {
     const values = validateSettingsPatch(patch); const host = selection === 'auto' ? await selectHost(selection, true) : selection;
     if (host === 'millennium') { for (const [key, value] of Object.entries(values)) await millennium('plugin.config.set', { name: PLUGIN_ID, key, value }); return readConfig(host); }
     // Offline edits use the same serialized, atomic store. Never retry a possibly applied socket mutation.
-    const statuses = await hostStatus(); if (statuses.find(s => s.host === host)?.present) return controlCall('config.update', values);
-    return configStore().update(values);
+    return (await standaloneConfig()).update(values);
 }
 export function resetConfig(selection: HostSelection = 'standalone'): Promise<ConfigSnapshot> { return updateConfig(preferenceDefaults(process.platform === 'win32' ? 'windows' : process.platform === 'linux' ? 'linux' : 'unknown'), selection); }
 export async function fire(command: unknown, selection: HostSelection = 'auto'): Promise<unknown> {

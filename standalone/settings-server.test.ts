@@ -62,3 +62,47 @@ test('valid user settings action renews idle lease', async () => {
  const root=await mkdtemp(join(tmpdir(),'snn-activity-'));const s=startSettingsServer({idleMs:180,status:async()=>[],store:new ConfigStore(join(root,'config.json'))});let closed=false;s.closed.then(()=>{closed=true;});
  try {await Bun.sleep(100);const r=await fetch(s.origin+'/api/config',{method:'POST',headers:{authorization:'Bearer '+new URL(s.url).hash.slice(1),'content-type':'application/json'},body:'{"notifyOutsideGame":false}'});expect(r.status).toBe(200);await Bun.sleep(110);expect(closed).toBe(false);await s.closed;}finally{s.stop();await rm(root,{recursive:true,force:true});}
 });
+
+test('editor pins custom and initially offline targets across daemon availability changes', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'snn-editor-target-'));
+    const program = `
+        import assert from 'node:assert/strict';
+        import { Host } from ${JSON.stringify(join(import.meta.dir, 'host.ts'))};
+        import { startControl } from ${JSON.stringify(join(import.meta.dir, 'control.ts'))};
+        import { controlHandler } from ${JSON.stringify(join(import.meta.dir, 'control-host.ts'))};
+        import { startSettingsServer } from ${JSON.stringify(join(import.meta.dir, 'settings-server.ts'))};
+        import { configStore } from ${JSON.stringify(join(import.meta.dir, 'config-store.ts'))};
+        const host = new Host(${JSON.stringify(join(root, 'cache'))}, ${JSON.stringify(join(root, 'custom.json'))}, ${JSON.stringify(root)});
+        await host.initialize();
+        await host.store.update({ notifyInGame: false, devMode: true });
+        let stop = await startControl(controlHandler(host));
+        const sessions = [];
+        const open = () => { const session = startSettingsServer(); sessions.push(session); return async (path, body) => {
+            const reply = await fetch(session.origin + path, { method: body === undefined ? 'GET' : 'POST', headers: { authorization: 'Bearer ' + new URL(session.url).hash.slice(1), 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+            assert.equal(reply.status, 200); return reply.json();
+        }; };
+        try {
+            const online = open();
+            assert.equal((await online('/api/state')).config.values.notifyInGame, false);
+            await stop();
+            await online('/api/config', { notifyOutsideGame: false, devFire: true });
+            assert.equal((await host.settings()).notifyOutsideGame, false);
+            assert.equal(await Bun.file(configStore().path).exists(), false);
+            const offline = open();
+            assert.equal((await offline('/api/state')).config.values.notifyInGame, true);
+            stop = await startControl(controlHandler(host));
+            await offline('/api/config', { showSteamInGame: false });
+            assert.equal((await configStore().read()).values.showSteamInGame, false);
+            assert.equal((await host.settings()).showSteamInGame, true);
+            await online('/api/config', { notifyInGame: true });
+            assert.equal((await host.settings()).notifyInGame, true);
+            await online('/api/reset', {});
+            assert.equal((await host.settings()).notifyOutsideGame, true);
+            assert.equal((await host.settings()).devMode, true);
+            assert.equal((await configStore().read()).values.showSteamInGame, false);
+        } finally { for (const session of sessions) session.stop(); await stop(); host.stop(); }
+    `;
+    const child = Bun.spawn([process.execPath, '-e', program], { env: { ...process.env, XDG_RUNTIME_DIR: root, XDG_CONFIG_HOME: join(root, 'default') }, stdout: 'pipe', stderr: 'pipe' });
+    try { const error = await new Response(child.stderr).text(); expect(await child.exited, error).toBe(0); }
+    finally { child.kill(); await child.exited; await rm(root, { recursive: true, force: true }); }
+}, 15000);

@@ -1,3 +1,4 @@
+import { loginUser } from './login-user';
 import { controlHandler } from './control-host';
 import { preferencePatch, preferenceDefaults } from '../shared/settings-policy';
 import { runtimeRoot } from './runtime-paths';
@@ -63,9 +64,7 @@ export class Host {
                 if (args.length) break;
                 try {
                     const text = await readFile(join(this.steam, 'config/loginusers.vdf'), 'utf8');
-                    const records = [...text.matchAll(/"(7656119\d{10})"\s*\{([^{}]*)\}/g)];
-                    const recent = records.find(record => /"MostRecent"\s*"1"/i.test(record[2]!));
-                    return JSON.stringify({ steamid64: recent?.[1] ?? (records.length === 1 ? records[0]?.[1] : undefined) });
+                    return JSON.stringify({ steamid64: loginUser(text) });
                 } catch { return '{}'; }
             }
             case 'FocusSteam': return 'unsupported'; // Linux focus is performed inside Steam's existing dispatcher.
