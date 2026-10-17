@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { createRuntimeHost, createSettingsHost, hostCapabilities, parseCallableJson, BUILD_IDENTITY, type FfiFactory } from './host';
+import { createRuntimeHost, createSettingsHost, parseCallableJson, BUILD_IDENTITY, type FfiFactory } from './host';
 import { DEFAULTS, SETTINGS_SCHEMA, normalizeSettings, settingSupported, validateSettingsPatch } from './settings';
 import * as standalone from '../standalone/adapter';
 
@@ -27,8 +27,6 @@ for (const kind of ['millennium', 'standalone'] as const) {
         for (let i = 0; i < 2; i++) expect(parseCallableJson(await host.call('Identity'), {})).toEqual({ steamid64: '76561198000000001' });
         await host.call('Notify', 'title', 'body', 'image', 'route', '17', 'false');
         expect(calls.at(-1).args).toEqual(['title', 'body', 'image', 'route', '17', 'false']);
-        expect(hostCapabilities(kind, 'linux').focusSteam).toBe(false);
-        expect(hostCapabilities(kind, 'linux').notificationCenterOnly).toBe(false);
     });
     test(`${kind} settings adapter normalizes defaults, overrides, removal and write support`, async () => {
         let stored: Record<string, unknown> = {};

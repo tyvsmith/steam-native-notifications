@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { runInNewContext } from 'node:vm';
 import { settingsScript } from './settings-assets';
+import { startSettingsServer } from './settings-server';
 import { DEFAULTS, SETTINGS_SCHEMA } from '../shared/settings';
 
 function page() {
@@ -32,4 +33,13 @@ test('old polls cannot overwrite a later reset or reopen a closed page',async()=
  await p.get('close').onclick();deliver(await fetch());await afterClose;
  expect(p.get('sample').disabled).toBe(true);
  expect(p.get('result').textContent).toContain('closed');
+});
+
+test('server serves the same browser bundle exercised by the UI fixtures', async () => {
+    const server = startSettingsServer();
+    try {
+        const response = await fetch(server.origin + '/settings.js');
+        expect(response.headers.get('content-type')).toBe('text/javascript');
+        expect(await response.text()).toBe(settingsScript);
+    } finally { server.stop(); }
 });
