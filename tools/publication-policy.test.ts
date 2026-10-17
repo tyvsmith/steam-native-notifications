@@ -1,11 +1,15 @@
 import { expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 
 // Remove this gate only with the complete runtime distribution materials.
 const star = 'me.tysmith.steam-native-notifications.star';
-const workflows = Object.fromEntries(['build', 'ci', 'release'].map(name => [
-  name, Bun.YAML.parse(readFileSync(new URL(`../.github/workflows/${name}.yml`, import.meta.url), 'utf8')) as any,
-]));
+const workflowDirectory = new URL('../.github/workflows/', import.meta.url);
+const workflows = Object.fromEntries(readdirSync(workflowDirectory)
+  .filter(name => /\.ya?ml$/.test(name))
+  .map(name => [
+    name.replace(/\.ya?ml$/, ''),
+    Bun.YAML.parse(readFileSync(new URL(name, workflowDirectory), 'utf8')) as any,
+  ]));
 const steps = Object.values(workflows).flatMap(workflow =>
   Object.values(workflow.jobs).flatMap((job: any) => job.steps ?? []));
 
