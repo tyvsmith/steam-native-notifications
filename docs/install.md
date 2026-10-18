@@ -10,25 +10,24 @@ For native Linux x64 Steam, including RT3, without Millennium. Requires
 [Bun](https://bun.com) 1.4.3 or newer, a graphical desktop with a systemd user
 session, `notify-send`, `gdbus` and `curl`. LuaJIT and libwayland-client enable
 focus discovery; without them, some click destinations may be unavailable.
-Windows, macOS and Flatpak standalone installations are unsupported for now.
+Windows x64 has a [preview install](windows-standalone.md).
+macOS and Flatpak standalone installations are unsupported.
 
 ### Install
 
-Until a standalone release is published, build the package from a checkout:
+Download the [rolling pre-release](https://github.com/tyvsmith/steam-native-notifications/releases/tag/latest)
+package and checksum, then install from a graphical terminal:
 
 ```sh
-git clone https://github.com/tyvsmith/steam-native-notifications.git
-cd steam-native-notifications
-bun install --frozen-lockfile
-bun run build:release
+snn_release=https://github.com/tyvsmith/steam-native-notifications/releases/download/latest
+curl -fLO "$snn_release/steam-native-notifications.tgz" &&
+curl -fLO "$snn_release/steam-native-notifications.tgz.sha256" &&
+sha256sum --check steam-native-notifications.tgz.sha256 &&
+bun add --global --force --trust "$PWD/steam-native-notifications.tgz"
 ```
 
-Install the resulting `.tgz` from `dist/releases/` in a graphical terminal,
-substituting its actual absolute path:
-
-```sh
-bun add --global --trust /absolute/path/to/package.tgz
-```
+If the checksum differs, download both files again: the rolling release may have
+changed between downloads. Do not install a package that fails verification.
 
 The trusted install hook sets up the background service. If it cannot complete,
 run `snn setup` from the desktop session. Use `snn setup --steam-dir /absolute/path/to/Steam`
@@ -51,7 +50,8 @@ See [connection details](experiments/rt3-standalone.md#steam-connection).
 
 ### Update
 
-Install the new tarball with the same Bun command, then fully restart Steam.
+Repeat the download and install commands above, then fully restart Steam.
+`--force` reinstalls rolling builds even when their package version is unchanged.
 Preferences are preserved. Setup also preserves a stopped or disabled service;
 check `snn status --json` if the integration does not return.
 
