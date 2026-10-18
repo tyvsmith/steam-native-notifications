@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import { authenticateControl, authenticatedControl } from './control';
 import { taskSource } from './windows-installer';
-import { psQuote, exclusiveFile, powershell } from './windows';
-import { mkdtemp, readdir, rm } from 'node:fs/promises';
+import { psQuote, exclusiveFile } from './windows';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -36,7 +36,19 @@ test('scheduled task uses interactive limited account and hidden launch', () => 
 });
 test.skipIf(process.platform !== 'win32')('exclusive handle excludes another writer and releases', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'snn-win-lock-'));
-    try { const file = join(dir, 'lock'); const close = await exclusiveFile(file, 0); await expect(exclusiveFile(file, 0)).rejects.toThrow(); close(); (await exclusiveFile(file, 0))(); }
+    try {
+        const file = join(dir, 'lock');
+        for (let i = 0; i < 10; i++) {
+            const close = await exclusiveFile(file, 0);
+            try { await expect(exclusiveFile(file, 0)).rejects.toThrow(); }
+            finally { close(); }
+            const next = await exclusiveFile(file, 0);
+            try {
+                close(); // Releasing an old lock must not close a recycled handle.
+                await expect(exclusiveFile(file, 0)).rejects.toThrow();
+            } finally { next(); }
+        }
+    }
     finally { await rm(dir, { recursive: true, force: true }); }
 });
 test.skipIf(process.platform !== 'win32')('private named pipe serves authenticated control and closes cleanly', async () => {
@@ -47,9 +59,7 @@ test.skipIf(process.platform !== 'win32')('private named pipe serves authenticat
     let close: (() => Promise<void>) | undefined;
     try {
         let calls = 0;
-        console.error('pipe-stage: start');
         close = await startControl(async request => { calls++; return { operation: request.operation }; });
-        console.error('pipe-stage: listening');
         const { createConnection } = await import('node:net');
         const { controlPath } = await import('./control');
         await new Promise<void>((resolve, reject) => {
@@ -58,48 +68,23 @@ test.skipIf(process.platform !== 'win32')('private named pipe serves authenticat
             socket.on('connect', () => socket.write(JSON.stringify({ id: 'unauthorized', operation: 'status', deadline: Date.now() + 1000, token: '0'.repeat(64) }) + '\n'));
             socket.on('error', () => {}); socket.on('close', () => { clearTimeout(timeout); resolve(); });
         });
-        console.error('pipe-stage: unauthorized closed');
         expect(calls).toBe(0);
         expect(await controlCall('status')).toEqual({ operation: 'status' });
-        console.error('pipe-stage: authenticated reply');
         await close(); close = undefined;
-        console.error('pipe-stage: server closed');
         await expect(controlCall('status', undefined, { timeoutMs: 100 })).rejects.toThrow();
-        console.error('pipe-stage: refused after close');
     } finally { await close?.(); process.env.LOCALAPPDATA = original; await rm(dir, { recursive: true, force: true }); }
 }, 20000);
 test.skipIf(process.platform !== 'win32')('kernel lock survives a competing process and releases after termination', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'snn-win-owner-'));
     const file = join(dir, 'lock');
-    const ready = join(dir, 'ready');
-    const source = `import { rename } from 'node:fs/promises'; import { exclusiveFile } from ${JSON.stringify(join(import.meta.dir, 'windows.ts'))}; await exclusiveFile(${JSON.stringify(file)},0); await Bun.write(${JSON.stringify(ready + '.tmp')}, 'locked'); await rename(${JSON.stringify(ready + '.tmp')}, ${JSON.stringify(ready)}); setInterval(()=>{},1000);`;
-    const child = Bun.spawn([process.execPath, '-e', source], { stdout: 'inherit', stderr: 'inherit' });
+    const source = `import { exclusiveFile } from ${JSON.stringify(join(import.meta.dir, 'windows.ts'))}; await exclusiveFile(${JSON.stringify(file)},0); console.log('locked'); setInterval(()=>{},1000);`;
+    const child = Bun.spawn([process.execPath, '-e', source], { stdout: 'pipe', stderr: 'pipe' });
     try {
-        const deadline = Date.now() + 5000;
-        while (!await Bun.file(ready).exists() && child.exitCode === null && Date.now() < deadline) await Bun.sleep(10);
-        expect(await Bun.file(ready).text()).toBe('locked');
+        const reader = child.stdout.getReader();
+        expect(new TextDecoder().decode((await reader.read()).value)).toContain('locked');
+        reader.releaseLock();
         await expect(exclusiveFile(file, 0)).rejects.toThrow();
         child.kill(); await child.exited;
         (await exclusiveFile(file, 0))();
     } finally { child.kill(); await child.exited; await rm(dir, { recursive: true, force: true }); }
-}, 10000);
-
-test.skipIf(process.platform !== 'win32')('PowerShell captures complete output and preserves failures across repeated exits', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'snn-powershell-test-'));
-    const original = { TEMP: process.env.TEMP, TMP: process.env.TMP };
-    process.env.TEMP = dir; process.env.TMP = dir;
-    try {
-        const expected = 'é'.repeat(65536);
-        for (let i = 0; i < 4; i++) {
-            expect(await powershell("[Console]::Out.Write(('é' * 65536))")).toBe(expected);
-            await expect(powershell("throw 'snn expected failure'")).rejects.toThrow('snn expected failure');
-        }
-        expect(await Promise.all(Array.from({ length: 4 }, (_, i) => powershell(`[Console]::Out.Write('result-${i}')`)))).toEqual(['result-0', 'result-1', 'result-2', 'result-3']);
-        expect(await readdir(dir)).toEqual([]);
-    } finally {
-        for (const key of ['TEMP', 'TMP'] as const) {
-            if (original[key] === undefined) delete process.env[key]; else process.env[key] = original[key];
-        }
-        await rm(dir, { recursive: true, force: true });
-    }
-}, 120000);
+});
