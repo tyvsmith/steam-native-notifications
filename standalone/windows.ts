@@ -1,12 +1,15 @@
 import { dlopen, FFIType, ptr } from 'bun:ffi';
 import { spawn } from 'node:child_process';
+import { join } from 'node:path';
 import { mkdir } from 'node:fs/promises';
 
+// PowerShell 7's module search path is incompatible with Windows PowerShell 5.1.
+export const powershellEnvironment = () => ({ ...process.env, PSModulePath: join(process.env.SystemRoot ?? 'C:\\Windows', 'System32/WindowsPowerShell/v1.0/Modules') });
 export const psQuote = (value: string) => "'" + value.replace(/'/g, "''") + "'";
 /** Encoded source contains only fixed code and quoted data, never notification text. */
 export function powershell(source: string): Promise<string> {
     return new Promise((resolve, reject) => {
-        const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from("$ErrorActionPreference='Stop'; [Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); " + source, 'utf16le').toString('base64')], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+        const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from("$ErrorActionPreference='Stop'; [Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); " + source + '; exit 0', 'utf16le').toString('base64')], { env: powershellEnvironment(), windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
         let out = '', err = ''; const timer = setTimeout(() => child.kill(), 15000);
         child.stdout.on('data', b => { out += b; }); child.stderr.on('data', b => { err += b; });
         child.once('error', e => { clearTimeout(timer); reject(e); });

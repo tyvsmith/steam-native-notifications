@@ -10,12 +10,13 @@ import { controlCall } from './control';
 import { exclusiveFile, powershell, privateDirectory, psQuote } from './windows';
 async function atomic(path: string, value: unknown) { const temp = path + '.' + crypto.randomUUID(); await writeFile(temp, JSON.stringify(value)); await rename(temp, path); }
 const TASK = 'Steam Native Notifications-' + createHash('sha256').update(homedir().toLowerCase()).digest('hex').slice(0, 12);
-export function taskSource(bun: string, cli: string, steam: string, config: string): string {
+export function taskSource(bun: string, cli: string, steam: string, config: string, launchId = crypto.randomUUID(), enabled = true): string {
     const args = ['"' + cli + '"', 'daemon', '--steam-dir', '"' + steam + '"', '--config', '"' + config + '"'].join(' ');
     if ([bun, cli, steam, config].some(p => /["\r\n\0]/.test(p))) throw new Error('Unsupported runtime path');
-    const launch = `$p=Start-Process -FilePath ${psQuote(bun)} -ArgumentList ${psQuote(args)} -WindowStyle Hidden -PassThru -Wait; exit $p.ExitCode`;
+    const launchFile = config + '.launch';
+    const launch = `$p=Start-Process -FilePath ${psQuote(bun)} -ArgumentList ${psQuote(args)} -WindowStyle Hidden -PassThru; [IO.File]::WriteAllText(${psQuote(launchFile)}, (@{id=${psQuote(launchId)};pid=$p.Id}|ConvertTo-Json -Compress)); $p.WaitForExit(); exit $p.ExitCode`;
     const command = '-NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand ' + Buffer.from(launch, 'utf16le').toString('base64');
-    return `$user=[Security.Principal.WindowsIdentity]::GetCurrent().Name; $action=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ${psQuote(command)}; $trigger=New-ScheduledTaskTrigger -AtLogOn -User $user; $principal=New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited; $settings=New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries; Register-ScheduledTask -TaskName ${psQuote(TASK)} -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description 'Steam Native Notifications standalone integration' -Force | Out-Null`;
+    return `$user=[Security.Principal.WindowsIdentity]::GetCurrent().Name; $action=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ${psQuote(command)}; $trigger=New-ScheduledTaskTrigger -AtLogOn -User $user; $principal=New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited; $settings=New-ScheduledTaskSettingsSet ${enabled ? '' : '-Disable '} -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries; Register-ScheduledTask -TaskName ${psQuote(TASK)} -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description 'Steam Native Notifications standalone integration' -Force | Out-Null`;
 }
 export async function windowsIntegration(command: string, args: string[], p: Paths, stop = true): Promise<unknown> {
     let steamOption: string | undefined;
@@ -65,17 +66,17 @@ export async function windowsIntegration(command: string, args: string[], p: Pat
         if (!await exists(p.config)) await writeFile(p.config, JSON.stringify(DEFAULTS, null, 2));
         const marker = join(steam, '.cef-enable-remote-debugging');
         if (!await exists(marker)) await writeFile(marker, '', { flag: 'wx' });
+        const launchId = crypto.randomUUID();
         const transaction = { task: current, running, state: old ?? null, after: '' };
         await atomic(journal, transaction);
         try {
             if (current) await powershell(`Stop-ScheduledTask -TaskName ${psQuote(TASK)}`);
-            await powershell(taskSource(process.execPath, cli, steam, p.config));
+            await powershell(taskSource(process.execPath, cli, steam, p.config, launchId, enabled));
             transaction.after = await powershell(`Export-ScheduledTask -TaskName ${psQuote(TASK)}`);
             await atomic(journal, transaction);
-            if (old && !enabled) await powershell(`Disable-ScheduledTask -TaskName ${psQuote(TASK)} | Out-Null`);
             await powershell(`& ${psQuote(join(runtime, 'notify-action.ps1'))} -Setup; ${!old || running ? `Start-ScheduledTask -TaskName ${psQuote(TASK)}` : ''}`);
             const deadline = Date.now() + 10000; let ready = !!old && !running;
-            while (!ready && Date.now() < deadline) { try { const status = await controlCall('status', undefined, { timeoutMs: 500 }); if (status.build?.buildId === BUILD_IDENTITY.buildId) { ready = true; break; } } catch {} await Bun.sleep(200); }
+            while (!ready && Date.now() < deadline) { try { const status = await controlCall('status', undefined, { timeoutMs: 500 }); const launched = JSON.parse(await readFile(p.config + '.launch', 'utf8')); if (launched.id === launchId && Number.isSafeInteger(launched.pid) && launched.pid > 0 && status.pid === launched.pid && status.build?.buildId === BUILD_IDENTITY.buildId) { ready = true; break; } } catch {} await Bun.sleep(200); }
             if (!ready) throw new Error('Windows daemon did not become ready');
             const task = await powershell(`Export-ScheduledTask -TaskName ${psQuote(TASK)}`);
             await atomic(p.state, { version: 1, steam, task });

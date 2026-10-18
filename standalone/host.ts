@@ -84,10 +84,11 @@ export class Host {
                 if (args.length !== 6 || args.some(value => typeof value !== 'string' || value.length > 16384)) break;
                 if (this.platform === 'windows') {
                     if (this.children.size >= 64) return 'unsupported';
+                    const { powershellEnvironment } = await import('./windows');
                     const id = crypto.randomUUID(); const file = join(this.runtime, id + '.notify');
                     await writeFile(file, JSON.stringify({ title: args[0], body: args[1], image: args[2], route: args[3], ingame: args[4], suppressPopup: args[5] === 'true' }), { flag: 'wx' });
                     return new Promise(resolveResult => {
-                        const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', join(this.runtime, 'notify-action.ps1'), '-Id', id], { windowsHide: true, stdio: 'ignore' });
+                        const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', join(this.runtime, 'notify-action.ps1'), '-Id', id], { env: powershellEnvironment(), windowsHide: true, stdio: 'ignore' });
                         this.children.add(child);
                         child.once('error', () => { this.children.delete(child); void unlink(file).catch(() => {}); resolveResult('unsupported'); });
                         child.once('spawn', () => resolveResult('ok'));

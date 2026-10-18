@@ -2,7 +2,7 @@ import { integrationRemoval } from './removal';
 import { runtimeAsset } from './runtime-paths';
 import { startControl } from './control';
 import { controlHandler } from './control-host';
-import { readFile } from 'node:fs/promises';
+import { readFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { CDP, endpoint, targetSocket } from './cdp';
 import { Host, requestPayload } from './host';
@@ -221,10 +221,11 @@ export async function daemonMain(): Promise<void> {
     let bundle: string;
     try { bundle = await readFile(runtimeAsset('dist/standalone/frontend.js'), 'utf8'); }
     catch { throw new Error('Missing standalone build; run bun install --frozen-lockfile && bun run build:standalone in this checkout.'); }
-    await host.initialize();
+    await mkdir(runtime, { recursive: true, mode: 0o700 });
     const release = await acquireDaemonLock(runtime);
     let stopControl: (() => Promise<void>) | undefined;
     try {
+        await host.initialize();
         stopControl = await startControl(controlHandler(host), undefined, { exclusiveLock: release });
         let running = true;
         let client: CDP | undefined;
