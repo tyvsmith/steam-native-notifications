@@ -44,7 +44,8 @@ Restart Steam to unload the injected frontend completely.
 - require loopback CDP listeners owned by the same user's `steamwebhelper.exe`
   below the selected Steam root
 - reuse the shared Steam panel, settings, capture, routing, and WinRT helper
-- leave Windows game-host focus unknown until its separate validation lands
+- corroborate Windows game-host focus through the same one-shot helper as
+  Millennium; retain Steam's selection when ownership cannot be established
 
 Setup journals the previous task and restores it after an activation failure.
 Run `snn recover` after interrupted setup. Recovery refuses a task that no

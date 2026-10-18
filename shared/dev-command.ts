@@ -8,6 +8,7 @@ export function validateDevCommand(raw: unknown): DevCommand {
     if (c.call === 'TestIncomingVoiceChat') throw new Error('TestIncomingVoiceChat is blocked: fake calls wedge Steam until restart');
     if (c.call && TESTS.has(c.call) && Array.isArray(c.args)) return c;
     if (c.server && Number.isSafeInteger(c.server.type) && c.server.type >= 0 && c.server.type <= 65535 && Object.keys(c.server).every(k => ['type', 'body'].includes(k))) return c;
+    if (c.focus && Object.keys(c.focus).length === 1 && Number.isInteger(c.focus.appid) && c.focus.appid > 0 && c.focus.appid <= 0xffffffff) return c;
     if (c.overlay?.call === 'info' && Object.keys(c.overlay).length === 1) return c;
     if (['inspect', 'invoke'].includes(c.replay?.call) && (c.replay.name === undefined || /^[A-Za-z0-9_.-]+$/.test(c.replay.name)) && Object.keys(c.replay).every(k => ['call', 'name'].includes(k))) return c;
     throw new Error('Unsupported developer command; only approved Test methods and server/overlay/replay diagnostics are accepted');

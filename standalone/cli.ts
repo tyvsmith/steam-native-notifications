@@ -31,6 +31,7 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
        snn config get [KEY]|set KEY true|false|reset [--config FILE]
        snn status|doctor|capture [n]|sample
        snn dev fire NAME [JSON ...]|replay inspect|invoke [NAME]|server TYPE [JSON]
+       snn dev fire --host-focus APPID
        snn session
        snn daemon [--config FILE] [--steam-dir DIR] [--port N]
 Exit: 0 success, 1 failure. Bun owns package installation and updates. Settings are in Steam → Notifications.

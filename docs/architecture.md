@@ -233,8 +233,15 @@ without persisting a closure or a plugin route file.
   selected app ID, one Gamescope window exists, and another window is active
 - Return `unknown` on unavailable libraries/protocols, disconnected or stalled
   compositors, or ambiguous ownership; retain Steam's selection
-- Keep this correction scoped to nested Gamescope on compatible Wayland
-  compositors; it does not add Windows, X11, GNOME, or KDE focus providers
+- Keep the Linux correction scoped to nested Gamescope on compatible Wayland
+  compositors; X11, GNOME, and KDE providers remain unsupported
+- Share Windows ownership detection in `tools/game-focus.ps1`, called by thin
+  Millennium and standalone adapters with a two-second deadline
+- Corroborate Steam's process records with executable paths, creation times,
+  and live ancestry under the selected Steam installation; reject conflicting
+  overlay ownership and changes to foreground or process identity during discovery
+- Run Windows probes only for clicks or explicit `--host-focus <appid>` developer
+  commands; retain Steam's selection when the result is `unknown`
 
 Future providers implement `query(appid)` and are selected by `game_focus.lua`.
 Only the Wayland reader exposes window snapshots; native window identities and

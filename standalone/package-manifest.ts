@@ -1,7 +1,7 @@
 import { readdir, lstat, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
-export const ASSETS = ['standalone/cli.js', 'package.json', 'LICENSE', 'dist/standalone/frontend.js', 'dist/standalone/build.json', 'tools/notify-action', 'tools/notify-action.ps1', 'standalone/focus.lua', 'backend/game_focus.lua', 'backend/focus/wayland.lua', 'backend/focus/gamescope.lua', 'docs/standalone-release.md', 'docs/standalone-notices.md', 'docs/windows-standalone.md'].sort();
+export const ASSETS = ['standalone/cli.js', 'package.json', 'LICENSE', 'dist/standalone/frontend.js', 'dist/standalone/build.json', 'tools/notify-action', 'tools/notify-action.ps1', 'tools/game-focus.ps1', 'backend/focus/windows.lua', 'standalone/focus.lua', 'backend/game_focus.lua', 'backend/focus/wayland.lua', 'backend/focus/gamescope.lua', 'docs/standalone-release.md', 'docs/standalone-notices.md', 'docs/windows-standalone.md'].sort();
 export const sha256 = (data: Uint8Array | string) => createHash('sha256').update(data).digest('hex');
 export type Manifest = { format: 3; version: string; buildId: string; target: 'linux-windows-x64'; bun: string; files: Record<string,string> };
 export async function inventory(root: string, prefix = ''): Promise<string[]> {

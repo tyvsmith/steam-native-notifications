@@ -78,7 +78,8 @@ export class Host {
             case 'GameHostFocus': {
                 const appid = args[0];
                 if (args.length !== 1 || typeof appid !== 'number' || !Number.isInteger(appid) || appid <= 0 || appid > 0xffffffff) return 'unknown';
-                return this.platform === 'windows' ? 'unknown' : this.focus(appid);
+                if (this.platform === 'windows') { const { windowsGameFocus } = await import('./game-focus'); return windowsGameFocus(join(this.root, 'tools/game-focus.ps1'), this.steam, appid); }
+                return this.focus(appid);
             }
             case 'Notify': {
                 if (args.length !== 6 || args.some(value => typeof value !== 'string' || value.length > 16384)) break;

@@ -23,6 +23,7 @@
 //                                              fields in docs/steam-routing.md
 //
 // Diagnostics (results land in the plugin log):
+//   tools/fire --host-focus <appid>          probe host ownership
 //   tools/fire --overlay-info                dump overlay browser PIDs
 //   tools/fire --replay inspect              dump the stashed handler entries
 //   tools/fire --replay invoke [toast-name]  invoke a stashed handler
