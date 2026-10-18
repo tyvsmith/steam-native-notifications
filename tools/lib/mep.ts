@@ -167,9 +167,9 @@ export function mepCall(method: string, params: Record<string, Packable>, opts: 
 				},
 				connectError(_s, e) {
 					const code = (e as NodeJS.ErrnoException).code;
-					finish(() => reject(new Error(code === 'ENOENT'
+					finish(() => reject(Object.assign(new Error(code === 'ENOENT'
 						? `${socket} is not there -- is Steam running with Millennium?`
-						: `${socket} refused the connection -- Millennium may be starting up. (${e.message})`)));
+						: `${socket} refused the connection -- Millennium may be starting up. (${e.message})`), { code })));
 				},
 			},
 		}).catch((e: Error) => finish(() => reject(e)));

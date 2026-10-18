@@ -18,11 +18,56 @@ records how the routing catalog and protobuf schema were restored from
 `docs/platforms.md` is the platform support matrix (the paths and calls
 that differ per OS, and the delivery plan where nothing delivers yet).
 
+## Standalone RT3 host
+
+The native Linux x64 standalone package runs without Millennium, using a separately installed Bun runtime. Both hosts share notification capture, localized text,
+presentation, replay, durable routes and the Linux notification helper.
+
+| Boundary | Millennium | Standalone |
+|---|---|---|
+| Frontend loading and RPC | plugin loader and FFI | loopback CEF CDP and binding adapter |
+| Preferences | per-key plugin config | serialized atomic JSON store |
+| Settings UI | plugin panel | section in Steam Notifications settings |
+| Developer commands | MEP config-change push, exported frontend handler and correlated replies | private Unix socket and correlated frontend execution |
+| Installation | packed `.star` | Bun-owned application package, user service and autostart |
+
+`shared/settings-policy.ts` owns visibility, dependent-control availability and preference
+reset rules. Standalone test commands apply the latest saved preferences before
+execution; serialized pushes cannot replace it with an older snapshot. Renderers and
+storage stay with their hosts. An optional Steam panel
+failure does not stop notification capture; offline config recovery uses the CLI.
+
+`tools/lib/host-client.ts` owns host selection and common command dispatch;
+`tools/lib/cli-options.ts` owns shared argument parsing. Millennium readiness
+requires a fresh challenge reply with the expected frontend build, an installed
+hook and live command control. Backend availability alone leaves actions disabled.
+Command receipts carry the request ID and distinguish execution from an
+unconfirmed delivery. They do not prove capture or visible desktop delivery.
+The standalone section appends inside Steam's existing Notifications scroll
+body, with an error boundary around only the extension. The private seam wraps
+the observed synchronous page function in a stable component per native type,
+calls it once with the original props, and clones only the discovered body
+element. Other component shapes or body outputs remain unchanged. It adds no sidebar entry and
+leaves Steam's page metadata and navigation callbacks intact. Both hosts offer
+a fixed sample and confirmed reset; both panels share
+visibility, reset policy, native controls, confirmation dialogs and sample-result wording.
+`shared/settings-content.ts` owns the common view; removal is standalone-only.
+
+
+Bun owns application files and command installation. Trusted package installation
+attempts per-user integration setup; explicit setup remains available for repair.
+The integration verifies daemon PID/build readiness, preserves stopped/disabled
+service state and records owned service/autostart files. It never restarts Steam.
+Teardown precedes package removal because Bun removal hooks are not reliable.
+Settings and the shared CEF marker are preserved. See [installation](standalone-release.md),
+[development setup](experiments/rt3-standalone.md), and
+[validation scope](experiments/rt3-validation.md).
+
 ## The pipeline
 
 ```
 Steam renders a toast (its own CEF popup window)
-  frontend/index.tsx      hook g_PopupManager, wait for paint, read the DOM
+  frontend/runtime.ts     hook g_PopupManager, wait for paint, read the DOM
   frontend/notification.ts decode Steam's attached notification
   frontend/routes.ts      derive a durable fallback from the decoded fields
   frontend/replay.ts      walk the toast's fiber tree, stash its click handler
@@ -63,10 +108,20 @@ kitsune-notifications plugin uses, which is the only reason to trust it.
 
 The popup exists before it paints, so delivery polls for text (~1.2s) rather
 than trusting a settle delay. Each popup name delivers at most once. Delivery
-uses one settings snapshot per captured surface. OS and Steam visibility are
+uses one settings snapshot per captured surface. The default-on
+`integrationEnabled` master disables OS delivery and preserves Steam when off,
+without modifying the saved context preferences. Both host panels disable
+dependent controls and their test button while the master is off. Developer
+opt-in remains independent. Changes affect subsequent captures.
+
+With integration enabled, OS and Steam visibility are
 independent: both enabled sends a copy and preserves Steam; both disabled
-closes Steam without sending a copy. Replacing Steam with an OS notification
-closes its popup only after the backend acknowledges launching delivery.
+dismisses Steam without sending a copy. Replacing Steam with an OS notification
+invokes the toast's bound `onDismiss` only after the backend acknowledges launching
+delivery. Discovery requires the matching popup portal, notification identity and
+one callback. Missing or ambiguous callbacks preserve Steam; callback failures
+are logged without a raw-close fallback. Direct
+CEF window closure bypasses native cleanup and can stall Steam's animation queue.
 A failed request preserves Steam, but a successful launch does not establish
 whether the OS displayed a banner. Unknown capture surfaces preserve Steam
 and skip mirroring. Closing happens after capture, so a brief flash is possible.
@@ -76,6 +131,32 @@ in games. Windows Notification Center-only preferences default off, appear
 only when OS delivery is enabled, and set `SuppressPopup` before WinRT `Show`.
 Linux ignores those preferences. Steam's capture surface can lag after
 alt-tab, so an explicitly silent game-context copy can remain silent there.
+
+## Push and recovery
+
+Neither host polls settings, commands, clicks or health while idle.
+
+- Standalone watches the configuration directory so atomic file replacements
+  remain observable; successful writes also publish directly
+- CDP context and disconnect events drive attachment and recovery
+- The Steam panel subscribes to pushed settings and host state
+- Explicit status requests probe responsiveness; stored connection state alone
+  does not prove an idle renderer is responsive
+- Millennium receives control requests through its backend config-change
+  callback, then invokes the plugin's exported frontend handler
+- Request-scoped file watchers receive correlated Millennium replies; expired
+  requests and unloaded frontends cannot acknowledge execution
+
+Millennium's config-change callback and frontend export invocation bypass the
+main-world config subscription that missed updates in the isolated plugin.
+The CLI transport owns its temporary config entry and reply directory. Stored
+requests are never replayed at startup.
+
+Timers remain for request deadlines, disconnected/startup retries, waiting for
+a dialog to close, toast painting and click-triggered window creation. These
+flows stop when completed or disposed; there is no recurring healthy-idle tick.
+A dead transport cannot push its own failure into the panel. The next action or
+status request detects that failure.
 
 ## The click path
 
@@ -128,9 +209,8 @@ a proved handler nor a fallback is inert. Group chat has exact replay only: its
 room dispatcher requires a toast's session-only browser context, with no
 verified replacement after a restart. Desktop fallback awaits window creation
 and Steam's dispatch result before requesting Windows focus; a failed dispatch
-or window timeout does not request focus. The session-long click-file poll
-remains only as a legacy/test input; its 30-second age check does not limit URL
-activation.
+or window timeout does not request focus. Clicks arrive through the URL handler;
+the legacy click-file input and its polling bridge have been removed.
 
 The replay stash holds the latest 256 chosen closures for the Steam session;
 it has no time expiry. The cap is a memory bound, not a click-lifetime policy.
@@ -175,11 +255,18 @@ not a persistent executable command, so reboot-durable history clicks are
 daemon-specific. The new Linux
 path has offline coverage and runtime evidence for stored-argv replay and
 Achievement fallback after Steam restart/cold start. Quattro history UI clicks
-worked with Steam running and fully stopped; live-banner clicks, explicit
-focus-owner measurement, and shell/login restart remain untested. See
-`docs/platforms.md`.
+worked with Steam running and fully stopped in the earlier Millennium checks.
+The standalone candidate additionally demonstrated a live-banner pointer click
+and Steam focus, then stored-argv fallback after Steam restart. Shell/login
+recovery remains untested. Evidence belongs to its tested host and build; see
+`docs/platforms.md` and `docs/experiments/rt3-validation.md`.
 
 ### Log vocabulary
+
+Health and safe policy summaries are always available. `verboseDiagnostics`
+defaults false and gates lazy formatting of payloads, routes, callbacks and
+exception details. The table includes the detailed forms available after opt-in.
+A formatter or logging transport failure never interrupts delivery.
 
 All in `~/.cache/steam-native-notifications/plugin.log` (the Linux runtime
 directory; `docs/platforms.md` has the others), truncated at each backend
@@ -203,7 +290,6 @@ appends there too when it refuses a platform:
 | `click-bridge: no verified fallback token=<prefix>` | replay was unavailable and no safe route exists |
 | `steam-url: registered steam://steam-native-notifications/notification/<payload>` | the canonical activation handler attached |
 | `steam-url: click token=<prefix>` | the OS activation URL decoded and entered dispatch |
-| `click-bridge: stale click dropped (Ns old)` | a legacy/test click-file input was older than 30s |
 | `replay: invoke <name> onClick@D age=Ns` then `-> returned without throwing` | the click ran |
 | `replay: invoke ... -> no stash entry / THREW ...` | why exact replay did not run |
 | `focus: raised kind=<main\|chat> ... target=...` | Windows pulsed the selected Steam window after dispatch |
@@ -276,9 +362,11 @@ action.
   starts with a quote.
 - Settings are per-key values in Millennium's config store (`usePluginConfig`
   in the panel, `pluginConfig`/`subscribePluginConfig` behind `settings()`);
-  a config write from any source pushes to the running frontend (verified
-  2026-08-30). Missing settings use defaults; obsolete development settings
-  have no migration path.
+  successful panel writes update the runtime snapshot immediately. CLI writes
+  request one explicit reload through the push control channel and report
+  whether the live frontend acknowledged it. No idle settings or command poll
+  runs. Missing settings use defaults; obsolete development settings have no
+  migration path.
 
 ## Testing methodology, which is easy to get wrong
 
@@ -321,12 +409,12 @@ action.
   handlers; it is all React state.
 - **Keeping the toast popup alive to dispatch a real DOM click later** —
   Steam owns the popup lifecycle and destroys it on its own schedule.
-- **Config-change propagation to a running frontend** — Millennium delivers
-  external config writes by evaluating JS in the main IPC context; a plugin
-  frontend runs in its own isolated CDP world and never sees them. Presets
-  take effect at the next Steam start.
-- **Compositor rules for hiding Steam's toast** — the plugin closes the
-  popup itself, which is portable and knows the read succeeded.
+- **Relying only on Millennium config subscriptions**: external writes can land
+  in the main IPC context while the plugin runs in an isolated world. Local
+  panel writes publish their result; CLI writes explicitly request a reload
+  without adding a timer or reading settings on idle ticks.
+- **Compositor rules for hiding Steam's toast** — the plugin invokes Steam's
+  native dismissal after capture and delivery acknowledgement.
 - The routing catalog's own dead ends (external steam:// URLs into the
   overlay, instance objects as browserInfo, the appid-0 playtime ingestion)
   are recorded beside the current rules in `frontend/routes.ts` and

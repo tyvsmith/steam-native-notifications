@@ -1,0 +1,11 @@
+name: RT3 experiment
+on:
+  push:
+    branches: [experimental/rt3-standalone-cdp]
+permissions:
+  contents: read
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    with:
+      upload: true

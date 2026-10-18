@@ -404,24 +404,75 @@ local function steam_dir_candidates()
     return dirs
 end
 
+-- Same restricted VDF grammar as standalone/login-user.ts; shared fixtures pin parity.
+local function login_user(text)
+    local offset, invalid = 1, false
+    local function token()
+        while offset <= #text do
+            local char = text:sub(offset, offset)
+            if char:match("%s") then offset = offset + 1
+            elseif text:sub(offset, offset + 1) == "//" then
+                offset = (text:find("[\r\n]", offset + 2) or #text) + 1
+            elseif char == '"' then
+                offset = offset + 1
+                local value = '"'
+                while offset <= #text do
+                    char = text:sub(offset, offset)
+                    offset = offset + 1
+                    if char == '"' then return value end
+                    if char == "\\" then
+                        if offset > #text then invalid = true; return nil end
+                        char = text:sub(offset, offset)
+                        offset = offset + 1
+                    end
+                    value = value .. char
+                end
+                invalid = true; return nil
+            elseif char == "{" or char == "}" then offset = offset + 1; return char
+            else invalid = true; return nil end
+        end
+        return nil
+    end
+    local function string_value(value)
+        if value and value:sub(1, 1) == '"' then return value:sub(2) end
+    end
+    local name = string_value(token())
+    if not name or name:lower() ~= "users" or token() ~= "{" then return nil end
+    local accounts, recent, seen = {}, {}, {}
+    local value = token()
+    while value ~= "}" do
+        local id = string_value(value)
+        if not id or not id:match("^7656119%d%d%d%d%d%d%d%d%d%d$") or seen[id] or token() ~= "{" then return nil end
+        seen[id] = true
+        accounts[#accounts + 1] = id
+        local fields = {}
+        value = token()
+        while value ~= "}" do
+            local key, field = string_value(value), string_value(token())
+            if not key or not field then return nil end
+            key = key:lower()
+            if fields[key] then return nil end
+            fields[key] = true
+            if key == "mostrecent" and field == "1" then recent[#recent + 1] = id end
+            value = token()
+        end
+        value = token()
+    end
+    -- A trailing malformed token must not turn a damaged file into a valid identity.
+    if token() ~= nil or invalid or offset <= #text then return nil end
+    if #recent == 1 then return recent[1] end
+    if #recent == 0 and #accounts == 1 then return accounts[1] end
+    return nil
+end
+
 local function most_recent_steamid()
     for _, dir in ipairs(steam_dir_candidates()) do
         local handle = io.open(join(dir, "config", "loginusers.vdf"), "r")
         if handle then
-            local current, fallback = nil, nil
-            for line in handle:lines() do
-                local id = line:match('^%s*"(7656119%d%d%d%d%d%d%d%d%d%d)"%s*$')
-                if id then
-                    current = id
-                    fallback = fallback or id
-                elseif current and line:match('"[Mm]ost[Rr]ecent"%s*"1"') then
-                    handle:close()
-                    return current
-                end
-            end
+            local text = handle:read("*a")
             handle:close()
-            -- No MostRecent flag: a single-user file still identifies the user.
-            if fallback then return fallback end
+            -- The first existing file is authoritative, including ambiguity or damage.
+            return login_user(text)
         end
     end
     return nil
@@ -454,33 +505,47 @@ local function publish_steam_dir()
     os.remove(STEAM_DIR_FILE)
 end
 
---- Consume-once file handoff: the file is deleted before its content is
---- returned, so a command acts once, not once per poll.
-local function consume(path)
-    local handle = io.open(path, "r")
-    if not handle then return "" end
-    local content = handle:read("*a") or ""
+local function request_id(value)
+    return type(value) == "string" and #value == 36 and value:match("^[%x%-]+$") ~= nil
+end
+
+local stop_control
+local function start_control()
+    if not millennium.config or type(millennium.config.on_change) ~= "function" then
+        log_line("error", "control: Millennium config push API unavailable")
+        return
+    end
+    -- Subscribe only to new changes; never execute persisted requests on load.
+    stop_control = millennium.config.on_change(function(key, value)
+        if key ~= "snnControl" or type(value) ~= "string" or #value > 65536 then return end
+        local ok, request = pcall(json.decode, value)
+        if not ok or type(request) ~= "table" or not request_id(request.id)
+            or type(request.deadline) ~= "string" or not request.deadline:match("^%d+$")
+            or not tonumber(request.deadline) or tonumber(request.deadline) <= os.time() * 1000
+            or (request.kind ~= "status" and request.kind ~= "sample" and request.kind ~= "dev") then return end
+        pcall(millennium.config.delete, "snnControl")
+        local called, result, err = pcall(millennium.call_frontend_method, "receiveControl", {value})
+        if not called or err then log_line("error", "control: frontend push failed: " .. tostring(err or result)) end
+    end)
+end
+
+---@ffi
+---@param kind string
+---@param payload string
+---@return string
+function ReportDiagnostic(kind, payload)
+    if (kind ~= "status" and kind ~= "command") or type(payload) ~= "string" or #payload > 65536 then
+        return "invalid"
+    end
+    local ok, reply = pcall(json.decode, payload)
+    if not ok or type(reply) ~= "table" or not request_id(reply.id) then return "invalid" end
+    -- The caller removes this directory on timeout; never recreate a late reply.
+    local path = join(RUNTIME_DIR, ".control-requests", reply.id, "result")
+    local handle = io.open(path, "w")
+    if not handle then return "unavailable" end
+    handle:write(payload)
     handle:close()
-    os.remove(path)
-    return content
-end
-
---- Dev trigger: tools/fire writes RUNTIME_DIR/.dev-fire; the frontend polls
---- this callable and executes the named NotificationStore test method.
----@ffi
----@return string
-function TakeDevCommand()
-    return consume(join(RUNTIME_DIR, ".dev-fire"))
-end
-
---- Legacy/test click handoff: production helpers launch or store the canonical
---- Steam notification URL, which frontend/steamurl.ts validates before shared
---- dispatch. This consume-once input remains for compatibility and focused
---- tests; live focus still selects the dispatch surface.
----@ffi
----@return string
-function TakeClick()
-    return consume(join(RUNTIME_DIR, ".click"))
+    return "ok"
 end
 
 --- Steam tracks focus inside nested Gamescope, not necessarily its host window.
@@ -535,10 +600,12 @@ local function on_load()
         end
     end
 
+    start_control()
     millennium.ready()
 end
 
 local function on_unload()
+    if stop_control then stop_control(); stop_control = nil end
     log_line("info", "backend unloaded")
 end
 

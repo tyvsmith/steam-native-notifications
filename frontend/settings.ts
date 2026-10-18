@@ -1,36 +1,38 @@
+import { setVerboseDiagnostics } from '../shared/diagnostics';
 import { pluginConfig, subscribePluginConfig } from 'millennium';
-import { PRESENTATION_DEFAULTS, type PresentationSettings } from './presentation';
+import { createSettingsHost } from '../shared/host';
+import { DEFAULTS, isSettingKey, type Settings } from '../shared/settings';
+export { DEFAULTS } from '../shared/settings';
+export type { Settings } from '../shared/settings';
+export { parseCallableJson } from '../shared/host';
 
-export interface Settings extends PresentationSettings {
-	/**
-	 * Dev: accept commands from tools/fire (devfire.ts). A name-and-args door
-	 * into Steam's notification stores for anything that can write the command
-	 * file in the plugin's cache directory, so it ships off.
-	 */
-	devFire: boolean;
-	/**
-	 * Shows the developer toggles in the settings panel. Deliberately has no
-	 * toggle of its own: set it out-of-band (tools/mep plugin.config.set, or
-	 * ~/.config/millennium/config.json while Steam is down) so normal users
-	 * never see the development surface.
-	 */
-	devMode: boolean;
-}
+const store = createSettingsHost({
+    getAll: () => pluginConfig.getAll(),
+    set: 'set' in pluginConfig ? (key, value) => pluginConfig.set(key, value as any) : undefined,
+    // Starlight binds direct SDK calls to this plugin, not function references.
+    subscribe: (listener) => subscribePluginConfig(listener),
+});
 
-export const DEFAULTS: Settings = {
-	...PRESENTATION_DEFAULTS,
-	devFire: false,
-	devMode: false,
-};
-
-/**
- * Read by the toast handler on every notification, so a toggle takes effect
- * immediately rather than at the next Steam start. Kept current by the
- * subscription below: settings live per-key in Millennium's own config store
- * (the panel writes them through usePluginConfig, the backend and tools/mep
- * through millennium.config), and every write is pushed here automatically.
- */
+// Millennium can miss config pushes into the plugin's isolated world. Publish
+// completed reads and writes locally so the panel and delivery use one snapshot.
 let current: Settings = { ...DEFAULTS };
+let revision = 0;
+export const settingsHost = {
+    ...store,
+    async read(): Promise<Settings> {
+        for (let attempt = 0; attempt < 5; attempt++) {
+            const before = revision;
+            const next = await store.read();
+            if (revision === before) { setVerboseDiagnostics(next.verboseDiagnostics); return current = next; }
+        }
+        throw new Error('Settings changed during read; retry the operation');
+    },
+    async write(patch: Partial<Settings>) {
+        const result = await store.write(patch);
+        if (result.ok) { revision++; current = result.value; setVerboseDiagnostics(current.verboseDiagnostics); }
+        return result;
+    },
+};
 
 export function settings(): Settings {
 	return current;
@@ -38,24 +40,10 @@ export function settings(): Settings {
 
 /** Keep removal and malformed-value behavior aligned with the panel defaults. */
 function absorb(key: string, value: unknown): void {
-	if (Object.prototype.hasOwnProperty.call(DEFAULTS, key)) {
+	if (isSettingKey(key)) {
+        revision++;
 		current = { ...current, [key]: typeof value === 'boolean' ? value : DEFAULTS[key as keyof Settings] };
-	}
-}
-
-/**
- * A backend return may arrive JSON-encoded (a Lua string wrapped in literal
- * quote characters) or already decoded, depending on the transport; unwrap
- * whichever shape arrives into the object it represents.
- */
-export function parseCallableJson<T>(raw: unknown, fallback: T): T {
-	if (typeof raw !== 'string') return (raw as T) ?? fallback;
-	try {
-		const once = JSON.parse(raw);
-		if (typeof once === 'string') return JSON.parse(once) as T;
-		return once as T;
-	} catch {
-		return fallback;
+        setVerboseDiagnostics(current.verboseDiagnostics);
 	}
 }
 
@@ -69,11 +57,11 @@ let subscribed = false;
 export async function loadSettings(): Promise<Settings> {
 	if (!subscribed) {
 		subscribed = true;
-		subscribePluginConfig((key, value) => absorb(key, value));
+		settingsHost.subscribe((key, value) => absorb(key, value));
 	}
 	for (let attempt = 0; attempt < 5; attempt++) {
 		try {
-			const all = await pluginConfig.getAll<Record<string, unknown>>();
+			const all = await settingsHost.read();
 			if (all && typeof all === 'object') {
 				for (const [key, value] of Object.entries(all)) absorb(key, value);
 				return current;

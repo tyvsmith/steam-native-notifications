@@ -2,14 +2,14 @@ Under Active Development
 
 # steam-native-notifications
 
-A Millennium plugin that mirrors Steam's in-client notification toasts to the
-desktop notification daemon, keeping the artwork and the click. Toasts land
-in your notification centre with everything else, and clicking one does
-exactly what clicking Steam's own toast would — because it *is* Steam's own
-click: at capture time the plugin stashes the click handler Steam attached to
-the toast, and a click on the desktop notification re-runs it. There is no
-per-type routing table to maintain; notification types Steam adds tomorrow
-are clickable on day one.
+Mirror Steam notifications to the desktop, preserving artwork and click actions.
+The Millennium plugin supports the existing client; an experimental standalone
+host supports native Linux Steam without Millennium. RT3 has the recorded live
+coverage; the non-RT3 client also passed user testing.
+
+Clicks replay Steam's captured handler when its surface still matches. A
+verified catalog fallback handles supported notifications after Steam restarts
+or replay becomes unavailable. Ambiguous actions fail closed.
 
 `docs/architecture.md` is the full picture; `docs/notification-types.md`
 lists every notification type and what Steam's click does for it.
@@ -75,33 +75,43 @@ Windows toast identity per-user at load, and
 
 ## Settings
 
-| Setting | Outside games | Inside games |
+Standalone: open Steam Settings → Notifications → Steam Native Notifications at the
+bottom of the page. Millennium: use the plugin settings panel.
+
+| Setting | On desktop | In game |
 | --- | --- | --- |
-| Show OS notifications | On | On |
-| Show Steam notifications | Off | On |
+| Notification delivery | System only | Steam + System |
 | Save to Notification Center only (Windows) | Off | Off |
 
-- control Steam and OS notifications independently in each section; both off
-  suppresses both
+- enable native notification integration by default; turning it off stops OS
+  copies and preserves normal Steam notifications without changing the saved
+  context preferences
+- choose Steam only, System only, Steam + System or Off for each context
+- keep Steam pop-ups visible in games while system notifications may go to history
+  when Do Not Disturb is on; history support depends on the operating system
 - show Notification Center controls only on Windows when the section's OS
   notifications are enabled; hiding a control preserves its preference
 - let Windows decide banner visibility through its notification settings,
   including Do Not Disturb, unless Notification Center only is enabled
-- leave Linux banner and history policy to the notification daemon
+- leave Linux banner and history policy to the notification daemon; live-banner
+  actions use FreeDesktop notifications, while retained executable history
+  actions are verified with Quickshell/Quattro only
 
 Context follows where Steam renders the toast. Steam can keep using the game
 overlay after alt-tab, so Inside games settings can still apply then. Native
 notifications cannot capture events that Steam never renders.
 
-When replacing Steam's toast, the plugin closes it after the backend
-acknowledges launching native delivery. A rejected request leaves Steam's
-toast visible; the acknowledgement does not confirm a displayed OS banner.
+When replacing Steam's toast, the plugin invokes Steam's native dismissal after
+the backend acknowledges launching native delivery. A rejected request leaves Steam's
+toast visible; unavailable native dismissal also preserves Steam. The
+acknowledgement does not confirm a displayed OS banner.
 
 Windows history clicks can still target a hidden overlay while a game is
 running; focus detection is tracked in [#14](https://github.com/tyvsmith/steam-native-notifications/issues/14).
 
-The `tools/fire` test door ships off and appears only with `devMode` enabled
-out of band. See `docs/architecture.md` for testing instructions.
+Developer commands ship off. Both hosts use the same CLI settings and test
+commands; see [developer commands](docs/standalone-release.md#settings-and-diagnostics).
+The fixed sample requires no developer opt-in.
 
 ## Diagnosing
 
@@ -115,5 +125,19 @@ The plugin logs to `~/.cache/steam-native-notifications/plugin.log` on Linux and
 `%LOCALAPPDATA%\steam-native-notifications\plugin.log` on Windows (truncated at
 each backend load); Millennium's loader lines are in
 `~/.steam/steam/logs/console-linux.txt` under `me.tysmith.steam-native-notifications`.
-Every stage of a click logs one line, and every failure mode names itself —
-the vocabulary table is in `docs/architecture.md`.
+Health and routing summaries remain enabled. Notification text, payloads, routes
+and callback details require `verboseDiagnostics=true`. Existing logs may still
+contain details from older builds or earlier opt-in sessions; inspect them
+before sharing. See the vocabulary in `docs/architecture.md`.
+
+## Experimental standalone client without Millennium
+
+The experimental standalone host runs over Steam CEF DevTools on native Linux.
+Build with `bun run build:standalone`; see
+[setup and validation limits](docs/experiments/rt3-standalone.md).
+Live standalone checks cover settings, visible synthetic banners, a banner
+click and stored-history fallback after Steam restart. See the
+[build-specific evidence and remaining merge gates](docs/experiments/rt3-validation.md).
+Build a Bun package with `bun run build:release`; see
+[installation and removal](docs/standalone-release.md). Bun is a runtime dependency;
+settings live inside Steam. Registry publication is separate from local builds.

@@ -1,7 +1,10 @@
 #!/usr/bin/env bun
 // Fire a test notification through Steam's own toast pipeline, and drive the
-// plugin's dev diagnostics. Every command writes a file the plugin's dev poll
-// consumes within ~3s, gated on the devFire developer toggle.
+// plugin's dev diagnostics. Shared dispatch selects the host; developer
+// commands require devFire. The fixed sample does not.
+// Common options: --host auto|millennium|standalone --json.
+//   tools/fire --sample                     fixed sample, no developer opt-in
+// Equivalent packaged commands: snn sample; snn dev fire <arguments>.
 //
 // Client toasts (Steam's own NotificationStore Test* methods; args are JSON --
 // bare numbers and null pass through, quote strings):

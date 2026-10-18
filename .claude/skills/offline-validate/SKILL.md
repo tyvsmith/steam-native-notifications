@@ -3,13 +3,13 @@ name: offline-validate
 description: The no-Steam validation gate — typecheck, build, backend and frontend tests. Run before claiming any change works, before committing, and after ANY edit to frontend/, backend/main.lua, or tools/notify-action. Triggers - "run the tests", "does it build", "validate this change".
 ---
 
-All commands run from the repo root. Run all three; each catches a class the
-others miss.
+All commands run from the repo root. Generate current assets, typecheck, test and pack without installation.
 
 ```sh
-bun run typecheck    # tsc --noEmit
-bun run build        # typecheck + starlight pack (installs the .star)
-bun run test         # tools/test-backend && bun tools/test-frontend
+bun run build:standalone # generate identity/schema, typecheck and build in dist
+bun run test
+bun run test:standalone
+bunx starlight pack -o dist # pack Millennium without changing the live plugin
 ```
 
 ## What each proves, and what it does not
@@ -21,7 +21,7 @@ bun run test         # tools/test-backend && bun tools/test-frontend
   Lua nil global except `tools/test-backend`.
 - **`tools/test-backend`** (needs `lua5.4`) exercises backend/main.lua with
   Millennium stubbed (config, assets, fs; the runtime cache directory is a
-  throwaway under mktemp), plus notify-action's exposed seams (`--click-plan`,
+  throwaway under mktemp), plus notify-action's exposed seams (`--notification-url`,
   `--escape-markup`, `--resolve-icon`) with notify-send/gdbus shimmed.
   Output ends `PASS` or `N FAILED`.
 - **`tools/test-frontend`** compiles the Millennium-free frontend subgraph and

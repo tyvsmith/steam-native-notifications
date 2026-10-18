@@ -22,15 +22,25 @@ jobs:
 
   release:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
       - uses: actions/download-artifact@v8
         with:
           name: me.tysmith.steam-native-notifications.star
           path: dist
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: standalone-bun-package
+          path: dist/releases
 
       # The tag names the release; millennium.toml is the version the bundle
       # reports to Millennium. They must agree or users install a .star that
@@ -42,6 +52,8 @@ jobs:
         run: |
           test -f dist/me.tysmith.steam-native-notifications.star || { echo "artifact missing"; ls -R dist; exit 1; }
           manifest=$(awk -F'"' '/^\[/{s=$0} s=="[plugin]" && /^version *=/{print $2}' millennium.toml)
+          package_version=$(python3 -c 'import json; print(json.load(open("package.json"))["version"])')
+          test "$package_version" = "$manifest" || { echo "package/TOML version mismatch"; exit 1; }
           if [ "$GITHUB_REF_TYPE" = tag ]; then
             tag=$GITHUB_REF_NAME
           elif [ "$DRY_RUN" = true ]; then
@@ -61,5 +73,6 @@ jobs:
           TAG: ${{ steps.version.outputs.tag }}
         run: |
           case $TAG in *-*) pre=--prerelease ;; *) pre= ;; esac
-          gh release create "$TAG" dist/me.tysmith.steam-native-notifications.star \
-            --verify-tag --generate-notes $pre
+          bun tools/release-notes.ts "$TAG" > dist/release-notes.md
+          gh release create "$TAG" dist/me.tysmith.steam-native-notifications.star dist/releases/*.tgz dist/releases/*.tgz.sha256 \
+            --verify-tag --notes-file dist/release-notes.md $pre

@@ -1,0 +1,14 @@
+braces	76561198000000002	"users" { "76561198000000001" { "MostRecent" "0" } "76561198000000002" { "PersonaName" "{second}" "MostRecent" "1" } }
+escaped-quotes	76561198000000002	"users" { "76561198000000001" { "MostRecent" "0" } "76561198000000002" { "PersonaName" "{\\\"second\\\"}" "MostRecent" "1" } }
+single	76561198000000001	"users" { "76561198000000001" { "PersonaName" "single" } }
+none	-	"users" {}
+no-recent	-	"users" { "76561198000000001" {} "76561198000000002" {} }
+two-recent	-	"users" { "76561198000000001" { "MostRecent" "1" } "76561198000000002" { "MostRecent" "1" } }
+mixed-case	76561198000000001	"users" { "76561198000000001" { "mOsTrEcEnT" "1" } }
+duplicate-id	-	"users" { "76561198000000001" {} "76561198000000001" {} }
+duplicate-field	-	"users" { "76561198000000001" { "MostRecent" "1" "mostrecent" "0" } }
+truncated	-	"users" { "76561198000000001" { "MostRecent" "1" }
+trailing-quote	-	"users" { "76561198000000001" {} } "
+nested	-	"users" { "76561198000000001" { "unexpected" { "MostRecent" "1" } } }
+wrong-root	-	"other" { "76561198000000001" {} }
+trailing-comment	76561198000000001	"users" { "76561198000000001" {} } // trailing { "comment"

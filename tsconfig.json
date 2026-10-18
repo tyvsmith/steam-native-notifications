@@ -3,7 +3,10 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "target": "ES2020",
-    "lib": ["ES2023", "DOM"],
+    "lib": [
+      "ES2023",
+      "DOM"
+    ],
     "jsx": "react-jsx",
     "declaration": false,
     "forceConsistentCasingInFileNames": true,
@@ -19,16 +22,18 @@
     "baseUrl": ".",
     "paths": {
       "millennium": [
-        ".millennium/lsp/ts"
+        "./.millennium/lsp/ts"
       ]
     },
     "typeRoots": [
-      ".millennium/types",
-      "node_modules/@types"
+      "./.millennium/types",
+      "./node_modules/@types"
     ]
   },
   "include": [
     "frontend",
+    "shared",
+    "standalone/**/*.ts",
     "tools/**/*.ts"
   ],
   "exclude": [

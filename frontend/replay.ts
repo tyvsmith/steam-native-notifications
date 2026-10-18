@@ -167,7 +167,7 @@ export function stashToastHandler(win: Window, name: string, token: string): boo
 		// write -- unbounded, a portal miss would emit hundreds per toast.
 		if (!picked || !viaPortal) {
 			candidates.slice(0, LOG_CANDIDATES_MAX).forEach((c, i) => {
-				dlog(`replay: candidate ${name} #${i} ${c.prop}@${c.depth} name=${c.fnName || '(anon)'} :: ${c.snippet}`);
+				dlog(`replay: candidate ${name} #${i} details disabled`, () => `replay: candidate ${name} #${i} ${c.prop}@${c.depth} name=${c.fnName || '(anon)'} :: ${c.snippet}`);
 			});
 			if (candidates.length > LOG_CANDIDATES_MAX) {
 				dlog(`replay: candidate ${name} +${candidates.length - LOG_CANDIDATES_MAX} more`);
@@ -190,7 +190,7 @@ export function stashToastHandler(win: Window, name: string, token: string): boo
 		pruneStash();
 		return picked !== null;
 	} catch (e) {
-		dlog(`replay: walk failed for ${name}: ${(e as Error)?.message ?? e}`);
+		dlog(`replay: walk failed for ${name}: (enable verboseDiagnostics for details)`, () => `replay: walk failed for ${name}: ${(e as Error)?.message ?? e}`);
 		return false;
 	}
 }
@@ -203,7 +203,7 @@ export function inspectReplayStash(): void {
 		const chosen = entry.chosen ? `${entry.chosen.prop}@${entry.chosen.depth}` : 'none';
 		dlog(`replay: stash ${entry.name} token=${entry.token.slice(0, 8)} age=${age}s n=${entry.candidateCount} chosen=${chosen}`);
 		entry.candidates.forEach((c, i) => {
-			dlog(`replay: stash ${entry.name} #${i} ${c.prop}@${c.depth} name=${c.fnName || '(anon)'} :: ${c.snippet}`);
+			dlog(`replay: stash ${entry.name} #${i} details disabled`, () => `replay: stash ${entry.name} #${i} ${c.prop}@${c.depth} name=${c.fnName || '(anon)'} :: ${c.snippet}`);
 		});
 	}
 }
@@ -236,7 +236,7 @@ export function invokeReplayHandler(identifier: string | undefined, focusedAppId
 		for (const e of stash.values()) entry = e; // last = most recent
 	}
 	if (!entry) {
-		dlog(`replay: invoke ${identifier ?? '(latest)'} -> no stash entry`);
+		dlog('replay: invoke -> no stash entry', () => `replay: invoke ${identifier ?? '(latest)'} -> no stash entry`);
 		return false;
 	}
 	// The URL's appid is untrusted; only the capture stored with this closure
@@ -261,8 +261,8 @@ export function invokeReplayHandler(identifier: string | undefined, focusedAppId
 		return true;
 	} catch (e) {
 		const err = e as Error;
-		dlog(`replay: invoke ${entry.name} -> THREW ${err?.name ?? ''}: ${err?.message ?? String(e)}`);
-		if (err?.stack) dlog(`replay: invoke stack: ${String(err.stack).replace(/\s+/g, ' ').slice(0, 500)}`);
+		dlog(`replay: invoke ${entry.name} -> THREW (enable verboseDiagnostics for details)`, () => `replay: invoke ${entry.name} -> THREW ${err?.name ?? ''}: ${err?.message ?? String(e)}`);
+		if (err?.stack) dlog('replay: invoke stack: details disabled', () => `replay: invoke stack: ${String(err.stack).replace(/\s+/g, ' ').slice(0, 500)}`);
 		return false;
 	}
 }

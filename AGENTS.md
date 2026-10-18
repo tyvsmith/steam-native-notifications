@@ -167,8 +167,8 @@ inside the existing window; unwatched, a working navigation looks like nothing.
 action launches it directly; Quattro can retain the fixed argv hint in history;
 Windows stores it as the WinRT protocol target. Every accepted click logs a
 `steam-url:` line followed by `click-bridge:` dispatch. No line means the OS
-action did not reach Steam or the frontend is not running. The remaining
-click-file poll is a legacy/test seam, not the Linux notification transport.
+action did not reach Steam or the frontend is not running. The legacy
+click-file input has been removed; tests invoke the URL or dispatch seam.
 
 **Never fire TestIncomingVoiceChat.** A fake incoming call has no caller to
 hang up: its notification never resolves, and once its toast has shown,
@@ -215,7 +215,8 @@ regexes silently dropped edits and deleted a live declaration twice.
 
 ```
 millennium.toml           plugin manifest; starlight packs everything below
-frontend/index.tsx        popup lifecycle: hook, wait, deliver   (Steam's CEF)
+frontend/index.tsx        Millennium entrypoint + settings panel
+frontend/runtime.ts       shared popup lifecycle: hook, wait, deliver (Steam's CEF)
 frontend/notification.ts  React tree -> typed notification (feeds the log)
 frontend/toasttext.ts      preserve rendered localized copy; split title/body
 frontend/click.ts         validate/encode the durable click envelope
@@ -245,3 +246,14 @@ tools/lib/msgpack.ts      the msgpack codec MEP speaks, exact integers
 tools/lib/json.ts         JSON with exact integers past 2^53
 frontend/steamurl.ts      register and validate the canonical Steam URL
 ```
+
+## Experimental standalone host
+
+`standalone/` hosts the shared frontend over loopback CEF CDP on native Linux
+RT3 (`steamrt64` / `steamrt3c`), without Millennium. See
+`docs/experiments/rt3-standalone.md` for setup, settings, and pending live checks.
+`bun run build:standalone` builds in the checkout without installing anything;
+`bun run test:standalone` uses isolated sockets and browser fixtures. Build
+standalone before running its tests. Keep the normal Millennium tests and pack
+checks; redirect `starlight pack -o dist` to avoid changing the live plugin.
+Never treat fixture injection as proof of live RT3 support.

@@ -1,26 +1,13 @@
-import { ffi, findModuleExport } from 'millennium';
+import { validateDevCommand, type DevEnvelope } from '../shared/dev-command';
+import { findModuleExport } from 'millennium';
 import { dlog, safeJson } from './log';
-import { parseCallableJson, settings } from './settings';
+import { settings } from './settings';
 import { inspectReplayStash, invokeReplayHandler } from './replay';
 import { currentClickSurface } from './overlay';
 
-/**
- * The tools/fire door: dev machinery, fenced off from the capture path.
- *
- * `tools/fire` writes a command file; the backend hands it over exactly once
- * via TakeDevCommand; the poll here executes it. A command either names a test
- * method on Steam's own NotificationStore (whose Test* functions push a real
- * synthesized notification through the full toast pipeline) or carries a
- * synthetic server rollup for injection.
- *
- * This is a name-and-args door into Steam's stores for anything that can write
- * the plugin's cache directory, so it is OFF by default and gated on the devFire
- * setting -- checked per tick, so the settings toggle takes effect without a
- * restart, and a disabled gate costs one boolean read every 3s.
- */
-const takeDevCommand = ffi<[], string>('TakeDevCommand');
-
-const DEV_POLL_MS = 3000;
+const startedAt = Date.now();
+let generation = 0;
+let active = false;
 
 /**
  * The server notification store is not a window global; it is found by webpack
@@ -43,7 +30,7 @@ function findServerNotificationStore(): any {
 			}
 		});
 	} catch (e) {
-		dlog(`server store lookup failed: ${(e as Error)?.message ?? e}`);
+		dlog(`server store lookup failed: (enable verboseDiagnostics for details)`, () => `server store lookup failed: ${(e as Error)?.message ?? e}`);
 	}
 	return serverStore;
 }
@@ -56,8 +43,7 @@ function findServerNotificationStore(): any {
 function injectServerNotification(type: number, body: unknown): void {
 	const store = findServerNotificationStore();
 	if (!store) {
-		dlog('dev-fire: server notification store not found');
-		return;
+		throw new Error('Server notification store not found');
 	}
 	const id = Date.now() % 1_000_000_000;
 	const now = Math.floor(Date.now() / 1000);
@@ -80,7 +66,7 @@ function injectServerNotification(type: number, body: unknown): void {
 		rgread: [] as number[],
 		timestamp: now,
 	};
-	dlog(`dev-fire: OnServerNotification type=${type} body=${safeJson(body)}`);
+	dlog(`dev-fire: OnServerNotification type=${type}`, () => `dev-fire: OnServerNotification type=${type} body=${safeJson(body)}`);
 	store.OnServerNotification(rollup, 0 /* New */);
 }
 
@@ -90,65 +76,63 @@ function injectServerNotification(type: number, body: unknown): void {
  * left with the catalog; this one stays because "does an overlay exist" is
  * the question the replay path's known limit turns on.
  */
-async function runOverlayProbe(probe: { call?: string }): Promise<void> {
-	try {
-		if (probe.call !== 'info') {
-			dlog(`overlay probe: unknown call ${String(probe.call)}`);
-			return;
-		}
-		const sc: any = Reflect.get(globalThis, 'SteamClient');
-		const info = await sc?.Overlay?.GetOverlayBrowserInfo?.();
-		dlog(`overlay-info: ${safeJson(info)}`.slice(0, 1500));
-	} catch (e) {
-		// Fired with `void` from the poll: a rejection here would otherwise
-		// escape as an unhandled rejection with no log line.
-		dlog(`overlay probe failed: ${(e as Error)?.message ?? e}`);
-	}
+async function runOverlayProbe(probe: { call?: string }): Promise<unknown> {
+    try {
+        if (probe.call !== 'info') throw new Error(`Unknown overlay probe: ${String(probe.call)}`);
+        const sc: any = Reflect.get(globalThis, 'SteamClient');
+        if (typeof sc?.Overlay?.GetOverlayBrowserInfo !== 'function') throw new Error('Overlay browser info API is unavailable');
+        const info = await sc.Overlay.GetOverlayBrowserInfo();
+        dlog('overlay-info: details disabled', () => `overlay-info: ${safeJson(info)}`.slice(0, 1500));
+        return info;
+    } catch (e) {
+        dlog(`overlay probe failed: (enable verboseDiagnostics for details)`, () => `overlay probe failed: ${(e as Error)?.message ?? e}`);
+        throw e;
+    }
+}
+function assertLiveRequest(envelope: DevEnvelope, epoch: number, sample: boolean): void {
+    if (!active || epoch !== generation) throw new Error('Developer frontend session is no longer active');
+    if (!envelope || typeof envelope.id !== 'string' || !Number.isSafeInteger(envelope.deadline) || !Number.isSafeInteger(envelope.createdAt) || envelope.deadline <= Date.now() || envelope.createdAt < startedAt) throw new Error('Developer request expired or predates this Steam frontend');
+    if (!sample && !settings().devFire) throw new Error('Developer commands are disabled');
 }
 
-export function startDevFirePoll(): void {
-	window.setInterval(async () => {
-		if (!settings().devFire) return;
-		try {
-			const raw = await takeDevCommand();
-			const cmd = parseCallableJson<{
-				call?: string;
-				args?: unknown[];
-				server?: { type: number; body?: unknown };
-				overlay?: { call?: string };
-				replay?: { call?: string; name?: string };
-			} | null>(raw, null);
-			if (!cmd) return;
-			if (cmd.overlay) {
-				void runOverlayProbe(cmd.overlay);
-				return;
-			}
-			// Replay diagnostics: inspect the handler stash, or invoke a stashed
-			// handler without a desktop click. Neither throws.
-			if (cmd.replay) {
-				if (cmd.replay.call === 'inspect') inspectReplayStash();
-				else if (cmd.replay.call === 'invoke') {
-					const surface = await currentClickSurface();
-					if (surface) invokeReplayHandler(cmd.replay.name, surface.focusedAppId);
-					else dlog('replay: invoke refused: current surface unknown');
-				} else dlog(`replay: unknown call ${String(cmd.replay.call)}`);
-				return;
-			}
-			if (cmd.server && typeof cmd.server.type === 'number') {
-				injectServerNotification(cmd.server.type, cmd.server.body);
-				return;
-			}
-			if (!cmd.call) return;
-			const store: any = Reflect.get(globalThis, 'NotificationStore');
-			const fn = store?.[cmd.call];
-			if (typeof fn !== 'function') {
-				dlog(`dev-fire: NotificationStore.${cmd.call} is not a function`);
-				return;
-			}
-			dlog(`dev-fire: NotificationStore.${cmd.call}(${safeJson(cmd.args ?? [])})`);
-			fn.apply(store, Array.isArray(cmd.args) ? cmd.args : []);
-		} catch (e) {
-			dlog(`dev-fire failed: ${(e as Error)?.message ?? e}`);
-		}
-	}, DEV_POLL_MS);
+export async function executeDevCommand(envelope: DevEnvelope, sample = false): Promise<unknown> {
+    const epoch = generation;
+    assertLiveRequest(envelope, epoch, sample);
+    const cmd = validateDevCommand(sample ? { call: 'TestFriendOnline', args: [] } : envelope.command);
+    let value: unknown = null;
+    if ('overlay' in cmd) { value = await runOverlayProbe(cmd.overlay); }
+    else if ('replay' in cmd) {
+        if (cmd.replay.call === 'inspect') value = inspectReplayStash();
+        else {
+            const surface = await currentClickSurface();
+            assertLiveRequest(envelope, epoch, sample);
+            if (!surface) throw new Error('Current capture surface unknown');
+            value = invokeReplayHandler(cmd.replay.name, surface.focusedAppId);
+            if (!value) throw new Error('Replay was refused or no matching handler exists');
+        }
+    } else if ('server' in cmd) { injectServerNotification(cmd.server.type, cmd.server.body); }
+    else {
+        const store: any = Reflect.get(globalThis, 'NotificationStore');
+        const fn = store?.[cmd.call];
+        if (typeof fn !== 'function') throw new Error(`NotificationStore.${cmd.call} is unavailable`);
+        dlog('dev-fire: NotificationStore command', () => `dev-fire: NotificationStore.${cmd.call}(${safeJson(cmd.args)})`);
+        value = await fn.apply(store, cmd.args);
+    }
+    return { id: envelope.id, stage: 'executed', value: value ?? null, measurement: 'Execution completed; capture, delivery and banner visibility are unmeasured' };
+}
+export function startDevControl(): () => void {
+    const epoch = ++generation;
+    active = true;
+    const control = async (envelope: DevEnvelope, sample = false) => {
+        try { return { ok: true, value: await executeDevCommand(envelope, sample) }; }
+        catch (e: any) { return { ok: false, error: e.message }; }
+    };
+    (globalThis as any).__snnDevControl = control;
+    return () => {
+        if (generation === epoch) {
+            active = false;
+            generation++;
+            if ((globalThis as any).__snnDevControl === control) delete (globalThis as any).__snnDevControl;
+        }
+    };
 }

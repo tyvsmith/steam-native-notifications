@@ -6,13 +6,13 @@ on:
   workflow_call:
     inputs:
       upload:
-        description: Upload the packed .star as a run artifact
+        description: Upload the plugin and Bun package as run artifacts
         type: boolean
         default: false
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     # The job runs repository scripts (bun install, bun run test); keep the
     # token they can reach read-only regardless of the caller's grant.
     permissions:
@@ -20,6 +20,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
 
       # tools/test-backend runs backend/main.lua with Millennium stubbed.
       - name: Install test runtimes
@@ -27,10 +29,17 @@ jobs:
 
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
+      - run: bun test tools/gen-build-identity.test.ts
 
       # Lua backend + notify-action seams (notify-send/gdbus shimmed), and
       # the frontend's toast decode + click chooser, compiled offline.
       - run: bun run test
+      - run: bun test tools/publication-policy.test.ts tools/release-notes.test.ts tools/verify-release-source.test.ts
+      - run: bun run build:standalone
+      - run: bun run test:standalone
+      # Validate the exact Bun package users install, without embedding a runtime.
+      - run: bun tools/build-release.ts
+      - run: bun tools/test-packaged.ts
 
       # -o overrides millennium.toml's output_path=auto, which would install
       # into $HOME/.local/share/millennium/plugins; the file is <dir>/<id>.star
@@ -59,4 +68,13 @@ jobs:
         with:
           path: dist/me.tysmith.steam-native-notifications.star
           archive: false
+          if-no-files-found: error
+
+      - if: inputs.upload
+        uses: actions/upload-artifact@v7
+        with:
+          name: standalone-bun-package
+          path: |
+            dist/releases/*.tgz
+            dist/releases/*.tgz.sha256
           if-no-files-found: error

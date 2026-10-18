@@ -1,9 +1,9 @@
 // Shared plumbing for the dev tools (tools/fire, tools/capture, tools/mep):
 // the plugin's identity, where its runtime state and the installed .star live
-// on each platform, how to read plugin.log, how to write the dev door, and
+// on each platform, how to read plugin.log, and
 // the log-prefix contract from frontend/log.ts. backend/main.lua computes the
 // same paths; a change there is a change here.
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -42,7 +42,7 @@ const NOTIFICATION = [
 	'from-toast ',
 	'toast .* -> ',
 	'left open: ',
-	'could not close ',
+	'could not dismiss ',
 	'dev-fire',
 	'replay: candidates',
 	'replay: invoke',
@@ -256,21 +256,6 @@ export function parseStamp(line: string): Date | null {
 	if (!m) return null;
 	const d = new Date(m[1].replace(' ', 'T'));
 	return Number.isNaN(d.getTime()) ? null : d;
-}
-
-/**
- * One command into the dev door, written whole: one JSON line lands in a
- * sibling temp file first and is renamed into place, so the backend's
- * consume-once read never sees a partial command. UTF-8 without a BOM and
- * an LF newline: the backend hands the bytes to the frontend's JSON parse.
- */
-export function writeDevFire(command: object): void {
-	const dir = runtimeDir();
-	mkdirSync(dir, { recursive: true });
-	const target = join(dir, '.dev-fire');
-	const tmp = `${target}.${process.pid}.tmp`;
-	writeFileSync(tmp, `${JSON.stringify(command)}\n`, { encoding: 'utf8' });
-	renameSync(tmp, target);
 }
 
 /**

@@ -1,4 +1,5 @@
-import { ffi } from 'millennium';
+import { createDiagnosticLogger, diagnosticsVerbose } from '../shared/diagnostics';
+import { hostMethod } from './host';
 
 /**
  * Diagnostics for the whole frontend, kept out of index so any module can log
@@ -15,16 +16,10 @@ import { ffi } from 'millennium';
  * tools/lib/snn.ts is no longer written verbatim by one of them, so renaming
  * a prefix here breaks the suite until snn.ts follows.
  */
-const logLine = ffi<[string], string>('Log');
+const logLine = hostMethod('Log');
 
 /** Never throws: diagnostics must not take the notification path down. */
-export function dlog(line: string): void {
-	try {
-		void logLine(line);
-	} catch {
-		/* the log is best-effort by design */
-	}
-}
+export const dlog = createDiagnosticLogger(line => logLine(line), diagnosticsVerbose);
 
 /**
  * JSON.stringify throws outright on a BigInt, and Steam's decoded values can be

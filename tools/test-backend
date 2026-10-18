@@ -39,9 +39,13 @@ end
 -- loginusers.vdf writes one there. Empty by default, so Identity falls
 -- through to the machine's real candidates exactly as before.
 local steam_dir = tmp_cache .. "/steam"
+local config_listener
+local pushed_controls = {}
 package.preload["millennium"] = function()
 	return {
 		ready = function() end,
+        config = { on_change = function(cb) config_listener = cb; return function() config_listener = nil end end, delete = function() end },
+        call_frontend_method = function(name, args) pushed_controls[#pushed_controls + 1] = {name, args} end,
 		steam_path = function() return steam_dir .. "/" end,
 		assets = {
 			read = function(path)
@@ -59,6 +63,12 @@ end
 local mkdir_execute = os.execute
 package.preload["fs"] = function()
 	return {
+        list = function(path)
+            local reader = io.popen("find '" .. path .. "' -mindepth 1 -maxdepth 1 -printf '%f\\n' 2>/dev/null")
+            local entries = {}
+            if reader then for name in reader:lines() do entries[#entries + 1] = { name = name } end; reader:close() end
+            return entries
+        end,
 		create_directories = function(path)
 			return mkdir_execute("mkdir -p '" .. path .. "'") ~= nil
 		end,
@@ -244,6 +254,15 @@ vdf:close()
 ok, id_json = pcall(Identity)
 check("Identity reads loginusers.vdf under millennium.steam_path first",
 	ok and id_json == '{"steamid64":"76561198000000002"}', tostring(id_json))
+local identity_fixtures = assert(io.open(root .. "/shared/login-users.fixtures.tsv", "r"))
+for line in identity_fixtures:lines() do
+    local name, expected, text = line:match("^([^\t]+)\t([^\t]+)\t(.*)$")
+    local file = assert(io.open(steam_dir .. "/config/loginusers.vdf", "w"))
+    file:write(text); file:close()
+    local expected_json = expected == "-" and "{}" or ('{"steamid64":"' .. expected .. '"}')
+    check("identity corpus: " .. name, Identity() == expected_json, Identity())
+end
+identity_fixtures:close()
 os.remove(steam_dir .. "/config/loginusers.vdf")
 
 -- The same steam_path answer is published for the helper at load, trimmed
@@ -289,29 +308,32 @@ os.getenv = function(name)
 	return real_getenv(name)
 end
 
--- TakeDevCommand: consume-once semantics against the runtime cache directory
--- (created by on_load above), the same place tools/fire writes.
-local fire = assert(io.open(tmp_cache .. "/steam-native-notifications/.dev-fire", "w"))
-fire:write('{"call":"TestFriendOnline","args":[]}')
-fire:close()
-local taken
-ok, taken = pcall(TakeDevCommand)
-check("TakeDevCommand runs", ok, taken)
-check("TakeDevCommand returns the command", type(taken) == "string" and taken:find("TestFriendOnline") ~= nil, tostring(taken))
-ok, taken = pcall(TakeDevCommand)
-check("TakeDevCommand consumes once", ok and taken == "", tostring(taken))
+-- Config notifications carry their own request value; no mailbox reads.
+local push_id = "12345678-1234-1234-1234-123456789abc"
+local push_payload = '{"id":"' .. push_id .. '","kind":"status","deadline":"' .. (os.time() * 1000 + 5000) .. '"}'
+config_listener("snnControl", push_payload)
+check("config push targets exported frontend control", #pushed_controls == 1 and pushed_controls[1][1] == "receiveControl" and pushed_controls[1][2][1] == push_payload)
+config_listener("snnControl", '{"id":"' .. push_id .. '","kind":"status","deadline":1}')
+config_listener("snnControl", '{"id":"' .. push_id .. '","kind":"status","deadline":"1"}')
+config_listener("other", push_payload)
+config_listener("snnControl", nil)
+check("expired, unrelated and delete events never execute", #pushed_controls == 1)
 
--- TakeClick: the click handoff, same consume-once contract. The file holds a
--- stamped payload (<epoch-seconds>|<payload>); the stamp is the bridge's
--- business, so TakeClick passes it through untouched.
-local click = assert(io.open(tmp_cache .. "/steam-native-notifications/.click", "w"))
-click:write("1756500000|steam://openurl/https://store.steampowered.com/gifts/")
-click:close()
-ok, taken = pcall(TakeClick)
-check("TakeClick passes the stamped payload through verbatim",
-	ok and taken == "1756500000|steam://openurl/https://store.steampowered.com/gifts/", tostring(taken))
-ok, taken = pcall(TakeClick)
-check("TakeClick consumes once", ok and taken == "", tostring(taken))
+-- Diagnostic channels isolate concurrent callers and bound receipt writes.
+local probe_id = "12345678-1234-1234-1234-123456789abc"
+local probe_dir = tmp_cache .. "/steam-native-notifications/.control-requests/" .. probe_id
+mkdir_execute("mkdir -p '" .. probe_dir .. "'")
+local probe = '{"id":"' .. probe_id .. '"}'
+check("diagnostic status receipt", ReportDiagnostic("status", probe) == "ok")
+check("diagnostic command receipt", ReportDiagnostic("command", probe) == "ok")
+check("diagnostic rejects path injection", ReportDiagnostic("../foreign", "x") == "invalid")
+check("diagnostic rejects invalid request ID", ReportDiagnostic("status", '{"id":"../foreign"}') == "invalid")
+check("diagnostic rejects oversized payload", ReportDiagnostic("status", string.rep("x", 65537)) == "invalid")
+local receipt = io.open(probe_dir .. "/result", "r")
+check("diagnostic preserves receipt bytes", receipt and receipt:read("*a") == probe)
+if receipt then receipt:close() end
+mkdir_execute("rm -r '" .. probe_dir .. "'")
+check("late diagnostic does not recreate request directory", ReportDiagnostic("status", probe) == "unavailable")
 
 -- Every argument absent must not throw; the title falls back to the app name.
 executed = {}
@@ -1006,20 +1028,6 @@ check("windows+ffi: invalid focus is refused", ok and focus_result == "unsupport
 check("windows+ffi: invalid focus spawns nothing", #ffi_commands == before_invalid_focus, tostring(#ffi_commands))
 package.preload["ffi"] = nil
 
--- The click and dev-command handoffs join with the platform separator.
-local win_click = assert(io.open(win_runtime .. "\\.click", "w"))
-win_click:write("1756500000|" .. click_payload)
-win_click:close()
-ok, taken = pcall(TakeClick)
-check("windows: TakeClick reads the separator-joined path",
-	ok and taken == "1756500000|" .. click_payload, tostring(taken))
-local win_fire = assert(io.open(win_runtime .. "\\.dev-fire", "w"))
-win_fire:write('{"call":"TestFriendOnline","args":[]}')
-win_fire:close()
-ok, taken = pcall(TakeDevCommand)
-check("windows: TakeDevCommand reads the separator-joined path",
-	ok and taken:find("TestFriendOnline") ~= nil, tostring(taken))
-
 -- Identity: only millennium.steam_path is consulted (no ~/.steam guesses),
 -- joined with backslashes under the stub's trailing-slash answer.
 local win_vdf = assert(io.open(steam_dir .. "\\config\\loginusers.vdf", "w"))
@@ -1083,14 +1091,6 @@ for _, entry in ipairs(logged) do
 	if entry[1] == "error" and entry[2]:find("unsupported platform: macos", 1, true) then mac_dropped = true end
 end
 check("macos: dropped notification is logged", mac_dropped)
-
--- The click and dev-command handoffs live in the same runtime directory.
-local mac_click = assert(io.open(mac_runtime .. "/.click", "w"))
-mac_click:write("1756500000|" .. click_payload)
-mac_click:close()
-ok, taken = pcall(TakeClick)
-check("macos: TakeClick reads the runtime directory",
-	ok and taken == "1756500000|" .. click_payload, tostring(taken))
 
 -- Identity: steam_path answers the bundle (no config/ there), so the
 -- Application Support data directory is the one that answers.

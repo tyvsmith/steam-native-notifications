@@ -1,4 +1,5 @@
-import { ffi, findModuleExport } from 'millennium';
+import { findModuleExport } from 'millennium';
+import { hostMethod } from './host';
 import { dlog, safeJson } from './log';
 
 /**
@@ -17,7 +18,7 @@ import { dlog, safeJson } from './log';
  * steam://openexternalforpid parser builds.
  */
 let overlayStore: any;
-const gameHostFocus = ffi<[number], string>('GameHostFocus');
+const gameHostFocus = hostMethod('GameHostFocus');
 
 /**
  * Live game-focus state, from the client's own signal. Steam places toasts by
@@ -38,7 +39,7 @@ export function trackOverlayFocus(): void {
 				? appid : null;
 		});
 	} catch (e) {
-		dlog(`overlay focus tracking failed: ${(e as Error)?.message ?? e}`);
+		dlog(`overlay focus tracking failed: (enable verboseDiagnostics for details)`, () => `overlay focus tracking failed: ${(e as Error)?.message ?? e}`);
 	}
 }
 
@@ -56,7 +57,7 @@ export function findOverlayStore(): any {
 			}
 		});
 	} catch (e) {
-		dlog(`overlay store lookup failed: ${(e as Error)?.message ?? e}`);
+		dlog(`overlay store lookup failed: (enable verboseDiagnostics for details)`, () => `overlay store lookup failed: ${(e as Error)?.message ?? e}`);
 	}
 	return overlayStore;
 }
@@ -109,7 +110,7 @@ async function sendOverlayRequest(appid: number, bWebPage: boolean, strDialog: s
 		eFlag: 0 /* OverlayToStoreFlag_None */,
 		strConnectString: '',
 	};
-	dlog(`overlay: open appid=${appid} ${safeJson(strDialog)} target=${steamidTarget}`);
+	dlog(`overlay: open appid=${appid}`, () => `overlay: open appid=${appid} ${safeJson(strDialog)} target=${steamidTarget}`);
 	return (await store.OnGameOverlayActivateRequested(request)) !== false;
 }
 
@@ -167,7 +168,7 @@ export async function openPlaytimeDialog(appid: number): Promise<boolean> {
 		dlog(`overlay: playtime dialog appid=${appid}`);
 		return (await nav.RequestPlaytimeDialog('manual')) !== false;
 	} catch (e) {
-		dlog(`overlay: playtime dialog failed: ${(e as Error)?.message ?? e}`);
+		dlog(`overlay: playtime dialog failed: (enable verboseDiagnostics for details)`, () => `overlay: playtime dialog failed: ${(e as Error)?.message ?? e}`);
 		return false;
 	}
 }
@@ -192,10 +193,10 @@ export async function openScreenshotInOverlay(appid: number, id: string): Promis
 			dlog('overlay: navigator has no Media.Screenshot');
 			return false;
 		}
-		dlog(`overlay: screenshot appid=${appid} id=${id}`);
+		dlog(`overlay: screenshot appid=${appid}`, () => `overlay: screenshot appid=${appid} id=${id}`);
 		return (await nav.Media.Screenshot({ state: { id } })) !== false;
 	} catch (e) {
-		dlog(`overlay: screenshot failed: ${(e as Error)?.message ?? e}`);
+		dlog(`overlay: screenshot failed: (enable verboseDiagnostics for details)`, () => `overlay: screenshot failed: ${(e as Error)?.message ?? e}`);
 		return false;
 	}
 }
@@ -213,10 +214,10 @@ export async function openClipInOverlay(appid: number, id: string): Promise<bool
 			dlog('overlay: navigator has no Media.Clip');
 			return false;
 		}
-		dlog(`overlay: clip appid=${appid} id=${id}`);
+		dlog(`overlay: clip appid=${appid}`, () => `overlay: clip appid=${appid} id=${id}`);
 		return (await nav.Media.Clip({ state: { id } })) !== false;
 	} catch (e) {
-		dlog(`overlay: clip failed: ${(e as Error)?.message ?? e}`);
+		dlog(`overlay: clip failed: (enable verboseDiagnostics for details)`, () => `overlay: clip failed: ${(e as Error)?.message ?? e}`);
 		return false;
 	}
 }
@@ -233,7 +234,7 @@ export async function openMediaInOverlay(appid: number): Promise<boolean> {
 		dlog(`overlay: media appid=${appid}`);
 		return (await nav.Media.Grid()) !== false;
 	} catch (e) {
-		dlog(`overlay: media failed: ${(e as Error)?.message ?? e}`);
+		dlog(`overlay: media failed: (enable verboseDiagnostics for details)`, () => `overlay: media failed: ${(e as Error)?.message ?? e}`);
 		return false;
 	}
 }
