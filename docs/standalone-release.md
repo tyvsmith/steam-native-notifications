@@ -1,5 +1,8 @@
 # Standalone Bun package
 
+For installation, updates and removal, start with the [user guide](install.md#standalone-linux).
+This reference covers CLI recovery, package ownership and publication.
+
 The experimental standalone host runs on native Linux x64 Steam without
 Millennium. RT3 has recorded live coverage; non-RT3 Steam also passed user
 testing. Bun 1.4.3 or newer is required; CI tests 1.4.3. Windows, macOS and

@@ -1,143 +1,56 @@
-Under Active Development
+# Steam Native Notifications
 
-# steam-native-notifications
+Send Steam notifications to your operating system, with artwork and click actions.
+Choose where notifications go while playing and on the desktop. System notifications
+follow your OS settings, including Do Not Disturb and notification history where supported.
 
-Mirror Steam notifications to the desktop, preserving artwork and click actions.
-The Millennium plugin supports the existing client; an experimental standalone
-host supports native Linux Steam without Millennium. RT3 has the recorded live
-coverage; the non-RT3 client also passed user testing.
+**Pre-release.** Steam updates can affect either integration.
 
-Clicks replay Steam's captured handler when its surface still matches. A
-verified catalog fallback handles supported notifications after Steam restarts
-or replay becomes unavailable. Ambiguous actions fail closed.
+## Choose a version
 
-`docs/architecture.md` is the full picture; `docs/notification-types.md`
-lists every notification type and what Steam's click does for it.
-
-## Why a plugin
-
-Steam draws each toast as its own CEF window whose title is the only text
-outside the process; the message exists only in that window's DOM. Compositor
-rules, Steam's logs, and AT-SPI carry none of it, so the reader must run
-inside Steam's UI.
-
-## Install
-
-Requires [Millennium](https://steambrew.app) >= v3.5 (the `.star` plugin
-format). Either install the packed plugin by hand or build it from a checkout.
-
-### Manual install
-
-Every green push to `main` publishes the packed plugin under the
-[`latest`](https://github.com/tyvsmith/steam-native-notifications/releases/tag/latest)
-pre-release. There is no numbered release yet.
-
-1. Download
-   [`me.tysmith.steam-native-notifications.star`](https://github.com/tyvsmith/steam-native-notifications/releases/download/latest/me.tysmith.steam-native-notifications.star).
-2. Copy it, keeping that filename, into Millennium's plugins directory:
-   - Linux: `${XDG_DATA_HOME:-~/.local/share}/millennium/plugins/`
-   - Windows: `<Steam>\millennium\plugins\` (the Steam install directory,
-     usually `C:\Program Files (x86)\Steam`)
-
-   Create the directory if it does not exist.
-3. Restart Steam fully (`steam -shutdown`, wait, relaunch). `plugin.restart`
-   and disable/enable in Millennium leave the plugin stopped.
-4. Enable **Steam Native Notifications** under Millennium > Plugins.
-
-To update, replace the file and restart Steam the same way. To uninstall,
-delete the file and restart; on Windows first run
-`%LOCALAPPDATA%\steam-native-notifications\notify-action.ps1 -Teardown` to
-drop the toast registration.
-
-### Build from a checkout
-
-Needs [Bun](https://bun.com) as well:
-
-```sh
-bun install
-bun run build
-```
-
-Building **is** installing: starlight packs the plugin and writes it straight
-into the plugins directory above (on Windows the Steam path comes from the
-registry). Then restart Steam and enable the plugin as in the manual steps.
-After any rebuild, restart Steam fully.
-
-The packed `.star` is platform-independent, so it can also be built on one
-machine and copied into the other's plugins directory — which is how the
-Windows support was developed and tested.
-
-Runtime dependencies: Linux needs `notify-send`, `curl`, `steam` and `sh`;
-Windows needs only what it ships with (Windows PowerShell 5.1 — *not* pwsh 7,
-which cannot use the WinRT notification APIs). The plugin registers its
-Windows toast identity per-user at load, and
-`notify-action.ps1 -Teardown` removes it.
-
-## Settings
-
-Standalone: open Steam Settings → Notifications → Steam Native Notifications at the
-bottom of the page. Millennium: use the plugin settings panel.
-
-| Setting | On desktop | In game |
+| Version | Use it with | Install |
 | --- | --- | --- |
-| Notification delivery | System only | Steam + System |
-| Save to Notification Center only (Windows) | Off | Off |
+| **Standalone** | Steam RT3 without Millennium; native Linux x64 only for now | [Bun package](docs/install.md#standalone-linux) |
+| **Millennium plugin** | A Steam client supported by [Millennium](https://steambrew.app); Linux and experimental Windows support | [`.star` plugin](docs/install.md#millennium-plugin) |
 
-- enable native notification integration by default; turning it off stops OS
-  copies and preserves normal Steam notifications without changing the saved
-  context preferences
-- choose Steam only, System only, Steam + System or Off for each context
-- keep Steam pop-ups visible in games while system notifications may go to history
-  when Do Not Disturb is on; history support depends on the operating system
-- show Notification Center controls only on Windows when the section's OS
-  notifications are enabled; hiding a control preserves its preference
-- let Windows decide banner visibility through its notification settings,
-  including Do Not Disturb, unless Notification Center only is enabled
-- leave Linux banner and history policy to the notification daemon; live-banner
-  actions use FreeDesktop notifications, while retained executable history
-  actions are verified with Quickshell/Quattro only
+RT3 means Steam's client runtime, not a game's compatibility tool. Standalone
+has also passed testing on non-RT3 Linux Steam. Use only one integration at a time.
+macOS and Flatpak Steam are unsupported. See [platform coverage](docs/platforms.md).
 
-Context follows where Steam renders the toast. Steam can keep using the game
-overlay after alt-tab, so Inside games settings can still apply then. Native
-notifications cannot capture events that Steam never renders.
+The [rolling pre-release](https://github.com/tyvsmith/steam-native-notifications/releases/tag/latest)
+provides the Millennium plugin. Standalone currently uses a locally built Bun
+package; registry publication is a separate release step.
 
-When replacing Steam's toast, the plugin invokes Steam's native dismissal after
-the backend acknowledges launching native delivery. A rejected request leaves Steam's
-toast visible; unavailable native dismissal also preserves Steam. The
-acknowledgement does not confirm a displayed OS banner.
+## Configure notifications
 
-Windows history clicks can still target a hidden overlay while a game is
-running; focus detection is tracked in [#14](https://github.com/tyvsmith/steam-native-notifications/issues/14).
+- **Standalone:** Steam Settings → Notifications → Steam Native Notifications
+- **Millennium:** Steam Settings → Millennium → Plugins → Steam Native Notifications
 
-Developer commands ship off. Both hosts use the same CLI settings and test
-commands; see [developer commands](docs/standalone-release.md#settings-and-diagnostics).
-The fixed sample requires no developer opt-in.
+| Context | Default | Available choices |
+| --- | --- | --- |
+| In game | Steam + System | Steam only, System only, Steam + System, Off |
+| On desktop | System only | Steam only, System only, Steam + System, Off |
 
-## Diagnosing
+Turn off **Enable Steam Native Notifications** to restore Steam's normal behavior
+without losing your preferences. Use **Send test notification** to check delivery.
 
-```sh
-tools/capture   # is the running .star current, did the hook attach,
-                # what did the last notifications carry
-                # (the dev tools run under bun; on Windows: bun tools/capture)
-```
+The context follows Steam's toast surface; Steam can still use its game overlay
+after you alt-tab. Notifications must be enabled in Steam for the integration to
+capture them. Linux notification history and retained click actions depend on your
+notification daemon; retained actions are verified with Quickshell/Quattro.
 
-The plugin logs to `~/.cache/steam-native-notifications/plugin.log` on Linux and
-`%LOCALAPPDATA%\steam-native-notifications\plugin.log` on Windows (truncated at
-each backend load); Millennium's loader lines are in
-`~/.steam/steam/logs/console-linux.txt` under `me.tysmith.steam-native-notifications`.
-Health and routing summaries remain enabled. Notification text, payloads, routes
-and callback details require `verboseDiagnostics=true`. Existing logs may still
-contain details from older builds or earlier opt-in sessions; inspect them
-before sharing. See the vocabulary in `docs/architecture.md`.
+## Install, update or remove
 
-## Experimental standalone client without Millennium
+See the [installation guide](docs/install.md) for both versions. Standalone users
+should remove the integration from Steam settings **before** uninstalling the Bun
+package; Bun removal alone does not reliably clean up the background service.
 
-The experimental standalone host runs over Steam CEF DevTools on native Linux.
-Build with `bun run build:standalone`; see
-[setup and validation limits](docs/experiments/rt3-standalone.md).
-Live standalone checks cover settings, visible synthetic banners, a banner
-click and stored-history fallback after Steam restart. See the
-[build-specific evidence and remaining merge gates](docs/experiments/rt3-validation.md).
-Build a Bun package with `bun run build:release`; see
-[installation and removal](docs/standalone-release.md). Bun is a runtime dependency;
-settings live inside Steam. Registry publication is separate from local builds.
+## Get help or contribute
+
+- [Troubleshoot delivery](docs/install.md#troubleshoot)
+- [Standalone CLI, lifecycle and packaging](docs/standalone-release.md)
+- [Platform support and limitations](docs/platforms.md)
+- [Architecture](docs/architecture.md) and [notification types](docs/notification-types.md)
+- [Develop standalone](docs/experiments/rt3-standalone.md) and [validation record](docs/experiments/rt3-validation.md)
+- [Release roadmap](https://github.com/tyvsmith/steam-native-notifications/issues/30)
+- [Report a problem](https://github.com/tyvsmith/steam-native-notifications/issues/new)
