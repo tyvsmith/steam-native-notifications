@@ -1,16 +1,24 @@
 # Windows standalone preview
 
-Draft support for native Windows x64 Steam without Millennium. The same Bun
+Preview support for native Windows x64 Steam without Millennium. The same Bun
 package contains both Linux and Windows support. Do not enable both hosts.
 Windows gameplay, sign-in recovery, and physical notification-history clicks
 remain release gates.
 
 ## Install and remove
 
-Install Bun 1.4.3 or newer, then install the preview tarball globally:
+Install Bun 1.4.3 or newer. Download `steam-native-notifications.tgz` and
+`steam-native-notifications.tgz.sha256` from the
+[rolling pre-release](https://github.com/tyvsmith/steam-native-notifications/releases/tag/latest),
+then run in that download directory:
 
 ```powershell
-bun add --global --trust .\snn-preview.tgz
+$expected = ((Get-Content .\steam-native-notifications.tgz.sha256) -split ' ')[0]
+if ((Get-FileHash .\steam-native-notifications.tgz -Algorithm SHA256).Hash -ne $expected) {
+    throw 'Checksum mismatch: download both files again'
+}
+bun add --global --force --trust .\steam-native-notifications.tgz
+if ($LASTEXITCODE -ne 0) { throw 'Package installation failed' }
 snn setup
 ```
 

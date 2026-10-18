@@ -18,8 +18,9 @@ has also passed testing on non-RT3 Linux Steam. Use only one integration at a ti
 macOS and Flatpak Steam are unsupported. See [platform coverage](docs/platforms.md).
 
 The [rolling pre-release](https://github.com/tyvsmith/steam-native-notifications/releases/tag/latest)
-provides the Millennium plugin. Standalone currently uses a locally built Bun
-package; registry publication is a separate release step.
+provides the Millennium `.star` and standalone [Bun package](docs/install.md#install)
+with a SHA-256 checksum. Standalone Windows x64 is available as a
+[preview](docs/windows-standalone.md); Linux x64 is the supported install.
 
 ## Configure notifications
 
