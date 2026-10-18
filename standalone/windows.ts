@@ -21,19 +21,25 @@ export async function privateDirectory(path: string): Promise<void> {
     await mkdir(path, { recursive: true });
     await powershell(`$p=${psQuote(path)}; $item=Get-Item -LiteralPath $p; if($item.Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'Unsafe runtime directory'}; $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User; $acl=New-Object Security.AccessControl.DirectorySecurity; $acl.SetOwner($sid); $acl.SetAccessRuleProtection($true,$false); foreach($id in @($sid,[Security.Principal.SecurityIdentifier]'S-1-5-18')){$acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($id,'FullControl','ContainerInherit,ObjectInherit','None','Allow'))}; Set-Acl -LiteralPath $p -AclObject $acl`);
 }
+// Keep native function wrappers alive while the process can acquire locks.
+const openKernel32 = () => dlopen('kernel32.dll', {
+    CreateFileW: { args: [FFIType.ptr, FFIType.u32, FFIType.u32, FFIType.ptr, FFIType.u32, FFIType.u32, FFIType.u64], returns: FFIType.u64 },
+    CloseHandle: { args: [FFIType.u64], returns: FFIType.i32 },
+    GetLastError: { args: [], returns: FFIType.u32 },
+});
+let kernel32: ReturnType<typeof openKernel32> | undefined;
 /** Exclusive kernel handle releases on process death, unlike a PID/lock directory. */
 export async function exclusiveFile(path: string, timeoutMs: number): Promise<() => void> {
-    const api = dlopen('kernel32.dll', {
-        CreateFileW: { args: [FFIType.ptr, FFIType.u32, FFIType.u32, FFIType.ptr, FFIType.u32, FFIType.u32, FFIType.u64], returns: FFIType.u64 },
-        CloseHandle: { args: [FFIType.u64], returns: FFIType.i32 },
-        GetLastError: { args: [], returns: FFIType.u32 },
-    });
+    const api = kernel32 ??= openKernel32();
     const name = Buffer.from(path + '\0', 'utf16le'); const until = Date.now() + timeoutMs;
     while (true) {
         const handle = api.symbols.CreateFileW(ptr(name), 0xC0000000, 0, null, 4, 0x00200080, 0);
-        if (BigInt(handle) !== 0xffffffffffffffffn) return () => { api.symbols.CloseHandle(handle); api.close(); };
+        if (BigInt(handle) !== 0xffffffffffffffffn) {
+            let closed = false;
+            return () => { if (!closed) { closed = true; api.symbols.CloseHandle(handle); } };
+        }
         const error = api.symbols.GetLastError();
-        if (error !== 32 || Date.now() >= until) { api.close(); throw new Error(`Cannot acquire exclusive lock (${error}); another writer may be running`); }
+        if (error !== 32 || Date.now() >= until) { throw new Error(`Cannot acquire exclusive lock (${error}); another writer may be running`); }
         await Bun.sleep(20);
     }
 }

@@ -36,7 +36,19 @@ test('scheduled task uses interactive limited account and hidden launch', () => 
 });
 test.skipIf(process.platform !== 'win32')('exclusive handle excludes another writer and releases', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'snn-win-lock-'));
-    try { const file = join(dir, 'lock'); const close = await exclusiveFile(file, 0); await expect(exclusiveFile(file, 0)).rejects.toThrow(); close(); (await exclusiveFile(file, 0))(); }
+    try {
+        const file = join(dir, 'lock');
+        for (let i = 0; i < 10; i++) {
+            const close = await exclusiveFile(file, 0);
+            try { await expect(exclusiveFile(file, 0)).rejects.toThrow(); }
+            finally { close(); }
+            const next = await exclusiveFile(file, 0);
+            try {
+                close(); // Releasing an old lock must not close a recycled handle.
+                await expect(exclusiveFile(file, 0)).rejects.toThrow();
+            } finally { next(); }
+        }
+    }
     finally { await rm(dir, { recursive: true, force: true }); }
 });
 test.skipIf(process.platform !== 'win32')('private named pipe serves authenticated control and closes cleanly', async () => {
