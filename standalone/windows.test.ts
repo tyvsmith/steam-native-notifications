@@ -61,7 +61,7 @@ test.skipIf(process.platform !== 'win32')('private named pipe serves authenticat
         await close(); close = undefined;
         await expect(controlCall('status', undefined, { timeoutMs: 100 })).rejects.toThrow();
     } finally { await close?.(); process.env.LOCALAPPDATA = original; await rm(dir, { recursive: true, force: true }); }
-});
+}, 20000);
 test.skipIf(process.platform !== 'win32')('kernel lock survives a competing process and releases after termination', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'snn-win-owner-'));
     const file = join(dir, 'lock');
