@@ -64,3 +64,29 @@ changing it.
 
 See [platform evidence](platforms.md) for the existing Millennium WinRT tests;
 those results do not establish standalone lifecycle support.
+
+## Preview evidence (2026-10-17)
+
+Windows 11 VM, Bun 1.4.3, package build `74141d822ca0`:
+
+- global Bun install produced `snn.exe`; explicit setup registered the limited
+  interactive task and matched the daemon PID to its task launch record
+- repeated setup replaced the daemon; teardown stopped the owned process;
+  setup after teardown started a new daemon
+- configuration writes/readback covered the master toggle and Windows
+  Notification Center-only setting, then restored defaults
+- installed package, daemon and injected frontend reported the same build;
+  notification hook, control and panel reported ready
+- a captured screenshot showed the OS banner with avatar; Windows history
+  stored its canonical Steam URI; programmatic activation replayed the captured
+  handler without throwing
+- native tests exercised competing-process/crash lock release, rejected pipe
+  credentials, authenticated replies and listener ownership policy
+
+The previous Millennium notification plugin was backed up and disabled in the
+VM. Its loader remained installed. A clean client without that loader, physical
+click/focus behavior, gameplay and sign-in recovery remain validation gates.
+
+Setup interruption between registering a task and recording its returned XML
+can require manual inspection: recovery refuses an unrecognized task rather
+than overwrite it.

@@ -36,8 +36,9 @@ export async function windowsIntegration(command: string, args: string[], p: Pat
             // Hold the matching process handle before stopping either process.
             await powershell(`$p=$null; $file=${psQuote(p.config + '.launch')}; if(Test-Path -LiteralPath $file){$launch=Get-Content -LiteralPath $file -Raw|ConvertFrom-Json; if($launch.id -eq ${psQuote(launchId ?? '')}){$p=Get-Process -Id $launch.pid -ErrorAction SilentlyContinue; if($p){$null=$p.Handle; if($p.StartTime.ToUniversalTime().Ticks.ToString() -ne $launch.started -or $p.Path -ne $launch.executable){throw 'Daemon PID was reused; refusing termination'}}}}; Stop-ScheduledTask -TaskName ${psQuote(TASK)} -ErrorAction SilentlyContinue; if($p -and -not $p.HasExited){$p.Kill(); if(-not $p.WaitForExit(5000)){throw 'Daemon did not stop'}}`);
         };
-        const restore = async (snapshot: { task: string; running: boolean; launchId?: string }) => {
+        const restore = async (snapshot: { task: string; running: boolean; launchId?: string; state?: { launchId?: string } }) => {
             await stopOwned(snapshot.launchId);
+            if (snapshot.state?.launchId !== snapshot.launchId) await stopOwned(snapshot.state?.launchId);
             await powershell(`Stop-ScheduledTask -TaskName ${psQuote(TASK)} -ErrorAction SilentlyContinue; Unregister-ScheduledTask -TaskName ${psQuote(TASK)} -Confirm:$false -ErrorAction SilentlyContinue; ${snapshot.task ? `Register-ScheduledTask -TaskName ${psQuote(TASK)} -Xml ${psQuote(snapshot.task)} | Out-Null; ${snapshot.running ? `Start-ScheduledTask -TaskName ${psQuote(TASK)}` : ''}` : ''}`);
         };
         if (await exists(journal)) {
@@ -55,7 +56,8 @@ export async function windowsIntegration(command: string, args: string[], p: Pat
         if (command === 'recover') return { recovered: false };
         if (command === 'teardown') {
             if (!old) return { removed: false };
-            if (current) { if (stop) await stopOwned(old.launchId); await powershell(`Unregister-ScheduledTask -TaskName ${psQuote(TASK)} -Confirm:$false`); }
+            if (stop) await stopOwned(old.launchId);
+            if (current) { await powershell(`Unregister-ScheduledTask -TaskName ${psQuote(TASK)} -Confirm:$false`); }
             // AUMID is shared with Millennium; preserve its branding on standalone removal.
             await unlink(p.state);
             return { removed: true, restartNeeded: true, preserved: [p.config] };
@@ -75,7 +77,7 @@ export async function windowsIntegration(command: string, args: string[], p: Pat
         const transaction = { task: current, running, state: old ?? null, after: '', launchId };
         await atomic(journal, transaction);
         try {
-            if (current) await stopOwned(old?.launchId);
+            if (old) await stopOwned(old.launchId);
             await powershell(taskSource(process.execPath, cli, steam, p.config, launchId, enabled));
             transaction.after = await powershell(`Export-ScheduledTask -TaskName ${psQuote(TASK)}`);
             await atomic(journal, transaction);
@@ -88,7 +90,7 @@ export async function windowsIntegration(command: string, args: string[], p: Pat
             await unlink(journal);
             return { steam, activation: !old || running ? 'verified' : 'staged; task remains stopped', restartNeeded: true };
         } catch (error) {
-            await restore({ task: current, running, launchId });
+            await restore(transaction);
             if (old) await atomic(p.state, old); else if (await exists(p.state)) await unlink(p.state);
             await unlink(journal);
             throw error;
