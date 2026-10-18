@@ -1,3 +1,14 @@
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { setupPaths } from './paths';
+import { readFile, writeFile } from 'node:fs/promises';
+function windowsPipe() { return '\\\\.\\pipe\\snn-' + createHash('sha256').update(setupPaths().config.toLowerCase()).digest('hex').slice(0, 32); }
+function tokenPath() { return join(setupPaths().stateHome, 'steam-native-notifications/control-token'); }
+async function controlToken(create = false): Promise<string> {
+    if (create) { const { privateDirectory } = await import('./windows'); await privateDirectory(join(tokenPath(), '..')); try { await writeFile(tokenPath(), crypto.randomUUID() + crypto.randomUUID(), { flag: 'wx' }); } catch (e: any) { if (e.code !== 'EEXIST') throw e; } }
+    const token = await readFile(tokenPath(), 'utf8'); if (!/^[a-f0-9-]{72}$/.test(token)) throw new Error('Invalid control credential'); return token;
+}
+export function authenticateControl(value: object, secret: string): string { const { token: _, ...fields } = value as any; return createHmac('sha256', secret).update(JSON.stringify(fields)).digest('hex'); }
+export function authenticatedControl(value: object, secret: string): boolean { const tag = (value as any)?.token; return typeof tag === 'string' && /^[a-f0-9]{64}$/.test(tag) && timingSafeEqual(Buffer.from(tag), Buffer.from(authenticateControl(value, secret))); }
 import { ownsDaemonLock } from './lock';
 import { dlopen, FFIType, ptr } from 'bun:ffi';
 import { closeSync } from 'node:fs';
@@ -7,9 +18,10 @@ import { join, isAbsolute } from 'node:path';
 export const MAX_CONTROL_BYTES = 65536;
 export type ControlOperation = 'status' | 'capture' | 'config.read' | 'config.update' | 'config.reset' | 'dev.fire' | 'sample';
 const operations = new Set<ControlOperation>(['status', 'capture', 'config.read', 'config.update', 'config.reset', 'dev.fire', 'sample']);
-export interface ControlRequest { id: string; deadline: number; operation: ControlOperation; payload?: unknown }
-export interface ControlReply { id: string; ok: boolean; value?: any; error?: string }
+export interface ControlRequest { token?: string; id: string; deadline: number; operation: ControlOperation; payload?: unknown }
+export interface ControlReply { token?: string; id: string; ok: boolean; value?: any; error?: string }
 export function controlPath(): string {
+    if (process.platform === 'win32') return windowsPipe();
     const runtime = process.env.XDG_RUNTIME_DIR;
     if (!runtime || !isAbsolute(runtime)) throw new Error('XDG_RUNTIME_DIR must name an owned absolute runtime directory');
     return join(runtime, 'steam-native-notifications', 'control.sock');
@@ -54,11 +66,13 @@ async function reclaimStaleSocket(path: string, release?: () => Promise<void>): 
     await unlink(path);
 }
 export async function startControl(handler: (request: ControlRequest) => Promise<unknown>, path = controlPath(), options: { exclusiveLock?: () => Promise<void> } = {}): Promise<() => Promise<void>> {
+    const windows = process.platform === 'win32';
+    const token = windows ? await controlToken(true) : undefined;
     const dir = join(path, '..');
-    await ownedDirectory(join(dir, '..'));
+    if (!windows) { await ownedDirectory(join(dir, '..'));
     await mkdir(dir, { mode: 0o700 }).catch((e: any) => { if (e.code !== 'EEXIST') throw e; });
     await ownedDirectory(dir); await chmod(dir, 0o700);
-    await reclaimStaleSocket(path, options.exclusiveLock);
+    await reclaimStaleSocket(path, options.exclusiveLock); }
     const sockets = new Set<Socket>(); let active = true; let queue = Promise.resolve();
     const server = createServer(socket => {
         if (sockets.size >= 64) { socket.destroy(); return; }
@@ -74,7 +88,8 @@ export async function startControl(handler: (request: ControlRequest) => Promise
                 let request: ControlRequest;
                 try {
                     request = JSON.parse(line);
-                    if (!request || typeof request.id !== 'string' || !/^[A-Za-z0-9-]{1,80}$/.test(request.id) || !operations.has(request.operation) || !Number.isSafeInteger(request.deadline) || request.deadline > Date.now() + 10000 || Object.keys(request).some(k => !['id', 'deadline', 'operation', 'payload'].includes(k))) throw new Error('Invalid control request');
+                    if (token && !authenticatedControl(request, token)) throw new Error('Unauthorized control request');
+                    if (!request || typeof request.id !== 'string' || !/^[A-Za-z0-9-]{1,80}$/.test(request.id) || !operations.has(request.operation) || !Number.isSafeInteger(request.deadline) || request.deadline > Date.now() + 10000 || Object.keys(request).some(k => !['id', 'deadline', 'operation', 'payload', ...(windows ? ['token'] : [])].includes(k))) throw new Error('Invalid control request');
                     if (++pending > 16) throw new Error('Too many pending requests');
                 } catch { socket.destroy(); return; }
                 queue = queue.then(async () => {
@@ -82,13 +97,18 @@ export async function startControl(handler: (request: ControlRequest) => Promise
                     try { if (!active || socket.destroyed || request.deadline <= Date.now()) throw new Error('Request expired or disconnected'); reply = { id: request.id, ok: true, value: await handler(request) }; }
                     catch (e: any) { reply.error = e.message; }
                     finally { pending--; }
+                    if (token) reply.token = authenticateControl(reply, token);
                     let output = JSON.stringify(reply) + '\n';
-                    if (Buffer.byteLength(output) > MAX_CONTROL_BYTES) output = JSON.stringify({ id: request.id, ok: false, error: 'Control reply too large' }) + '\n';
+                    if (Buffer.byteLength(output) > MAX_CONTROL_BYTES) { const failure: ControlReply = { id: request.id, ok: false, error: 'Control reply too large' }; if (token) failure.token = authenticateControl(failure, token); output = JSON.stringify(failure) + '\n'; }
                     if (!socket.destroyed) socket.write(output);
                 }).catch(() => {});
             }
         });
     });
+    if (windows) {
+        await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(path, resolve); });
+        return async () => { active = false; for (const socket of sockets) socket.destroy(); await new Promise<void>(resolve => server.close(() => resolve())); };
+    }
     const fd = bindOwnedSocket(path);
     try { await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen({ fd }, resolve); }); }
     catch (e) { closeSync(fd); await unlink(path).catch(() => {}); throw e; }
@@ -101,11 +121,13 @@ export async function startControl(handler: (request: ControlRequest) => Promise
 }
 export async function controlCall(operation: ControlOperation, payload?: unknown, options: { path?: string; timeoutMs?: number } = {}): Promise<any> {
     const path = options.path ?? controlPath();
-    await ownedDirectory(join(path, '..'));
+    const token = process.platform === 'win32' ? await controlToken() : undefined;
+    if (process.platform !== 'win32') { await ownedDirectory(join(path, '..'));
     const info = await lstat(path);
-    if (!info.isSocket() || info.uid !== process.getuid?.() || (info.mode & 0o777) !== 0o600 || ((await lstat(join(path, '..'))).mode & 0o777) !== 0o700) throw new Error('Unsafe control socket permissions');
+    if (!info.isSocket() || info.uid !== process.getuid?.() || (info.mode & 0o777) !== 0o600 || ((await lstat(join(path, '..'))).mode & 0o777) !== 0o700) throw new Error('Unsafe control socket permissions'); }
     const timeout = Math.min(10000, Math.max(1, options.timeoutMs ?? 7000));
     const request: ControlRequest = { id: crypto.randomUUID(), deadline: Date.now() + timeout, operation, payload };
+    if (token) request.token = authenticateControl(request, token);
     const data = JSON.stringify(request) + '\n'; if (Buffer.byteLength(data) > MAX_CONTROL_BYTES) return Promise.reject(new Error('Control request too large'));
     return new Promise((resolve, reject) => {
         const socket = createConnection(path); let buffer = Buffer.alloc(0); let done = false;
@@ -113,7 +135,7 @@ export async function controlCall(operation: ControlOperation, payload?: unknown
         const timer = setTimeout(() => finish(new Error('Control request timed out')), timeout);
         socket.on('connect', () => socket.write(data)); socket.on('error', e => finish(e)); socket.on('close', () => finish(new Error('Control connection closed')));
         socket.on('data', chunk => { buffer = Buffer.concat([buffer, chunk]); if (buffer.length > MAX_CONTROL_BYTES) return finish(new Error('Control reply too large')); const end = buffer.indexOf(10); if (end < 0) return;
-            try { const reply = JSON.parse(buffer.subarray(0, end).toString()) as ControlReply; if (reply.id !== request.id) throw new Error('Mismatched reply'); finish(reply.ok ? undefined : new Error(reply.error ?? 'Control request failed'), reply.value); } catch (e: any) { finish(e); }
+            try { const reply = JSON.parse(buffer.subarray(0, end).toString()) as ControlReply; if (token && !authenticatedControl(reply, token)) throw new Error('Unauthenticated control reply'); if (reply.id !== request.id) throw new Error('Mismatched reply'); finish(reply.ok ? undefined : new Error(reply.error ?? 'Control request failed'), reply.value); } catch (e: any) { finish(e); }
         });
     });
 }

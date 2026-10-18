@@ -1,3 +1,4 @@
+param([switch]$Offline)
 $ErrorActionPreference = 'Stop'
 
 $testRoot = Join-Path $env:TEMP "snn-notify-action-$([Guid]::NewGuid())"
@@ -72,6 +73,10 @@ try {
         if ((& $attributes $route) -ne '') { throw 'FAIL invalid route creates activation XML' }
     }
     Write-Output 'PASS activation XML bounds payloads and leaves invalid routes inert'
+    if ($Offline) {
+        Write-Output 'SKIP live delivery: offline checks do not require Steam or a desktop session'
+        return
+    }
     Copy-Item -LiteralPath $sourceHelper -Destination $helper
 
     $steamDir = (Get-ItemProperty -LiteralPath 'HKCU:\Software\Valve\Steam').SteamPath

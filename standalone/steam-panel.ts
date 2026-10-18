@@ -46,7 +46,7 @@ export function createSteamPanel(React: typeof import('react'), controls: Return
         const ready = !removed && connected && state?.state === 'ready' && state.compatible && state.hook === 'installed';
         const disabled = removed || busy || !connected || !!state?.config.error;
         return settingsContent(React, controls, {
-            values: values ?? null, platform: 'linux', disabled,
+            values: values ?? null, platform: (globalThis as any).__snnPlatform === 'windows' ? 'windows' : 'linux', disabled,
             sampleDisabled: busy || !ready || !values?.integrationEnabled,
             status: !removed && !ready ? (!connected
                 ? 'Connecting to standalone service. Controls are unavailable until connected.'

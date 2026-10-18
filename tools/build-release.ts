@@ -23,13 +23,13 @@ await writeFile(join(root, 'package.json'), JSON.stringify({
     name: '@tyvsmith/steam-native-notifications', version: pkg.version,
     description: pkg.description, license: pkg.license, author: pkg.author,
     type: 'module', bin: { snn: 'standalone/cli.js' }, engines: { bun: '>=1.4.3' },
-    os: ['linux'], cpu: ['x64'],
+    os: ['linux', 'win32'], cpu: ['x64'],
     repository: { type: 'git', url: 'https://github.com/tyvsmith/steam-native-notifications.git' },
     publishConfig: { access: 'public' },
     files: [...ASSETS.filter(p => p !== 'package.json'), 'manifest.json'].sort(),
     scripts: { postinstall: 'bun standalone/cli.js setup --hook', preuninstall: 'bun standalone/cli.js teardown --hook' },
 }, null, 2) + '\n');
-const manifest: Manifest = { format: 3, version: pkg.version, buildId: BUILD_IDENTITY.buildId, target: 'linux-x64', bun: '>=1.4.3', files: {} };
+const manifest: Manifest = { format: 3, version: pkg.version, buildId: BUILD_IDENTITY.buildId, target: 'linux-windows-x64', bun: '>=1.4.3', files: {} };
 for (const rel of ASSETS) manifest.files[rel] = sha256(await readFile(join(root, rel)));
 await writeFile(join(root, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
 await validateRelease(root);

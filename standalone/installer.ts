@@ -112,6 +112,7 @@ export async function setupIntegration(p: Paths, runtime: Runtime, steamOption?:
     }
 }
 export async function integrationCommand(command: string, args: string[], p = setupPaths(), run: Runner = systemctl, checkpoint: Checkpoint = noCheckpoint, fixtureRuntime?: Runtime, verify: Readiness = waitForService) {
+    if (process.platform === 'win32') return (await import('./windows-installer')).windowsIntegration(command, args, p);
     let steam: string | undefined;
     for (let i = 0; i < args.length; i++) {
         if (command === 'setup' && args[i] === '--steam-dir' && args[i + 1]) steam = args[++i];

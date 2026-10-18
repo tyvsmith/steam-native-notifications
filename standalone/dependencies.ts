@@ -11,6 +11,7 @@ export function waylandAvailable(load: LibraryProbe = dlopen): boolean {
     } catch { return false; }
 }
 export function dependencies() {
+    if (process.platform === 'win32') { const available = !!Bun.which('powershell.exe'); return { required: { powershell: available }, optional: {}, delivery: available ? 'available' : 'missing-dependencies', focus: 'degraded-unknown' }; }
     const required = Object.fromEntries(['notify-send', 'gdbus', 'curl'].map(name => [name, !!Bun.which(name)]));
     const wayland = waylandAvailable();
     const luajit = !!Bun.which('luajit');

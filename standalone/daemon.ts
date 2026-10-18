@@ -2,7 +2,7 @@ import { integrationRemoval } from './removal';
 import { runtimeAsset } from './runtime-paths';
 import { startControl } from './control';
 import { controlHandler } from './control-host';
-import { readFile } from 'node:fs/promises';
+import { readFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { CDP, endpoint, targetSocket } from './cdp';
 import { Host, requestPayload } from './host';
@@ -81,7 +81,7 @@ export async function attach(client: CDP, bundle: string, host: Host, alive: () 
             const values = await host.settings();
             if (!current(epoch, candidate)) continue;
             const result = await client.call('Runtime.evaluate', { contextId: candidate,
-                expression: `if (!globalThis.__snnStandaloneStarted) { globalThis.__snnInitialConfig=${JSON.stringify(values)};\n${bundle}\n} globalThis.__snnConfig(${JSON.stringify(values)});` });
+                expression: `if (!globalThis.__snnStandaloneStarted) { globalThis.__snnPlatform=${JSON.stringify(process.platform === 'win32' ? 'windows' : 'linux')};globalThis.__snnInitialConfig=${JSON.stringify(values)};\n${bundle}\n} globalThis.__snnConfig(${JSON.stringify(values)});` });
             if (!current(epoch, candidate) || !defaults.has(candidate)) continue;
             if (result.exceptionDetails) throw new Error(`Injection failed: ${result.exceptionDetails.text}`);
             injected = true; previousConfig = JSON.stringify(values);
@@ -203,9 +203,9 @@ export async function connectSteamContext(targets: any[], port: number, connect 
 
 export async function daemonMain(): Promise<void> {
     if (process.argv.includes('--help')) {
-        console.log('Usage: bun standalone/daemon.ts [--port N] [--config FILE] [--steam-dir DIR]\nLinux experimental RT3 host. Steam must already expose its loopback DevTools port.'); return;
+        console.log('Usage: bun standalone/daemon.ts [--port N] [--config FILE] [--steam-dir DIR]\nExperimental native Linux/Windows host. Steam must already expose its loopback DevTools port.'); return;
     }
-    if (process.platform !== 'linux') throw new Error('Standalone RT3 host currently supports native Linux only');
+    if (!['linux', 'win32'].includes(process.platform)) throw new Error('Standalone supports native Linux and Windows only');
     const options: Record<string, string> = {};
     for (let i = 2; i < process.argv.length; i += 2) {
         const key = process.argv[i]!;
@@ -221,10 +221,11 @@ export async function daemonMain(): Promise<void> {
     let bundle: string;
     try { bundle = await readFile(runtimeAsset('dist/standalone/frontend.js'), 'utf8'); }
     catch { throw new Error('Missing standalone build; run bun install --frozen-lockfile && bun run build:standalone in this checkout.'); }
-    await host.initialize();
+    await mkdir(runtime, { recursive: true, mode: 0o700 });
     const release = await acquireDaemonLock(runtime);
     let stopControl: (() => Promise<void>) | undefined;
     try {
+        await host.initialize();
         stopControl = await startControl(controlHandler(host), undefined, { exclusiveLock: release });
         let running = true;
         let client: CDP | undefined;
@@ -234,7 +235,7 @@ export async function daemonMain(): Promise<void> {
         let previousFailure = '';
         while (running) {
             try {
-                const inspection = await inspectEndpoint(port);
+                const inspection = await inspectEndpoint(port, undefined, host.steam);
                 if (inspection.kind !== 'steam') throw new Error(inspection.message);
                 const selected = await connectSteamContext(inspection.targets!, port);
                 client = selected.client; previousFailure = '';
