@@ -1,8 +1,6 @@
 package.path = 'backend/?.lua;backend/?/init.lua;' .. package.path
 local focus = require('game_focus')
-local path = os.tmpname()
-os.remove(path)
-assert(os.execute('mkdir -p ' .. path))
+local path = os.getenv('TMPDIR') or os.getenv('TEMP') or os.getenv('TMP') or '/tmp'
 local calls = 0
 local host = { runtime = path, steam = 'C:\\Steam', spawn = function(args, deadline)
     calls = calls + 1
@@ -22,5 +20,4 @@ host.spawn = function() error('probe failure') end
 assert(focus.query(17, 'windows', host) == 'unknown')
 host.steam = 'C:\\bad"path'
 assert(focus.query(17, 'windows', host) == 'unknown')
-os.remove(path)
 print('PASS Windows focus adapter')
