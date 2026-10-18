@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import { authenticateControl, authenticatedControl } from './control';
 import { taskSource } from './windows-installer';
-import { psQuote, exclusiveFile } from './windows';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { psQuote, exclusiveFile, powershell } from './windows';
+import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -76,3 +76,23 @@ test.skipIf(process.platform !== 'win32')('kernel lock survives a competing proc
         (await exclusiveFile(file, 0))();
     } finally { child.kill(); await child.exited; await rm(dir, { recursive: true, force: true }); }
 });
+
+test.skipIf(process.platform !== 'win32')('PowerShell captures complete output and preserves failures across repeated exits', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'snn-powershell-test-'));
+    const original = { TEMP: process.env.TEMP, TMP: process.env.TMP };
+    process.env.TEMP = dir; process.env.TMP = dir;
+    try {
+        const expected = 'é'.repeat(65536);
+        for (let i = 0; i < 4; i++) {
+            expect(await powershell("[Console]::Out.Write(('é' * 65536))")).toBe(expected);
+            await expect(powershell("throw 'snn expected failure'")).rejects.toThrow('snn expected failure');
+        }
+        expect(await Promise.all(Array.from({ length: 4 }, (_, i) => powershell(`[Console]::Out.Write('result-${i}')`)))).toEqual(['result-0', 'result-1', 'result-2', 'result-3']);
+        expect(await readdir(dir)).toEqual([]);
+    } finally {
+        for (const key of ['TEMP', 'TMP'] as const) {
+            if (original[key] === undefined) delete process.env[key]; else process.env[key] = original[key];
+        }
+        await rm(dir, { recursive: true, force: true });
+    }
+}, 120000);
