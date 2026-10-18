@@ -566,7 +566,7 @@ end
 ---@return string
 function GameHostFocus(appid)
     local ok, result = pcall(function()
-        return require('game_focus').query(appid, PLATFORM, { runtime = RUNTIME_DIR, steam = millennium.steam_path(), spawn = function(args, wait) return spawn_windows_helper(args, wait, join(RUNTIME_DIR, 'game-focus.ps1')) end })
+        return require('game_focus').query(appid, PLATFORM, { runtime = RUNTIME_DIR, steam = millennium_steam_dir(), spawn = function(args, wait) return spawn_windows_helper(args, wait, join(RUNTIME_DIR, 'game-focus.ps1')) end })
     end)
     return ok and result or "unknown"
 end

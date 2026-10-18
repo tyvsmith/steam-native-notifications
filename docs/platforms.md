@@ -651,6 +651,10 @@ conflicting maps, and foreground changes. Steam timestamps have one-second
 precision: same-second reuse of the same PID/executable within the same Steam
 tree cannot be distinguished from those records alone.
 
+Five fresh PowerShell processes measured 863–927 ms with the Steam-launched
+fullscreen app active, below the two-second cutoff. These VM measurements do
+not guarantee timing on other hardware or with larger Steam logs.
+
 Use `snn dev fire --host-focus APPID` or `tools/fire --host-focus APPID` with
 developer commands enabled. A verdict measures ownership, not notification
 delivery or overlay navigation. The VM app has no hooked GPU overlay;

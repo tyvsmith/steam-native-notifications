@@ -36,6 +36,8 @@ function Get-TrackedGames([string]$Text, $Processes, $Executables = $null) {
     foreach ($key in $records.Keys) {
         # Whole-second Steam timestamps require independent current Steam ancestry.
         if ($Processes.ContainsKey($key) -and $Processes[$key].AddTicks(-($Processes[$key].Ticks % [TimeSpan]::TicksPerSecond)) -le $records[$key].Time) {
+            # Keep a live but uncorroborated owner visible to foreground refusal.
+            $live[$key] = 0
             if ($null -eq $Executables -or ($records[$key].Executable -and $Executables[$key] -ieq $records[$key].Executable)) { $live[$key] = $records[$key].App }
         }
     }
@@ -52,6 +54,13 @@ function Test-SteamAncestry($ProcessId, $Native, [string]$Steam, $SessionId = $n
         $cursor = $parentId
     }
     return $false
+}
+
+function Confirm-TrackedGames($Tracked, $Native, [string]$Steam, $SessionId = $null) {
+    foreach ($key in @($Tracked.Keys)) {
+        if (-not (Test-SteamAncestry $key $Native $Steam $SessionId)) { $Tracked[$key] = 0 }
+    }
+    return $Tracked
 }
 
 function Test-SteamOverlay($Process, $Native, [string]$Steam, $SessionId = $null) {
@@ -91,9 +100,7 @@ public static class SnnGameFocus {
     # unrelated PID cannot acquire ownership from an old console record.
     $native = @{}
     foreach ($proc in @(Get-CimInstance Win32_Process)) { $native[[uint32]$proc.ProcessId] = $proc }
-    foreach ($key in @($tracked.Keys)) {
-        if (-not (Test-SteamAncestry $key $native $SteamDir $sessionId)) { $tracked.Remove($key) }
-    }
+    $tracked = Confirm-TrackedGames $tracked $native $SteamDir $sessionId
     $overlay = @{}
     foreach ($proc in @(Get-CimInstance Win32_Process -Filter "Name='gameoverlayui.exe'")) {
         if (-not (Test-SteamOverlay $proc $native $SteamDir $sessionId)) { return 'unknown' }

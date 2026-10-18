@@ -138,6 +138,15 @@ end
 check("helper installed at load", sawHelper)
 check("Platform reports linux", Platform() == "linux", tostring(Platform()))
 
+local normalized_focus_steam
+package.loaded.game_focus = { query = function(_, _, host) normalized_focus_steam = host.steam; return 'unknown' end }
+local millennium = require('millennium')
+local original_steam_path = millennium.steam_path
+millennium.steam_path = function() return 'C:\\Steam\\' end
+GameHostFocus(17)
+check("host focus trims the Steam path trailing backslash", normalized_focus_steam == 'C:\\Steam')
+millennium.steam_path = original_steam_path
+
 local focus_appid
 package.loaded.game_focus = dofile(root .. '/backend/game_focus.lua')
 package.loaded['focus.gamescope'] = {query = function(appid) focus_appid = appid; return "desktop" end}
