@@ -47,7 +47,9 @@ test.skipIf(process.platform !== 'win32')('private named pipe serves authenticat
     let close: (() => Promise<void>) | undefined;
     try {
         let calls = 0;
+        console.error('pipe-stage: start');
         close = await startControl(async request => { calls++; return { operation: request.operation }; });
+        console.error('pipe-stage: listening');
         const { createConnection } = await import('node:net');
         const { controlPath } = await import('./control');
         await new Promise<void>((resolve, reject) => {
@@ -56,10 +58,14 @@ test.skipIf(process.platform !== 'win32')('private named pipe serves authenticat
             socket.on('connect', () => socket.write(JSON.stringify({ id: 'unauthorized', operation: 'status', deadline: Date.now() + 1000, token: '0'.repeat(64) }) + '\n'));
             socket.on('error', () => {}); socket.on('close', () => { clearTimeout(timeout); resolve(); });
         });
+        console.error('pipe-stage: unauthorized closed');
         expect(calls).toBe(0);
         expect(await controlCall('status')).toEqual({ operation: 'status' });
+        console.error('pipe-stage: authenticated reply');
         await close(); close = undefined;
+        console.error('pipe-stage: server closed');
         await expect(controlCall('status', undefined, { timeoutMs: 100 })).rejects.toThrow();
+        console.error('pipe-stage: refused after close');
     } finally { await close?.(); process.env.LOCALAPPDATA = original; await rm(dir, { recursive: true, force: true }); }
 }, 20000);
 test.skipIf(process.platform !== 'win32')('kernel lock survives a competing process and releases after termination', async () => {
