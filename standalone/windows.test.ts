@@ -65,17 +65,18 @@ test.skipIf(process.platform !== 'win32')('private named pipe serves authenticat
 test.skipIf(process.platform !== 'win32')('kernel lock survives a competing process and releases after termination', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'snn-win-owner-'));
     const file = join(dir, 'lock');
-    const source = `import { exclusiveFile } from ${JSON.stringify(join(import.meta.dir, 'windows.ts'))}; await exclusiveFile(${JSON.stringify(file)},0); console.log('locked'); setInterval(()=>{},1000);`;
-    const child = Bun.spawn([process.execPath, '-e', source], { stdout: 'pipe', stderr: 'pipe' });
+    const ready = join(dir, 'ready');
+    const source = `import { rename } from 'node:fs/promises'; import { exclusiveFile } from ${JSON.stringify(join(import.meta.dir, 'windows.ts'))}; await exclusiveFile(${JSON.stringify(file)},0); await Bun.write(${JSON.stringify(ready + '.tmp')}, 'locked'); await rename(${JSON.stringify(ready + '.tmp')}, ${JSON.stringify(ready)}); setInterval(()=>{},1000);`;
+    const child = Bun.spawn([process.execPath, '-e', source], { stdout: 'inherit', stderr: 'inherit' });
     try {
-        const reader = child.stdout.getReader();
-        expect(new TextDecoder().decode((await reader.read()).value)).toContain('locked');
-        reader.releaseLock();
+        const deadline = Date.now() + 5000;
+        while (!await Bun.file(ready).exists() && child.exitCode === null && Date.now() < deadline) await Bun.sleep(10);
+        expect(await Bun.file(ready).text()).toBe('locked');
         await expect(exclusiveFile(file, 0)).rejects.toThrow();
         child.kill(); await child.exited;
         (await exclusiveFile(file, 0))();
     } finally { child.kill(); await child.exited; await rm(dir, { recursive: true, force: true }); }
-});
+}, 10000);
 
 test.skipIf(process.platform !== 'win32')('PowerShell captures complete output and preserves failures across repeated exits', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'snn-powershell-test-'));
