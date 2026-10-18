@@ -17,7 +17,7 @@ const platformReply = new Promise<string>((resolve) => { resolvePlatform = resol
 
 mock.module('../frontend/millennium-diagnostics', () => ({ startMillenniumDiagnostics: () => () => {}, receiveControl: () => {} }));
 mock.module('react/jsx-runtime', () => ({ jsx: element, jsxs: element, Fragment: 'fragment' }));
-mock.module('../shared/steam-settings-controls', () => ({ steamSettingsControls: () => ({ Theme: 'theme', Section: 'section', Toggle: 'toggle', Button: 'button', Description: 'text', ActionSection: 'native-actions' }) }));
+mock.module('../shared/steam-settings-controls', () => ({ steamSettingsControls: () => ({ Theme: 'theme', Section: 'section', Toggle: 'toggle', Dropdown: 'dropdown', Button: 'button', Description: 'text', ActionSection: 'native-actions' }) }));
 mock.module('react', () => ({
     createElement: (type: any, props: any, ...children: any[]) => ({ type, props: { ...props, children } }),
 	useState: (initial: unknown) => [typeof initial === 'object' ? settings() : initial === 'unknown' ? platformState : initial, (value: unknown) => { if (initial === 'unknown') platformState = value; }],
@@ -171,24 +171,22 @@ test('the same popup delivers only once', async () => {
 	expect(notifications).toHaveLength(1);
 });
 
-test('panel exposes one section with five ordered controls and Windows additions', () => {
-	const sections = nodes(SettingsPanel()).filter((node) => node.type === 'section');
-	expect(sections.map((node) => node.props.label)).toEqual(['Operating system notifications']);
+test('panel exposes delivery dropdowns and preserves Windows additions', () => {
+	const sections = nodes(SettingsPanel()).filter((node) => node.type === 'section' && node.props.label);
+	expect(sections.map((node) => node.props.label)).toEqual(['Steam Native Notifications']);
 	expect(toggles().map((node) => [node.props.label, node.props.checked])).toEqual([
-        ['Enable native notification integration', true],
-        ['Show OS notifications while in a game', true], ['Show Steam notifications while in a game', true],
-        ['Show OS notifications outside a game', true], ['Show Steam notifications outside a game', false],
+        ['Enable Steam Native Notifications', true],
         ['Save to Notification Center only while in a game', false], ['Save to Notification Center only outside a game', false],
 	]);
 });
 
 test('disabling OS hides only its history control without clearing its preference', async () => {
 	set('notificationCenterOnlyOutsideGame', true);
-	toggles()[3].props.onChange(false);
+	nodes(SettingsPanel()).find(n => n.type === 'dropdown' && n.props.label === 'On desktop').props.onChange({ data: 0 });
 	await flush();
-	expect(toggles()).toHaveLength(6);
+	expect(toggles()).toHaveLength(2);
 	expect(store.notificationCenterOnlyOutsideGame).toBe(true);
-	toggles()[3].props.onChange(true);
+	nodes(SettingsPanel()).find(n => n.type === 'dropdown' && n.props.label === 'On desktop').props.onChange({ data: 2 });
 	await flush();
 	expect(toggles().at(-1).props.checked).toBe(true);
 });
@@ -196,7 +194,7 @@ test('disabling OS hides only its history control without clearing its preferenc
 for (const platform of ['linux', 'macos', 'unknown']) {
 	test(`${platform} hides both Windows controls`, () => {
 		platformState = platform;
-		expect(toggles()).toHaveLength(5);
+		expect(toggles()).toHaveLength(1);
 	});
 }
 
@@ -205,7 +203,7 @@ test('panel resolves backend platform after mounting', async () => {
 	SettingsPanel();
 	effect?.();
 	await flush();
-	expect(toggles()).toHaveLength(7);
+	expect(toggles()).toHaveLength(3);
 });
 
 test('non-Windows delivery ignores saved Notification Center preferences', () => {
@@ -230,7 +228,7 @@ test('deleted or invalid settings return delivery and panel to the same default'
 		set('showSteamOutsideGame', true);
 		set('showSteamOutsideGame', value);
 		expect(settings().showSteamOutsideGame).toBe(false);
-		expect(toggles()[4].props.checked).toBe(false);
+		expect(nodes(SettingsPanel()).find(n => n.type === 'dropdown' && n.props.label === 'On desktop').props.selectedOption).toBe(2);
 	}
 });
 

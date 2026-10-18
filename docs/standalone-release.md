@@ -61,7 +61,7 @@ removing only the package leaves integration entries behind.
 
 ## Settings and diagnostics
 
-Steam Settings → Notifications → Operating system notifications is the standalone
+Steam Settings → Notifications → Steam Native Notifications is the standalone
 settings UI. Millennium uses the same controls in its plugin settings panel.
 
 The `snn` CLI selects the single available host. Specify `--host standalone` or

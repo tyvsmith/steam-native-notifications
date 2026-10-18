@@ -52,7 +52,7 @@ frontend to preserve callbacks; status reports mismatched build identities.
 
 ## Settings and diagnostics
 
-- use the Operating system notifications section at the bottom of Steam Settings → Notifications
+- use the Steam Native Notifications section at the bottom of Steam Settings → Notifications
 - use `snn --host standalone config get|set|reset` for offline recovery while Steam is stopped
 - use `snn --host standalone status --json`, `doctor` and `capture`
 - enable `devFire` before `snn --host standalone dev fire TestDownloadComplete 1073390`

@@ -75,20 +75,20 @@ Windows toast identity per-user at load, and
 
 ## Settings
 
-Standalone: open Steam Settings → Notifications → Operating system notifications at the
+Standalone: open Steam Settings → Notifications → Steam Native Notifications at the
 bottom of the page. Millennium: use the plugin settings panel.
 
-| Setting | Outside games | Inside games |
+| Setting | On desktop | In game |
 | --- | --- | --- |
-| Show OS notifications | On | On |
-| Show Steam notifications | Off | On |
+| Notification delivery | System only | Steam + System |
 | Save to Notification Center only (Windows) | Off | Off |
 
 - enable native notification integration by default; turning it off stops OS
   copies and preserves normal Steam notifications without changing the saved
   context preferences
-- control Steam and OS notifications independently for each context; both off
-  suppresses both while integration is enabled
+- choose Steam only, System only, Steam + System or Off for each context
+- keep Steam pop-ups visible in games while system notifications may go to history
+  when Do Not Disturb is on; history support depends on the operating system
 - show Notification Center controls only on Windows when the section's OS
   notifications are enabled; hiding a control preserves its preference
 - let Windows decide banner visibility through its notification settings,

@@ -27,7 +27,7 @@ async function fixture(options: { cached?: any; read?: any } = {}) {
     runInNewContext(await built.outputs[0]!.text(), context);
     let modal: any;
     const owner = {};
-    const Panel = context.module.exports.createSteamPanel(hooks, { Theme: 'theme', Section: 'section', Toggle: 'toggle', Button: 'button', Buttons: 'buttons', Description: 'description', ConfirmDialog: 'confirm', ShowModal: (element: any, window: any) => { expect(window).toBe(owner); modal = element; } });
+    const Panel = context.module.exports.createSteamPanel(hooks, { Theme: 'theme', Section: 'section', Toggle: 'toggle', Dropdown: 'dropdown', Button: 'button', Buttons: 'buttons', Description: 'description', ConfirmDialog: 'confirm', ShowModal: (element: any, window: any) => { expect(window).toBe(owner); modal = element; } });
     const nodes = (node: any): any[] => {
         if (!node || typeof node !== 'object' || (node.type === 'modal' && !node.props.active)) return [];
         const buttons = node.type === 'confirm' ? [

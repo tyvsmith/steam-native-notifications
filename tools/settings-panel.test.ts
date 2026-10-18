@@ -21,7 +21,7 @@ async function panelFixture() {
     let values: any = { ...DEFAULTS, notifyOutsideGame: false, devMode: true, devFire: true, notificationCenterOnlyInGame: true };
     const slots: any[] = [], effects: (() => void)[] = [], cleanups: (() => void)[] = [], listeners = new Set<Function>();
     let index = 0; const samples: any[] = []; let modal: any; const owner = {};
-    const context: any = { controls: { Theme: 'theme', Section: 'section', Toggle: 'toggle', Button: 'button', Description: 'text', ActionSection: 'native-actions', ConfirmDialog: 'confirm', ShowModal: (element: any, window: any) => { expect(window).toBe(owner); modal = element; } }, module: { exports: {} }, crypto, Date, setTimeout,
+    const context: any = { controls: { Theme: 'theme', Section: 'section', Toggle: 'toggle', Dropdown: 'dropdown', Button: 'button', Description: 'text', ActionSection: 'native-actions', ConfirmDialog: 'confirm', ShowModal: (element: any, window: any) => { expect(window).toBe(owner); modal = element; } }, module: { exports: {} }, crypto, Date, setTimeout,
         config: { getAll: async () => ({ ...values }), set: async (key: string, value: unknown) => { values[key] = value; for (const f of listeners) f(key, value); } },
         subscribe: (fn: Function) => { listeners.add(fn); return () => listeners.delete(fn); },
         sample: async (...args: any[]) => { samples.push(args); return { stage: 'executed' }; },
@@ -46,7 +46,7 @@ async function panelFixture() {
 test('Millennium panel uses shared visibility, confirms reset and preserves platform/developer opt-ins', async () => {
     const f = await panelFixture();
     try {
-        expect(f.render().filter(n => n.type === 'toggle')).toHaveLength(6);
+        expect(f.render().filter(n => n.type === 'toggle')).toHaveLength(2);
         expect(f.render().some(n => n.props.className === 'native-actions')).toBe(true);
         expect(f.button('Remove OS notification integration')).toBeUndefined();
         f.button('Reset notification settings').props.onClick();
@@ -71,12 +71,12 @@ test('save completion cannot overwrite a newer subscription snapshot', async () 
             return snapshot;
         };
         // Subscription reads queue during the write; hold its completion snapshot.
-        f.render().find(n => n.type === 'toggle' && n.props.label === 'Show OS notifications outside a game').props.onChange(true);
+        f.render().find(n => n.type === 'dropdown' && n.props.label === 'On desktop').props.onChange({ data: 2 });
         await f.flush(); expect(typeof release).toBe('function');
         await f.config.set('notifyOutsideGame', false); await f.flush();
         release(); await f.flush();
         expect(f.values().notifyOutsideGame).toBe(false);
-        expect(f.render().find(n => n.type === 'toggle' && n.props.label === 'Show OS notifications outside a game').props.checked).toBe(false);
+        expect(f.render().find(n => n.type === 'dropdown' && n.props.label === 'On desktop').props.selectedOption).toBe(0);
     } finally { f.close(); }
 });
 
@@ -84,13 +84,12 @@ test('master disables dependent controls and sample while retaining preferences 
     const f = await panelFixture();
     try {
         const before = { ...f.values() };
-        const master = () => f.render().find(n => n.type === 'toggle' && n.props.label === 'Enable native notification integration');
+        const master = () => f.render().find(n => n.type === 'toggle' && n.props.label === 'Enable Steam Native Notifications');
         master().props.onChange(false); await f.flush();
         expect(f.values()).toEqual({ ...before, integrationEnabled: false });
         expect(master().props.disabled).toBe(false);
-        const rows = f.render().filter(n => n.type === 'toggle');
-        expect(rows.slice(1, 5).every(n => n.props.disabled)).toBe(true);
-        expect(rows.at(-1).props.disabled).toBe(false);
+        expect(f.render().filter(n => n.type === 'dropdown').every(n => n.props.disabled)).toBe(true);
+        expect(f.render().filter(n => n.type === 'toggle').at(-1).props.disabled).toBe(false);
         expect(f.button('Send test notification').props.disabled).toBe(true);
         master().props.onChange(true); await f.flush();
         expect(f.values()).toEqual(before);
@@ -102,15 +101,29 @@ test('panel writes update delivery settings when Millennium sends no subscriptio
     const f = await panelFixture();
     try {
         f.config.set = async (key: string, value: unknown) => { f.values()[key] = value; };
-        const row = (label: string) => f.render().find(n => n.type === 'toggle' && n.props.label === label);
-        row('Show Steam notifications outside a game').props.onChange(true); await f.flush();
+        const row = () => f.render().find(n => n.type === 'dropdown' && n.props.label === 'On desktop');
+        row().props.onChange({ data: 1 }); await f.flush();
         expect(f.runtimeSettings().showSteamOutsideGame).toBe(true);
-        row('Show OS notifications outside a game').props.onChange(true); await f.flush();
+        row().props.onChange({ data: 3 }); await f.flush();
         expect(f.runtimeSettings().notifyOutsideGame).toBe(true);
-        row('Show OS notifications outside a game').props.onChange(false); await f.flush();
-        row('Show Steam notifications outside a game').props.onChange(false); await f.flush();
+        row().props.onChange({ data: 0 }); await f.flush();
         expect(f.runtimeSettings()).toMatchObject({ notifyOutsideGame: false, showSteamOutsideGame: false });
-        row('Enable native notification integration').props.onChange(false); await f.flush();
+        f.render().find(n => n.type === 'toggle' && n.props.label === 'Enable Steam Native Notifications').props.onChange(false); await f.flush();
         expect(f.runtimeSettings().integrationEnabled).toBe(false);
+    } finally { f.close(); }
+});
+
+test('delivery dropdowns preserve all four routing combinations in both contexts', async () => {
+    const f = await panelFixture();
+    try {
+        for (const [label, native, steam] of [['In game', 'notifyInGame', 'showSteamInGame'], ['On desktop', 'notifyOutsideGame', 'showSteamOutsideGame']]) {
+            for (const data of [0, 1, 2, 3]) {
+                const row = () => f.render().find(n => n.type === 'dropdown' && n.props.label === label);
+                row().props.onChange({ data }); await f.flush();
+                expect(f.values()[native!]).toBe(!!(data & 2));
+                expect(f.values()[steam!]).toBe(!!(data & 1));
+                expect(row().props.selectedOption).toBe(data);
+            }
+        }
     } finally { f.close(); }
 });

@@ -1,5 +1,5 @@
 /** Resolve the same themed controls used by Steam desktop settings, without export IDs. */
-export function discoverControls(requireModule: any): Record<'Body' | 'Theme' | 'Toggle' | 'Section' | 'Button' | 'Description' | 'ConfirmDialog' | 'ShowModal' | 'ActionSection', any> {
+export function discoverControls(requireModule: any): Record<'Body' | 'Theme' | 'Toggle' | 'Dropdown' | 'Section' | 'Button' | 'Description' | 'ConfirmDialog' | 'ShowModal' | 'ActionSection', any> {
     const modules = Object.entries(requireModule.m ?? {}).filter(([, factory]) => {
         const source = String(factory);
         return source.includes('PagedSettings:') && source.includes('ToggleField:') && source.includes('BottomButtons');
@@ -33,7 +33,7 @@ export function discoverControls(requireModule: any): Record<'Body' | 'Theme' | 
     if (typeof actionSection !== 'string' || !actionSection) throw new Error('Steam Library action styles incompatible');
     return {
         Body: bodies[0], Theme: find('PagedSettings:', 'ToggleField:', 'strButtonClassName:'),
-        Toggle: find('"ToggleField"'), Section: find('"DialogSettingsSection"'),
+        Toggle: find('"ToggleField"'), Dropdown: find('dropDownControlRef:', 'childrenContainerWidth:'), Section: find('"DialogSettingsSection"'),
         Button: component('().SettingsDialogButton,', '.$n,'),
         ActionSection: actionSection,
         Description: find('.FieldDescription'),

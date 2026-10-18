@@ -30,9 +30,38 @@ export function settingsContent(React: typeof import('react'), controls: Control
         disabled: props.disabled || !values || settingDisabled(values, key),
         onChange: (value: boolean) => props.onPatch({ [key]: value }),
     });
-    return h(controls.Section, { label: 'Operating system notifications' }, h('section', { 'data-snn-panel': true },
+    const deliveryKeys = ['notifyInGame', 'showSteamInGame', 'notifyOutsideGame', 'showSteamOutsideGame'];
+    const delivery = (inside: boolean) => {
+        const native = inside ? 'notifyInGame' : 'notifyOutsideGame';
+        const steam = inside ? 'showSteamInGame' : 'showSteamOutsideGame';
+        return h(controls.Dropdown, {
+            key: native, strClassName: 'snn-delivery-row', label: inside ? 'In game' : 'On desktop',
+            layout: 'inline', inlineWrap: true, childrenContainerWidth: 'max', controlled: true,
+            selectedOption: (values?.[native] ? 2 : 0) + (values?.[steam] ? 1 : 0),
+            rgOptions: [{ data: 1, label: 'Steam only' }, { data: 2, label: 'System only' },
+                { data: 3, label: 'Steam + System' }, { data: 0, label: 'Off' }],
+            disabled: props.disabled || !values || !values.integrationEnabled,
+            onChange: ({ data }: { data: number }) => {
+                if (Number.isInteger(data) && data >= 0 && data <= 3)
+                    props.onPatch({ [native]: !!(data & 2), [steam]: !!(data & 1) });
+            },
+        });
+    };
+    return h(controls.Section, { label: 'Steam Native Notifications' }, h('section', { 'data-snn-panel': true, style: { containerType: 'inline-size', containerName: 'snn-settings' } },
+        h('style', {}, `[data-snn-panel] .snn-delivery-row > div:first-child { flex: 0 1 auto; width: calc(100% - 232px); }
+        [data-snn-panel] .snn-delivery-row > div:last-child { flex: 0 0 220px; }
+        [data-snn-panel] .snn-delivery-row button { width: 100%; }
+        @container snn-settings (max-width: 480px) {
+            [data-snn-panel] .snn-delivery-row { flex-direction: column; align-items: stretch; gap: 12px; }
+            [data-snn-panel] .snn-delivery-row > div:first-child,
+            [data-snn-panel] .snn-delivery-row > div:last-child { flex: none; width: 100%; margin: 0; }
+        }`),
         h(controls.Theme, {}, props.status && h('p', { role: 'status' }, props.status),
-            ...visibleSettings(values ?? {} as Settings, props.platform).map(row)),
+            row('integrationEnabled'),
+            h(controls.Description, {}, 'Choose where Steam notifications are sent.'),
+            delivery(true), delivery(false),
+            h(controls.Description, {}, 'System notifications use your operating system’s notification service, including Do Not Disturb and notification history where supported.'),
+            ...visibleSettings(values ?? {} as Settings, props.platform).filter(key => key !== 'integrationEnabled' && !deliveryKeys.includes(key)).map(row)),
         h('div', { className: controls.ActionSection },
             h(controls.Button, { disabled: props.sampleDisabled, onClick: props.onSample }, 'Send test notification'),
             h(controls.Button, { disabled: props.disabled, onClick: (event: { currentTarget: HTMLElement }) => confirm(false, event) }, 'Reset notification settings'),
