@@ -18,3 +18,5 @@ jobs:
       - run: bun test standalone/windows.test.ts standalone/windows-diagnostics.test.ts shared/settings-policy.test.ts shared/contracts.test.ts
       - shell: powershell
         run: ./tools/test-windows-notify-action.ps1 -Offline
+      - shell: powershell
+        run: ./tools/test-game-focus.ps1

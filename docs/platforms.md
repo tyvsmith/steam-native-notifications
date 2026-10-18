@@ -627,11 +627,46 @@ opaque/authority forms, several handlers, action buttons, and reboot did not
 change it; the same toasts launched `steam:`, `http:`, and `ms-settings:`.
 The private scheme and JScript handler were removed.
 
+### Windows foreground probe (2026-10-17)
+
+Both hosts call `tools/game-focus.ps1` on demand. The helper checks foreground
+HWND/PID, process creation times, executable paths, and the selected Steam
+installation's live process tree. Conflicting ownership or a changed snapshot
+returns `unknown`, preserving Steam's selection. Each host stops the helper
+after two seconds; no idle polling is added.
+
+The Windows 11 VM used Steam's existing Character Map shortcut, app ID
+`2190059198`. Installed standalone and Millennium diagnostics returned:
+
+| State | Verdict |
+|---|---|
+| borderless fullscreen app foreground | `game` |
+| Steam foreground, app minimized | `desktop` |
+| wrong requested app ID | `unknown` |
+| app exited | `unknown` |
+
+The direct helper also identified the ordinary windowed app. Native PowerShell
+fixtures cover stale records, executable mismatches, ancestry/session checks,
+conflicting maps, and foreground changes. Steam timestamps have one-second
+precision: same-second reuse of the same PID/executable within the same Steam
+tree cannot be distinguished from those records alone.
+
+Five fresh PowerShell processes measured 863–927 ms with the Steam-launched
+fullscreen app active, below the two-second cutoff. These VM measurements do
+not guarantee timing on other hardware or with larger Steam logs.
+
+Use `snn dev fire --host-focus APPID` or `tools/fire --host-focus APPID` with
+developer commands enabled. A verdict measures ownership, not notification
+delivery or overlay navigation. The VM app has no hooked GPU overlay;
+exclusive fullscreen, real-game alt-tab/history routing, and reproduction of
+Steam's historical stale-focus signal remain hardware checks.
+
 ### Remaining Windows work
 
 - validate the independent Steam/OS presentation settings and opt-in
   Notification Center-only delivery on native Windows hardware
-- correct stale game focus after alt-tab for history clicks ([#14](https://github.com/tyvsmith/steam-native-notifications/issues/14));
+- validate the shared Windows host-focus correction during real GPU gameplay
+  and alt-tab history clicks ([#14](https://github.com/tyvsmith/steam-native-notifications/issues/14));
   Linux X11 host detection is tracked separately in [#15](https://github.com/tyvsmith/steam-native-notifications/issues/15)
 - `scenario="urgent"` opt-in for Focus Assist bypass
 - `-Teardown` validation

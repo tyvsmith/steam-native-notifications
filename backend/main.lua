@@ -140,6 +140,10 @@ local function materialize_asset(asset, target)
 end
 
 local function install_helper()
+    if IS_WINDOWS then
+        local path, err = materialize_asset('tools/game-focus.ps1', join(RUNTIME_DIR, 'game-focus.ps1'))
+        if not path then return nil, err end
+    end
     return materialize_asset(HELPER_ASSET, HELPER)
 end
 
@@ -173,6 +177,8 @@ local function windows_ffi()
             uint32_t, void*, const wchar_t*, SNN_STARTUPINFOW*,
             SNN_PROCESS_INFORMATION*);
         int32_t CloseHandle(void*);
+        uint32_t WaitForSingleObject(void*, uint32_t);
+        int32_t TerminateProcess(void*, uint32_t);
         int MultiByteToWideChar(unsigned int, uint32_t, const char*, int,
             wchar_t*, int);
     ]])
@@ -195,7 +201,7 @@ end
 --- Start Windows PowerShell (5.1: pwsh cannot project WinRT) on the
 --- materialized helper with CREATE_NO_WINDOW, detached. False, with the
 --- reason logged, when ffi is missing or the call fails.
-local function spawn_windows_helper(arguments)
+local function spawn_windows_helper(arguments, wait_ms, helper)
     local ffi = windows_ffi()
     if not ffi then
         log_line("error",
@@ -205,7 +211,7 @@ local function spawn_windows_helper(arguments)
     local system_root = os.getenv("SystemRoot") or "C:\\Windows"
     local powershell = join(system_root, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
     local command = '"' .. powershell .. '" -NoProfile -NonInteractive'
-        .. ' -ExecutionPolicy Bypass -File "' .. HELPER .. '" ' .. arguments
+        .. ' -ExecutionPolicy Bypass -File "' .. (helper or HELPER) .. '" ' .. arguments
     local ok, spawned = pcall(function()
         local CREATE_NO_WINDOW = 0x08000000
         local startup = ffi.new("SNN_STARTUPINFOW")
@@ -217,9 +223,14 @@ local function spawn_windows_helper(arguments)
             nil, nil, startup, process) == 0 then
             return false
         end
+        local completed = true
+        if wait_ms then
+            completed = ffi.C.WaitForSingleObject(process.hProcess, wait_ms) == 0
+            if not completed then ffi.C.TerminateProcess(process.hProcess, 1) end
+        end
         ffi.C.CloseHandle(process.hProcess)
         ffi.C.CloseHandle(process.hThread)
-        return true
+        return completed
     end)
     if not ok or not spawned then
         log_line("error", "CreateProcessW failed for the Windows helper"
@@ -555,7 +566,7 @@ end
 ---@return string
 function GameHostFocus(appid)
     local ok, result = pcall(function()
-        return require('game_focus').query(appid, PLATFORM)
+        return require('game_focus').query(appid, PLATFORM, { runtime = RUNTIME_DIR, steam = millennium_steam_dir(), spawn = function(args, wait) return spawn_windows_helper(args, wait, join(RUNTIME_DIR, 'game-focus.ps1')) end })
     end)
     return ok and result or "unknown"
 end

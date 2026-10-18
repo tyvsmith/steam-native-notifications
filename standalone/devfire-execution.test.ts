@@ -68,3 +68,16 @@ test('developer execution never reloads saved settings or installs idle polling'
         expect(invoked).toBe(1); expect(f.context.enabled).toBe(true);
     } finally { f.stop(); }
 });
+
+test('host focus diagnostics normalize raw and quoted three-state replies', async () => {
+    const f = await fixture();
+    try {
+        f.context.surface = () => { throw new Error('diagnostic must not query the surface twice'); };
+        for (const raw of ['game', 'desktop', 'unknown', '"game"', '"desktop"', '"unknown"', '"broken', 'invalid']) {
+            f.context.pending = { GameHostFocus: raw };
+            const result = await f.api.executeDevCommand(f.request({ focus: { appid: 17 } }));
+            const expected = raw.replaceAll('"', '');
+            expect(result.value).toEqual({ appid: 17, host: ['game', 'desktop'].includes(expected) ? expected : 'unknown' });
+        }
+    } finally { f.stop(); }
+});

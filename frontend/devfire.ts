@@ -1,9 +1,17 @@
+import { hostMethod } from './host';
 import { validateDevCommand, type DevEnvelope } from '../shared/dev-command';
 import { findModuleExport } from 'millennium';
 import { dlog, safeJson } from './log';
 import { settings } from './settings';
 import { inspectReplayStash, invokeReplayHandler } from './replay';
 import { currentClickSurface } from './overlay';
+
+function normalizeHostFocus(raw: string): 'game' | 'desktop' | 'unknown' {
+    try {
+        const value = raw.startsWith('"') ? JSON.parse(raw) : raw;
+        return value === 'game' || value === 'desktop' ? value : 'unknown';
+    } catch { return 'unknown'; }
+}
 
 const startedAt = Date.now();
 let generation = 0;
@@ -100,7 +108,8 @@ export async function executeDevCommand(envelope: DevEnvelope, sample = false): 
     assertLiveRequest(envelope, epoch, sample);
     const cmd = validateDevCommand(sample ? { call: 'TestFriendOnline', args: [] } : envelope.command);
     let value: unknown = null;
-    if ('overlay' in cmd) { value = await runOverlayProbe(cmd.overlay); }
+    if ('focus' in cmd) { value = { appid: cmd.focus.appid, host: normalizeHostFocus(await hostMethod('GameHostFocus')(cmd.focus.appid)) }; }
+    else if ('overlay' in cmd) { value = await runOverlayProbe(cmd.overlay); }
     else if ('replay' in cmd) {
         if (cmd.replay.call === 'inspect') value = inspectReplayStash();
         else {

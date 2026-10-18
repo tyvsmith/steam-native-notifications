@@ -25,6 +25,7 @@ export type DevCommand =
 	| { call: string; args: unknown[] }
 	| { server: { type: number; body: unknown } }
 	| { overlay: { call: 'info' } }
+	| { focus: { appid: number } }
 	| { replay: { call: 'inspect' | 'invoke'; name?: string } };
 
 export type FirePlan =
@@ -94,6 +95,10 @@ export function planFire(argv: string[]): FirePlan {
 			message: `queued: server Wishlist appid=${appid}  ${QUEUED}`,
 		};
 	}
+	if (head === '--host-focus') {
+        if (rest.length !== 1 || !isNonNegativeInteger(rest[0]) || Number(rest[0]) < 1 || Number(rest[0]) > 0xffffffff) return { kind: 'error', message: '--host-focus requires one positive uint32 appid' };
+        return { kind: 'queue', command: { focus: { appid: Number(rest[0]) } }, message: 'host focus probe' };
+    }
 	if (head === '--overlay-info') {
 		return { kind: 'queue', command: { overlay: { call: 'info' } }, message: 'queued: overlay info  (result lands in the plugin log)' };
 	}
