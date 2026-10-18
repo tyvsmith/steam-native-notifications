@@ -16,4 +16,5 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run build:standalone
       - run: bun test standalone/windows.test.ts standalone/windows-diagnostics.test.ts shared/settings-policy.test.ts shared/contracts.test.ts
-      - run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/test-windows-notify-action.ps1
+      - shell: powershell
+        run: ./tools/test-windows-notify-action.ps1 -Offline

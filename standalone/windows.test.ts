@@ -29,6 +29,7 @@ test('scheduled task uses interactive limited account and hidden launch', () => 
     expect(source).toContain('-LogonType Interactive -RunLevel Limited');
     expect(source).toContain('-AtLogOn -User $user');
     expect(source).toContain('IgnoreNew');
+    expect(taskSource('bun', 'cli', 'steam', 'config', 'id', false)).toContain('-Disable');
     expect(source).not.toContain('-Password');
     expect(() => taskSource('bad"path', 'cli', 'steam', 'config')).toThrow();
     expect(psQuote("a'b")).toBe("'a''b'");
@@ -45,9 +46,33 @@ test.skipIf(process.platform !== 'win32')('private named pipe serves authenticat
     process.env.LOCALAPPDATA = dir;
     let close: (() => Promise<void>) | undefined;
     try {
-        close = await startControl(async request => ({ operation: request.operation }));
+        let calls = 0;
+        close = await startControl(async request => { calls++; return { operation: request.operation }; });
+        const { createConnection } = await import('node:net');
+        const { controlPath } = await import('./control');
+        await new Promise<void>((resolve, reject) => {
+            const socket = createConnection(controlPath());
+            const timeout = setTimeout(() => { socket.destroy(); reject(new Error('Unauthorized pipe remained open')); }, 2000);
+            socket.on('connect', () => socket.write(JSON.stringify({ id: 'unauthorized', operation: 'status', deadline: Date.now() + 1000, token: '0'.repeat(64) }) + '\n'));
+            socket.on('error', () => {}); socket.on('close', () => { clearTimeout(timeout); resolve(); });
+        });
+        expect(calls).toBe(0);
         expect(await controlCall('status')).toEqual({ operation: 'status' });
         await close(); close = undefined;
         await expect(controlCall('status', undefined, { timeoutMs: 100 })).rejects.toThrow();
     } finally { await close?.(); process.env.LOCALAPPDATA = original; await rm(dir, { recursive: true, force: true }); }
+});
+test.skipIf(process.platform !== 'win32')('kernel lock survives a competing process and releases after termination', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'snn-win-owner-'));
+    const file = join(dir, 'lock');
+    const source = `import { exclusiveFile } from ${JSON.stringify(join(import.meta.dir, 'windows.ts'))}; await exclusiveFile(${JSON.stringify(file)},0); console.log('locked'); setInterval(()=>{},1000);`;
+    const child = Bun.spawn([process.execPath, '-e', source], { stdout: 'pipe', stderr: 'pipe' });
+    try {
+        const reader = child.stdout.getReader();
+        expect(new TextDecoder().decode((await reader.read()).value)).toContain('locked');
+        reader.releaseLock();
+        await expect(exclusiveFile(file, 0)).rejects.toThrow();
+        child.kill(); await child.exited;
+        (await exclusiveFile(file, 0))();
+    } finally { child.kill(); await child.exited; await rm(dir, { recursive: true, force: true }); }
 });

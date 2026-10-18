@@ -1,4 +1,4 @@
-import { readFile, writeFile, unlink, copyFile, rename } from 'node:fs/promises';
+import { readFile, writeFile, unlink, rename } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -10,7 +10,7 @@ import { controlCall } from './control';
 import { exclusiveFile, powershell, privateDirectory, psQuote } from './windows';
 async function atomic(path: string, value: unknown) { const temp = path + '.' + crypto.randomUUID(); await writeFile(temp, JSON.stringify(value)); await rename(temp, path); }
 const TASK = 'Steam Native Notifications-' + createHash('sha256').update(homedir().toLowerCase()).digest('hex').slice(0, 12);
-export function taskSource(bun: string, cli: string, steam: string, config: string, launchId = crypto.randomUUID(), enabled = true): string {
+export function taskSource(bun: string, cli: string, steam: string, config: string, launchId: string = crypto.randomUUID(), enabled = true): string {
     const args = ['"' + cli + '"', 'daemon', '--steam-dir', '"' + steam + '"', '--config', '"' + config + '"'].join(' ');
     if ([bun, cli, steam, config].some(p => /["\r\n\0]/.test(p))) throw new Error('Unsupported runtime path');
     const launchFile = config + '.launch';
@@ -57,12 +57,11 @@ export async function windowsIntegration(command: string, args: string[], p: Pat
         if (command === 'session') { if (!old) throw new Error('Run snn setup first'); await powershell(`Start-ScheduledTask -TaskName ${psQuote(TASK)}`); return { session: 'activated' }; }
         if (command !== 'setup') throw new Error('Unknown integration command');
         const steam = await discoverSteam(p, steamOption ?? old?.steam);
+        if (old && old.steam !== steam) throw new Error('Steam root change refused; teardown first');
         const root = runtimeRoot(), cli = join(root, 'standalone/cli.js');
         if (!await exists(cli)) throw new Error('Install the built Bun package before setup');
         const runtime = join(p.cacheHome, 'steam-native-notifications');
         await privateDirectory(runtime);
-        await copyFile(join(root, 'tools/notify-action.ps1'), join(runtime, 'notify-action.ps1'));
-        await writeFile(join(runtime, 'steam-dir'), steam);
         if (!await exists(p.config)) await writeFile(p.config, JSON.stringify(DEFAULTS, null, 2));
         const marker = join(steam, '.cef-enable-remote-debugging');
         if (!await exists(marker)) await writeFile(marker, '', { flag: 'wx' });
@@ -74,7 +73,7 @@ export async function windowsIntegration(command: string, args: string[], p: Pat
             await powershell(taskSource(process.execPath, cli, steam, p.config, launchId, enabled));
             transaction.after = await powershell(`Export-ScheduledTask -TaskName ${psQuote(TASK)}`);
             await atomic(journal, transaction);
-            await powershell(`& ${psQuote(join(runtime, 'notify-action.ps1'))} -Setup; ${!old || running ? `Start-ScheduledTask -TaskName ${psQuote(TASK)}` : ''}`);
+            if (!old || running) await powershell(`Start-ScheduledTask -TaskName ${psQuote(TASK)}`);
             const deadline = Date.now() + 10000; let ready = !!old && !running;
             while (!ready && Date.now() < deadline) { try { const status = await controlCall('status', undefined, { timeoutMs: 500 }); const launched = JSON.parse(await readFile(p.config + '.launch', 'utf8')); if (launched.id === launchId && Number.isSafeInteger(launched.pid) && launched.pid > 0 && status.pid === launched.pid && status.build?.buildId === BUILD_IDENTITY.buildId) { ready = true; break; } } catch {} await Bun.sleep(200); }
             if (!ready) throw new Error('Windows daemon did not become ready');
