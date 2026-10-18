@@ -8,10 +8,12 @@ export function setupPaths(env: NodeJS.ProcessEnv = process.env, home = homedir(
         const value = env[key];
         return value && isAbsolute(value) ? value : join(home, fallback);
     };
-    const configHome = xdg('XDG_CONFIG_HOME', '.config');
-    const stateHome = xdg('XDG_STATE_HOME', '.local/state');
+    const windows = process.platform === 'win32';
+    const local = env.LOCALAPPDATA || join(home, 'AppData/Local');
+    const configHome = windows ? local : xdg('XDG_CONFIG_HOME', '.config');
+    const stateHome = windows ? local : xdg('XDG_STATE_HOME', '.local/state');
     return { home, configHome, stateHome, dataHome: xdg('XDG_DATA_HOME', '.local/share'),
-        cacheHome: xdg('XDG_CACHE_HOME', '.cache'),
+        cacheHome: windows ? join(local, 'steam-native-notifications/standalone-cache') : xdg('XDG_CACHE_HOME', '.cache'),
         config: join(configHome, 'steam-native-notifications/standalone.json'),
         state: join(stateHome, 'steam-native-notifications/standalone-install.json'),
         unit: join(configHome, 'systemd/user', UNIT),
@@ -19,6 +21,13 @@ export function setupPaths(env: NodeJS.ProcessEnv = process.env, home = homedir(
 }
 export async function exists(path: string) { try { await lstat(path); return true; } catch (error: any) { if (error.code === 'ENOENT') return false; throw error; } }
 export async function discoverSteam(paths: Paths, explicit?: string): Promise<string> {
+    if (process.platform === 'win32') {
+        const { powershell } = await import('./windows');
+        const candidate = explicit ?? await powershell("(Get-ItemProperty 'HKCU:\\Software\\Valve\\Steam' -ErrorAction Stop).SteamPath");
+        const root = await realpath(resolve(candidate));
+        if (!await exists(join(root, 'steam.exe'))) throw new Error('Steam.exe not found; select --steam-dir DIR');
+        return root;
+    }
     const candidates = explicit ? [resolve(explicit)] : [join(paths.home, '.steam/steam'), join(paths.home, '.steam/root'),
         join(paths.dataHome, 'Steam'), join(paths.home, '.local/share/Steam'), join(paths.home, '.steam/debian-installation')];
     const roots = new Set<string>();

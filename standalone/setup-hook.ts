@@ -4,6 +4,8 @@ import { runtimeRoot } from './runtime-paths';
 
 /** Local dependency lifecycle hooks must never change desktop integration. */
 export async function setupHookAllowed(cli = join(runtimeRoot(), 'standalone/cli.js')): Promise<boolean> {
+    // Bun's Windows executable shim does not resolve to the package CLI. Require explicit setup.
+    if (process.platform === 'win32') return false;
     const child = Bun.spawn([process.execPath, 'pm', 'bin', '--global'], { stdout: 'pipe', stderr: 'pipe' });
     const timer = setTimeout(() => child.kill(), 5000);
     try {

@@ -4,7 +4,7 @@ import { preferencePatch, preferenceDefaults } from '../shared/settings-policy';
 import { runtimeRoot } from './runtime-paths';
 import { configStore, type ConfigStore } from './config-store';
 import { rotatingLog } from './log';
-import { mkdir, readFile, readdir, realpath } from 'node:fs/promises';
+import { mkdir, readFile, readdir, realpath, copyFile, writeFile, unlink } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { DEFAULTS, normalizeSettings } from '../shared/settings';
@@ -18,6 +18,7 @@ export function requestPayload(payload: string): { id: number; method: string; a
     return request;
 }
 export class Host {
+    readonly platform = process.platform === 'win32' ? 'windows' : 'linux';
     private children = new Set<ReturnType<typeof spawn>>();
     private root = runtimeRoot();
     readonly store: ConfigStore;
@@ -30,8 +31,9 @@ export class Host {
     constructor(readonly runtime: string, readonly config: string, readonly steam: string, logDirectory = runtime) { this.store = configStore(config); this.logPath = join(logDirectory, 'standalone.log'); this.writeLog = rotatingLog(this.logPath); }
     async initialize(): Promise<void> {
         await mkdir(this.runtime, { recursive: true, mode: 0o700 });
+        if (this.platform === 'windows') { const { privateDirectory, powershell, psQuote } = await import('./windows'); await privateDirectory(this.runtime); await copyFile(join(this.root, 'tools/notify-action.ps1'), join(this.runtime, 'notify-action.ps1')); await writeFile(join(this.runtime, 'steam-dir'), this.steam); await powershell(`& ${psQuote(join(this.runtime, 'notify-action.ps1'))} -Setup`); }
         // Separate log: a standalone daemon must not truncate Millennium's evidence.
-        await this.log('standalone: backend started (experimental linux RT3)');
+        await this.log(`standalone: backend started (experimental ${this.platform})`);
     }
     async log(line: string): Promise<void> { await this.writeLog(line); }
     async readiness(state: string): Promise<void> {
@@ -52,16 +54,16 @@ export class Host {
                     hook: this.live.hook, build: BUILD_IDENTITY });
             case 'PanelPatch':
                 if (args.length !== 1) break;
-                return JSON.stringify(await this.store.update(preferencePatch(args[0], (await this.store.read()).values, 'linux'), Date.now() + 4000));
+                return JSON.stringify(await this.store.update(preferencePatch(args[0], (await this.store.read()).values, this.platform), Date.now() + 4000));
             case 'PanelReset':
                 if (args.length) break;
-                return JSON.stringify(await this.store.update(preferenceDefaults('linux'), Date.now() + 4000));
+                return JSON.stringify(await this.store.update(preferenceDefaults(this.platform), Date.now() + 4000));
             case 'PanelSample':
                 if (args.length) break;
                 return JSON.stringify(await controlHandler(this)({ id: crypto.randomUUID(), operation: 'sample', deadline: Date.now() + 4000 }));
             case 'FrontendState': if (args.length) break; await this.refreshFrontend?.(); return 'ok';
             case 'Health': if (args.length) break; return 'ok';
-            case 'Platform': if (args.length) break; return 'linux';
+            case 'Platform': if (args.length) break; return this.platform;
             case 'Log': if (args.length !== 1 || typeof args[0] !== 'string') break; await this.log(args[0]); return 'ok';
             case 'Identity': {
                 if (args.length) break;
@@ -70,14 +72,28 @@ export class Host {
                     return JSON.stringify({ steamid64: loginUser(text) });
                 } catch { return '{}'; }
             }
-            case 'FocusSteam': return 'unsupported'; // Linux focus is performed inside Steam's existing dispatcher.
+            case 'FocusSteam':
+                if (this.platform !== 'windows' || args.length !== 1 || !['main', 'chat'].includes(String(args[0]))) return 'unsupported';
+                { const { powershell, psQuote } = await import('./windows'); await powershell(`& ${psQuote(join(this.runtime, 'notify-action.ps1'))} -FocusKind ${psQuote(String(args[0]))}`); return 'ok'; } // Linux focus is performed inside Steam's existing dispatcher.
             case 'GameHostFocus': {
                 const appid = args[0];
                 if (args.length !== 1 || typeof appid !== 'number' || !Number.isInteger(appid) || appid <= 0 || appid > 0xffffffff) return 'unknown';
-                return this.focus(appid);
+                return this.platform === 'windows' ? 'unknown' : this.focus(appid);
             }
             case 'Notify': {
                 if (args.length !== 6 || args.some(value => typeof value !== 'string' || value.length > 16384)) break;
+                if (this.platform === 'windows') {
+                    if (this.children.size >= 64) return 'unsupported';
+                    const id = crypto.randomUUID(); const file = join(this.runtime, id + '.notify');
+                    await writeFile(file, JSON.stringify({ title: args[0], body: args[1], image: args[2], route: args[3], ingame: args[4], suppressPopup: args[5] === 'true' }), { flag: 'wx' });
+                    return new Promise(resolveResult => {
+                        const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', join(this.runtime, 'notify-action.ps1'), '-Id', id], { windowsHide: true, stdio: 'ignore' });
+                        this.children.add(child);
+                        child.once('error', () => { this.children.delete(child); void unlink(file).catch(() => {}); resolveResult('unsupported'); });
+                        child.once('spawn', () => resolveResult('ok'));
+                        child.once('exit', () => { this.children.delete(child); void unlink(file).catch(() => {}); });
+                    });
+                }
                 if (!Bun.which('notify-send', { PATH: process.env.PATH }) || !Bun.which('gdbus', { PATH: process.env.PATH }) || this.children.size >= 64) return 'unsupported';
                 const strings = args as string[];
                 return new Promise(resolveResult => {

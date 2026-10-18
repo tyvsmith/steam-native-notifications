@@ -28,7 +28,7 @@ export async function configCommand(args: string[], select = explicitConfigStore
     if (path) {
         const store = await select(path);
         const result = command === 'get' ? await store.read() : command === 'reset'
-            ? await store.update(preferenceDefaults('linux')) : await store.update(patch);
+            ? await store.update(preferenceDefaults(process.platform === 'win32' ? 'windows' : 'linux')) : await store.update(patch);
         if (result.error) throw new Error(`${store.path}: ${result.error}; repair the file before writing`);
         return { path: store.path, ...result, values: key && command === 'get' ? { [key]: result.values[key as SettingKey] } : result.values };
     }

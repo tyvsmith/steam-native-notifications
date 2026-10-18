@@ -6,6 +6,11 @@ export function ownsDaemonLock(release: (() => Promise<void>) | undefined): bool
 /** Kernel lock survives neither exit nor crash; never delete the lock inode.
  * O_CLOEXEC prevents notification helpers inheriting daemon ownership. */
 export async function acquireDaemonLock(runtime: string): Promise<() => Promise<void>> {
+    if (process.platform === 'win32') {
+        const close = await (await import('./windows')).exclusiveFile(join(runtime, '.daemon.lock'), 0);
+        const release = async () => { if (daemonLocks.delete(release)) close(); };
+        daemonLocks.add(release); return release;
+    }
     const libc = dlopen('libc.so.6', { flock: { args: [FFIType.i32, FFIType.i32], returns: FFIType.i32 } });
     const fd = openSync(join(runtime, '.standalone-daemon.flock'), constants.O_CREAT | constants.O_RDWR, 0o600);
     if (libc.symbols.flock(fd, 6) !== 0) {
@@ -20,6 +25,7 @@ export async function acquireDaemonLock(runtime: string): Promise<() => Promise<
 
 /** Bounded cross-process settings lock, released by the kernel after a crash. */
 export async function acquireConfigLock(path: string, timeoutMs = 2500): Promise<() => void> {
+    if (process.platform === 'win32') return (await import('./windows')).exclusiveFile(path + '.lock', timeoutMs);
     const libc = dlopen('libc.so.6', { flock: { args: [FFIType.i32, FFIType.i32], returns: FFIType.i32 } });
     let fd: number;
     try { fd = openSync(path + '.lock', constants.O_CREAT | constants.O_RDWR | constants.O_NOFOLLOW | 0x80000, 0o600); }
