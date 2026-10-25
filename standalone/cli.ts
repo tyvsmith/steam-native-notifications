@@ -38,15 +38,6 @@ Exit: 0 success, 1 failure. Bun owns package installation and updates. Settings 
 Run teardown before removing the Bun package. Steam is never launched or stopped.`);
         return;
     }
-    assertSupportedBun();
-    if (command === 'daemon') {
-        process.argv = [process.argv[0]!, process.argv[1]!, ...args];
-        return daemonMain();
-    }
-    if (command === 'config') {
-        printResult(await configCommand(args, undefined, options.host), options.json);
-        return;
-    }
     if (['setup', 'teardown', 'recover', 'session'].includes(command)) {
         if (options.hostExplicit && options.host !== 'standalone') throw new Error('Integration setup targets standalone only');
         const hook = ['setup', 'teardown'].includes(command) && args.includes('--hook');
@@ -55,11 +46,21 @@ Run teardown before removing the Bun package. Steam is never launched or stopped
             return;
         }
         try {
+            assertSupportedBun();
             printResult(await integrationCommand(command as 'setup' | 'teardown' | 'recover' | 'session', hook ? args.filter(arg => arg !== '--hook') : args), options.json);
         } catch (error) {
             if (!hook || command !== 'setup') throw error;
             console.error(`Package installed; desktop setup is pending: ${error instanceof Error ? error.message : error}. Run snn setup from your graphical session.`);
         }
+        return;
+    }
+    assertSupportedBun();
+    if (command === 'daemon') {
+        process.argv = [process.argv[0]!, process.argv[1]!, ...args];
+        return daemonMain();
+    }
+    if (command === 'config') {
+        printResult(await configCommand(args, undefined, options.host), options.json);
         return;
     }
     return runClientCommand(options);
