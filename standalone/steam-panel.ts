@@ -60,9 +60,43 @@ export function createSteamPanel(React: typeof import('react'), controls: Return
         });
     };
 }
+function reportPanel(state: string): void {
+    (globalThis as any).__snnPanelState = state;
+    void ffi<[string], string>('Log')(`settings-panel: ${state}`).catch(() => {});
+}
+
+/** Native App.GetServicesInitialized follows Steam's awaited startup services.
+ * Requiring settings factories earlier can initialize their store dependencies.
+ */
 export function startSteamPanel(): () => void {
+    let settled = false, attempts = 0;
+    let stop: (() => void) | undefined;
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const clear = () => { if (timer !== undefined) { clearInterval(timer); timer = undefined; } };
+    const attempt = () => {
+        if (settled) return;
+        try {
+            if ((globalThis as any).App?.GetServicesInitialized?.() !== true) return;
+            settled = true; clear();
+            stop = installSteamPanel();
+        } catch { settled = true; clear(); reportPanel('unavailable'); }
+    };
+    attempt();
+    if (!settled) {
+        reportPanel('waiting-for-steam');
+        timer = setInterval(() => {
+            attempt();
+            if (!settled && ++attempts >= 240) {
+                settled = true; clear(); reportPanel('unavailable-restart-steam');
+            }
+        }, 500);
+    }
+    return () => { settled = true; clear(); stop?.(); };
+}
+
+function installSteamPanel(): () => void {
     const root = globalThis as any;
-    const report = (state: string) => { root.__snnPanelState = state; void ffi<[string], string>('Log')(`settings-panel: ${state}`).catch(() => {}); };
+    const report = reportPanel;
     try {
         let requireModule: any;
         const chunks = root.webpackChunksteamui;
