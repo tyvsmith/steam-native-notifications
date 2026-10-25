@@ -3,7 +3,7 @@ import { runtimeAsset } from './runtime-paths';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { BUILD_IDENTITY } from '../shared/host';
-import { validateDevCommand } from '../shared/dev-command';
+import { sampleCommand, validateDevCommand } from '../shared/dev-command';
 import type { Host } from './host';
 import type { ControlRequest } from './control';
 export function controlHandler(host: Host) {
@@ -27,7 +27,7 @@ export function controlHandler(host: Host) {
             case 'sample': case 'dev.fire': {
                 await host.refreshFrontend?.();
                 const sample = request.operation === 'sample';
-                const command = sample ? { call: 'TestFriendOnline', args: [] } : validateDevCommand(request.payload);
+                const command = sample ? sampleCommand() : validateDevCommand(request.payload);
                 if (!sample && !(await host.store.read()).values.devFire) throw new Error('Developer commands are disabled');
                 if (host.live.state !== 'ready' || !host.frontendCommand) throw new Error('Frontend unavailable; start Steam and the standalone daemon');
                 if (host.live.frontendBuild?.buildId !== BUILD_IDENTITY.buildId) throw new Error('Frontend build is stale; restart Steam to load the installed bundle');

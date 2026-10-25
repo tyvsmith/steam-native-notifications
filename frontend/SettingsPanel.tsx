@@ -1,4 +1,5 @@
 import { preferenceDefaults, preferencePatch } from '../shared/settings-policy';
+import { sampleCommand } from '../shared/dev-command';
 import { sampleMessage } from '../shared/command-result';
 import * as React from 'react';
 import { useSettingsActions } from '../shared/settings-actions';
@@ -36,7 +37,7 @@ export function SettingsPanel() {
         status: !ready ? 'Settings unavailable. Reopen this page to retry.' : '',
         error, message: busy ? 'Saving…' : message,
         onPatch: patch => { void run(() => save(preferencePatch(patch, values, platform)), saved); },
-        onSample: () => { void run(() => executeDevCommand({ id: crypto.randomUUID(), createdAt: Date.now(), deadline: Date.now() + 7000, command: { call: 'TestFriendOnline', args: [] } }, true), sampleMessage); },
+        onSample: () => { void run(() => executeDevCommand({ id: crypto.randomUUID(), createdAt: Date.now(), deadline: Date.now() + 7000, command: sampleCommand() }, true), sampleMessage); },
         onReset: () => { void run(() => save(preferenceDefaults(platform)), next => { setValues(next); return 'Defaults restored.'; }); },
     });
 }
