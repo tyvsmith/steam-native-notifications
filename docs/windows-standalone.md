@@ -19,19 +19,21 @@ if ((Get-FileHash .\steam-native-notifications.tgz -Algorithm SHA256).Hash -ne $
 }
 bun add --global --force --trust .\steam-native-notifications.tgz
 if ($LASTEXITCODE -ne 0) { throw 'Package installation failed' }
-snn setup
+$snn = Join-Path ((bun pm bin --global).Trim()) 'snn.exe'
+& $snn setup
 ```
 
 Run setup as your normal Windows user in the logged-in desktop. Windows global
 Bun shims are not yet verified by the install-hook ownership check, so setup is
-explicit. Use `snn setup --steam-dir 'D:\Steam'` for a nonstandard Steam root.
+explicit. The commands below use Bun’s global binary directory directly because
+winget installations may leave it off PATH. Use `& $snn setup --steam-dir 'D:\Steam'` for a nonstandard Steam root.
 Restart Steam after its debugging marker is created. Configure delivery in
 Steam Settings → Notifications → Steam Native Notifications.
 
 ```powershell
-snn --host standalone doctor --json
-snn --host standalone sample
-snn teardown
+& $snn --host standalone doctor --json
+& $snn --host standalone sample
+& $snn teardown
 bun remove --global @tyvsmith/steam-native-notifications
 ```
 
@@ -99,3 +101,20 @@ click/focus behavior, gameplay and sign-in recovery remain validation gates.
 Setup interruption between registering a task and recording its returned XML
 can require manual inspection: recovery refuses an unrecognized task rather
 than overwrite it.
+
+## Fix validation (2026-10-25)
+
+Windows 11 VM, Bun 1.4.3, package build `eb1efdf25372`:
+
+- reproduced the previous ACL failure with `SeSecurityPrivilege` removed from the process token; repeated directory protection and its user/SYSTEM-only ACL assertions passed with the replacement
+- repeated the isolated ACL regression in three processes, then exercised the 21-test Windows suite
+- installed the tarball, repeated setup, ran teardown/setup and confirmed matching installed, daemon and frontend identities with hook/panel/control ready
+- verified the sign-in task used headless conhost and its daemon processes had no visible window; rebooted the guest and confirmed automatic startup and ready Steam reattachment
+- checked the shared panel's sample prerequisite and execution feedback in Steam; observed FriendOnline capture and native delivery dispatch
+- removed the temporary validation account and tasks; preserved notification preferences
+
+The VM has UAC disabled. Restricted-token checks establish the missing-privilege
+regression; they do not replace a full interactive installation under a standard
+account with UAC enabled. One combined test run crashed inside Bun 1.4.3;
+isolated ACL repeats and the subsequent combined run passed. The crash cause
+remains unresolved. Human clicks and gameplay were not exercised in this pass.

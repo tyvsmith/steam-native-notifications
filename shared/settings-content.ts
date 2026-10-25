@@ -62,6 +62,7 @@ export function settingsContent(React: typeof import('react'), controls: Control
             delivery(true), delivery(false),
             h(controls.Description, {}, 'System notifications use your operating system’s notification service, including Do Not Disturb and notification history where supported.'),
             ...visibleSettings(values ?? {} as Settings, props.platform).filter(key => key !== 'integrationEnabled' && !deliveryKeys.includes(key)).map(row)),
+        h(controls.Description, {}, 'The test uses Steam’s friend-online toast. Enable “When a friend comes online → Show toast” in Steam Settings → Notifications. System delivery also follows your OS notification settings.'),
         h('div', { className: controls.ActionSection },
             h(controls.Button, { disabled: props.sampleDisabled, onClick: props.onSample }, 'Send test notification'),
             h(controls.Button, { disabled: props.disabled, onClick: (event: { currentTarget: HTMLElement }) => confirm(false, event) }, 'Reset notification settings'),

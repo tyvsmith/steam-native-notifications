@@ -25,7 +25,7 @@ with a SHA-256 checksum. Standalone Windows x64 is available as a
 ## Configure notifications
 
 - **Standalone:** Steam Settings → Notifications → Steam Native Notifications
-- **Millennium:** Steam Settings → Millennium → Plugins → Steam Native Notifications
+- **Millennium:** Steam menu → Millennium → Plugins → ▾ → Configure (Millennium 3.6.2)
 
 | Context | Default | Available choices |
 | --- | --- | --- |
@@ -33,7 +33,7 @@ with a SHA-256 checksum. Standalone Windows x64 is available as a
 | On desktop | System only | Steam only, System only, Steam + System, Off |
 
 Turn off **Enable Steam Native Notifications** to restore Steam's normal behavior
-without losing your preferences. Use **Send test notification** to check delivery.
+without losing your preferences. Use **Send test notification** to check delivery; enable Steam’s **When a friend comes online → Show toast** setting first.
 
 The context follows Steam's toast surface; Steam can still use its game overlay
 after you alt-tab. Notifications must be enabled in Steam for the integration to

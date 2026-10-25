@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { authenticateControl, authenticatedControl } from './control';
 import { taskSource } from './windows-installer';
-import { psQuote, exclusiveFile } from './windows';
+import { psQuote, exclusiveFile, privateDirectory, powershell } from './windows';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -29,6 +29,8 @@ test('scheduled task uses interactive limited account and hidden launch', () => 
     expect(source).toContain('-LogonType Interactive -RunLevel Limited');
     expect(source).toContain('-AtLogOn -User $user');
     expect(source).toContain('IgnoreNew');
+    expect(source).toContain("Join-Path $env:SystemRoot 'System32\\conhost.exe'");
+    expect(source).toContain('--headless');
     expect(taskSource('bun', 'cli', 'steam', 'config', 'id', false)).toContain('-Disable');
     expect(source).not.toContain('-Password');
     expect(() => taskSource('bad"path', 'cli', 'steam', 'config')).toThrow();
@@ -88,3 +90,19 @@ test.skipIf(process.platform !== 'win32')('kernel lock survives a competing proc
         (await exclusiveFile(file, 0))();
     } finally { child.kill(); await child.exited; await rm(dir, { recursive: true, force: true }); }
 });
+
+test.skipIf(process.platform !== 'win32')('private directory protection is repeatable without security privileges', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'snn-win-acl-'));
+    try {
+        for (let i = 0; i < 3; i++) await privateDirectory(dir);
+        const acl = JSON.parse(await powershell(`$acl=Get-Acl -LiteralPath ${psQuote(dir)}; @{protected=$acl.AreAccessRulesProtected; rules=@($acl.Access | ForEach-Object { @{sid=$_.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value; rights=[string]$_.FileSystemRights; inherited=$_.IsInherited; type=[string]$_.AccessControlType} }); user=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value}|ConvertTo-Json -Depth 4`));
+        expect(acl.protected).toBe(true);
+        expect(acl.rules).toHaveLength(2);
+        expect(acl.rules.map((r: any) => r.sid).sort()).toEqual([acl.user, 'S-1-5-18'].sort());
+        for (const rule of acl.rules) {
+            expect(rule.rights).toBe('FullControl');
+            expect(rule.inherited).toBe(false);
+            expect(rule.type).toBe('Allow');
+        }
+    } finally { await rm(dir, { recursive: true, force: true }); }
+}, 60000);
