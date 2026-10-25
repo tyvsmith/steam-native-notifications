@@ -8,14 +8,14 @@ async function fixture() {
         './log': "export const dlog = () => {}; export const safeJson = JSON.stringify;",
         './overlay': "export const currentClickSurface = () => globalThis.surface();",
         './replay': "export const inspectReplayStash = () => {}; export const invokeReplayHandler = () => { globalThis.invoked++; return true; };",
-        'millennium': "export const findModuleExport = () => undefined;",
+        'millennium': "export const findModuleExport = predicate => predicate(globalThis.steamPreferences) ? globalThis.steamPreferences : undefined;",
     };
     const built = await Bun.build({ entrypoints: [resolve(import.meta.dir, '../frontend/devfire.ts')], target: 'browser', format: 'cjs', plugins: [{ name: 'fixture-seams', setup(build) {
         build.onResolve({ filter: /^(\.\/(host|settings|log|overlay|replay)|millennium)$/ }, args => ({ path: args.path, namespace: 'fixture' }));
         build.onLoad({ filter: /.*/, namespace: 'fixture' }, args => ({ contents: seams[args.path]!, loader: 'js' }));
     } }] });
     if (!built.success) throw new Error(built.logs.join('\n'));
-    const context: any = createContext({ Date, setTimeout, setInterval: (fn: any) => { context.tick = fn; return 1; }, clearInterval: () => {}, invoked: 0, SteamClient: {}, module: { exports: {} }, surface: async () => ({ focusedAppId: 0 }) }); context.window = context;
+    const context: any = createContext({ Date, setTimeout, setInterval: (fn: any) => { context.tick = fn; return 1; }, clearInterval: () => {}, invoked: 0, SteamClient: {}, steamPreferences: { GetClientSetting() {}, clientSettings: {}, friendSettings: { bNotifications_ShowOnline: true } }, module: { exports: {} }, surface: async () => ({ focusedAppId: 0 }) }); context.window = context;
     runInContext(await built.outputs[0]!.text(), context); const api = context.module.exports;
     const receipts: any[] = []; const stop = api.startDevControl();
     const request = (command: any, ms = 1000) => ({ id: 'fixture', createdAt: Date.now(), deadline: Date.now() + ms, command });
@@ -79,5 +79,27 @@ test('host focus diagnostics normalize raw and quoted three-state replies', asyn
             const expected = raw.replaceAll('"', '');
             expect(result.value).toEqual({ appid: 17, host: ['game', 'desktop'].includes(expected) ? expected : 'unknown' });
         }
+    } finally { f.stop(); }
+});
+
+test('sample checks current Steam preference before firing and refuses unknown settings', async () => {
+    const f = await fixture(); let invoked = 0;
+    f.context.NotificationStore = { TestFriendOnline: () => { invoked++; } };
+    const sample = () => f.context.__snnDevControl(f.request({ call: 'TestFriendOnline', args: [] }), true);
+    try {
+        f.context.steamPreferences.friendSettings.bNotifications_ShowOnline = false;
+        const disabled = await sample();
+        expect(disabled.ok).toBe(false); expect(disabled.error).toContain('Show toast'); expect(invoked).toBe(0);
+        f.context.steamPreferences.friendSettings.bNotifications_ShowOnline = true;
+        expect((await sample()).value.stage).toBe('executed'); expect(invoked).toBe(1);
+        f.context.steamPreferences.friendSettings.bNotifications_ShowOnline = false;
+        expect((await sample()).ok).toBe(false); expect(invoked).toBe(1);
+        delete f.context.steamPreferences.friendSettings.bNotifications_ShowOnline;
+        expect((await sample()).error).toContain('unavailable'); expect(invoked).toBe(1);
+        f.context.steamPreferences = undefined;
+        expect((await sample()).error).toContain('unavailable'); expect(invoked).toBe(1);
+        // Developer requests still exercise Steam's own gates directly.
+        expect((await f.context.__snnDevControl(f.request({ call: 'TestFriendOnline', args: [] }))).value.stage).toBe('executed');
+        expect(invoked).toBe(2);
     } finally { f.stop(); }
 });

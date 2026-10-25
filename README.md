@@ -33,7 +33,7 @@ with a SHA-256 checksum. Standalone Windows x64 is available as a
 | On desktop | System only | Steam only, System only, Steam + System, Off |
 
 Turn off **Enable Steam Native Notifications** to restore Steam's normal behavior
-without losing your preferences. Use **Send test notification** to check delivery; enable Steam’s **When a friend comes online → Show toast** setting first.
+without losing your preferences. Use **Send test notification** to check delivery.
 
 The context follows Steam's toast surface; Steam can still use its game overlay
 after you alt-tab. Notifications must be enabled in Steam for the integration to

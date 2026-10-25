@@ -118,3 +118,11 @@ regression; they do not replace a full interactive installation under a standard
 account with UAC enabled. One combined test run crashed inside Bun 1.4.3;
 isolated ACL repeats and the subsequent combined run passed. The crash cause
 remains unresolved. Human clicks and gameplay were not exercised in this pass.
+
+### Sample preflight
+
+Build `d33f749914d6` checks Steam’s live friend-online toast preference on each
+sample request. Windows panel validation toggled it off, on and off again:
+disabled requests showed an actionable error without calling the test method;
+the enabled request called it once. The original preference was restored.
+The permanent explanatory paragraph is removed from both host panels.

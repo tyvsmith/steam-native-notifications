@@ -106,6 +106,13 @@ function assertLiveRequest(envelope: DevEnvelope, epoch: number, sample: boolean
 export async function executeDevCommand(envelope: DevEnvelope, sample = false): Promise<unknown> {
     const epoch = generation;
     assertLiveRequest(envelope, epoch, sample);
+    if (sample) {
+        // Steam's FriendOnline showToast gate reads this live store (steamui/sp.js).
+        const preferences = findModuleExport((value: any) => typeof value?.GetClientSetting === 'function' && !!value?.friendSettings && !!value?.clientSettings);
+        const enabled = preferences?.friendSettings?.bNotifications_ShowOnline;
+        if (typeof enabled !== 'boolean') throw new Error('Steam notification settings are unavailable. Reopen Notifications and try again.');
+        if (!enabled) throw new Error('Enable “When a friend comes online → Show toast” in Steam Notifications to send a test.');
+    }
     const cmd = validateDevCommand(sample ? { call: 'TestFriendOnline', args: [] } : envelope.command);
     let value: unknown = null;
     if ('focus' in cmd) { value = { appid: cmd.focus.appid, host: normalizeHostFocus(await hostMethod('GameHostFocus')(cmd.focus.appid)) }; }

@@ -4,7 +4,6 @@ test('all editors distinguish execution, uncertainty, queue, refusal and unmeasu
     const result = { stage: 'executed' };
     expect(sampleMessage(result)).toBe(sampleMessage({ ok: true, value: result }));
     expect(sampleMessage(result)).toContain('visibility have not been confirmed');
-    expect(sampleMessage(result)).toContain('Show toast');
     expect(sampleMessage(result)).not.toContain('completed');
     expect(sampleMessage({ stage: 'unconfirmed' })).toContain('execution is unconfirmed');
     expect(sampleMessage({ stage: 'queued' })).toContain('has not confirmed execution');

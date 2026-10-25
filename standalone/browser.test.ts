@@ -12,6 +12,11 @@ async function fixture() {
         g_PopupManager: { AddPopupCreatedCallback(callback: any) { hooks.push(callback); return { Unregister() {} }; }, AddPopupDestroyedCallback() { return { Unregister() {} }; } },
         SteamClient: { URL: { RegisterForRunSteamURL() { registrations++; return { unregister() {} }; }, GetSteamURLList: async () => ({}) }, System: { UI: { RegisterForOverlayGameWindowFocusChanged() {} } } },
     });
+    const preferences = { GetClientSetting() {}, clientSettings: {}, friendSettings: { bNotifications_ShowOnline: true } };
+    const requireModule: any = () => ({ preferences });
+    requireModule.m = { settings: function GetClientSetting() {} };
+    context.webpackChunksteamui = [];
+    context.webpackChunksteamui.push = (chunk: any) => { chunk[2](requireModule); return 1; };
     context.window = context;
     context.__snnHost = (payload: string) => {
         const call = JSON.parse(payload); calls.push(call);

@@ -41,9 +41,7 @@ snn doctor
 ```
 
 Open **Steam Settings → Notifications → Steam Native Notifications** and select
-**Send test notification**. Enable **When a friend comes online → Show toast**
-in Steam’s notification settings first; Steam drops the sample when it is off.
-A healthy status alone does not prove a visible banner;
+**Send test notification**. A healthy status alone does not prove a visible banner;
 your OS may send notifications to history when Do Not Disturb is enabled.
 
 Setup enables Steam's local CEF debugging endpoint to load the integration.
@@ -96,8 +94,7 @@ uses the built-in Windows PowerShell 5.1, not PowerShell 7.
 3. Fully exit and reopen Steam, then enable **Steam Native Notifications** under
    Millennium → Plugins. Restart Steam again if enabling it does not load the panel
 4. Open **Steam menu → Millennium → Plugins → ▾ → Configure** (Millennium 3.6.2),
-   enable Steam’s **When a friend comes online → Show toast**, then select
-   **Send test notification**
+   then select **Send test notification**
 
 ### Update or remove
 
