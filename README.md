@@ -25,7 +25,7 @@ with a SHA-256 checksum. Standalone Windows x64 is available as a
 ## Configure notifications
 
 - **Standalone:** Steam Settings → Notifications → Steam Native Notifications
-- **Millennium:** Steam Settings → Millennium → Plugins → Steam Native Notifications
+- **Millennium:** Steam menu → Millennium → Plugins → ▾ → Configure (Millennium 3.6.2)
 
 | Context | Default | Available choices |
 | --- | --- | --- |

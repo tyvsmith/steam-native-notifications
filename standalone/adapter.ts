@@ -63,7 +63,7 @@ export function subscribePluginConfig(listener: (key: string, value: unknown) =>
 }
 
 /** Steam's current webpack runtime hides require.c. Resolve only factories with
- * the known store signatures used by our two frontend callers, then inspect exports.
+ * the known store signatures used by our frontend callers, then inspect exports.
  * Unlike the full SDK, this never eagerly requires the entire module table.
  */
 export function findModuleExport(predicate: (value: any) => boolean): any {
@@ -73,7 +73,7 @@ export function findModuleExport(predicate: (value: any) => boolean): any {
     chunks.push([[`snn-${Date.now()}-${Math.random()}`], {}, (require: any) => { requireModule = require; }]);
     if (typeof requireModule !== 'function') return undefined;
     const source = String(predicate);
-    const signatures = ['OnGameOverlayActivateRequested', 'OnServerNotification'].filter(name => source.includes(name));
+    const signatures = ['OnGameOverlayActivateRequested', 'OnServerNotification', 'GetClientSetting'].filter(name => source.includes(name));
     if (!signatures.length) return undefined;
     for (const [id, factory] of Object.entries(requireModule.m ?? {})) {
         if (!signatures.some(name => String(factory).includes(name))) continue;

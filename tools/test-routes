@@ -5,6 +5,7 @@
 // verified behavior of routes.ts (docs/steam-routing.md carries the citations),
 // so a routing change must show up here as a changed literal, reviewed as such.
 
+import { sampleCommand } from '../shared/dev-command';
 import { loadFrontendModules } from './load-frontend.mjs';
 
 const mods = loadFrontendModules(['routes', 'urlstore', 'identity', 'notification', 'generated/notifications']);
@@ -92,6 +93,9 @@ is('serverRoute 6 MajorSale opens the body link',
 	server(6, { link: 'https://store.steampowered.com/sale/example/' }),
 	'steam://openurl/https://store.steampowered.com/sale/example/');
 is('serverRoute 6 without a link routes nothing', server(6), null);
+const sample = sampleCommand().server;
+is('branded General sample opens Steam', server(sample.type, sample.body), 'steam://open/main');
+
 is('serverRoute 10 General opens the body link',
 	server(10, { link: 'https://store.steampowered.com/news/' }),
 	'steam://openurl/https://store.steampowered.com/news/');

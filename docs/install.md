@@ -93,7 +93,8 @@ uses the built-in Windows PowerShell 5.1, not PowerShell 7.
    Create the directory if needed
 3. Fully exit and reopen Steam, then enable **Steam Native Notifications** under
    Millennium → Plugins. Restart Steam again if enabling it does not load the panel
-4. Open its settings and select **Send test notification**
+4. Open **Steam menu → Millennium → Plugins → ▾ → Configure** (Millennium 3.6.2),
+   then select **Send test notification**
 
 ### Update or remove
 

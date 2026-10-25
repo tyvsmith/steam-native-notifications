@@ -1,3 +1,4 @@
+import { sampleCommand } from '../shared/dev-command';
 import { afterEach, expect, test } from 'bun:test';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -110,7 +111,7 @@ test('panel sample is fixed and rejects stale frontend and arbitrary arguments',
     const { BUILD_IDENTITY } = await import('../shared/host');
     host.live = { state: 'ready', frontendBuild: BUILD_IDENTITY, control: true };
     host.frontendCommand = async (envelope, sample) => ({ command: envelope.command, sample });
-    expect(JSON.parse(await host.dispatch('PanelSample', []))).toEqual({ command: { call: 'TestFriendOnline', args: [] }, sample: true });
+    expect(JSON.parse(await host.dispatch('PanelSample', []))).toEqual({ command: sampleCommand(), sample: true });
     await expect(host.dispatch('PanelSample', ['TestIncomingVoiceChat'])).rejects.toThrow();
 });
 

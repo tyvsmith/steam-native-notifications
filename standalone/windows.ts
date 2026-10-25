@@ -19,7 +19,7 @@ export function powershell(source: string): Promise<string> {
 /** Remove inherited grants before storing control credentials or payloads. */
 export async function privateDirectory(path: string): Promise<void> {
     await mkdir(path, { recursive: true });
-    await powershell(`$p=${psQuote(path)}; $item=Get-Item -LiteralPath $p; if($item.Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'Unsafe runtime directory'}; $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User; $acl=New-Object Security.AccessControl.DirectorySecurity; $acl.SetOwner($sid); $acl.SetAccessRuleProtection($true,$false); foreach($id in @($sid,[Security.Principal.SecurityIdentifier]'S-1-5-18')){$acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($id,'FullControl','ContainerInherit,ObjectInherit','None','Allow'))}; Set-Acl -LiteralPath $p -AclObject $acl`);
+    await powershell(`$p=${psQuote(path)}; $item=Get-Item -LiteralPath $p; if($item.Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'Unsafe runtime directory'}; $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User; $acl=New-Object Security.AccessControl.DirectorySecurity; $acl.SetOwner($sid); $acl.SetAccessRuleProtection($true,$false); foreach($id in @($sid,[Security.Principal.SecurityIdentifier]'S-1-5-18')){$acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($id,'FullControl','ContainerInherit,ObjectInherit','None','Allow'))}; $item.SetAccessControl($acl)`);
 }
 // Keep native function wrappers alive while the process can acquire locks.
 const openKernel32 = () => dlopen('kernel32.dll', {

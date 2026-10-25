@@ -29,6 +29,8 @@ test('scheduled task uses interactive limited account and hidden launch', () => 
     expect(source).toContain('-LogonType Interactive -RunLevel Limited');
     expect(source).toContain('-AtLogOn -User $user');
     expect(source).toContain('IgnoreNew');
+    expect(source).toContain("Join-Path $env:SystemRoot 'System32\\conhost.exe'");
+    expect(source).toContain('--headless');
     expect(taskSource('bun', 'cli', 'steam', 'config', 'id', false)).toContain('-Disable');
     expect(source).not.toContain('-Password');
     expect(() => taskSource('bad"path', 'cli', 'steam', 'config')).toThrow();

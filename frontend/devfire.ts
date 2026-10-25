@@ -1,5 +1,5 @@
 import { hostMethod } from './host';
-import { validateDevCommand, type DevEnvelope } from '../shared/dev-command';
+import { sampleCommand, validateDevCommand, type DevEnvelope } from '../shared/dev-command';
 import { findModuleExport } from 'millennium';
 import { dlog, safeJson } from './log';
 import { settings } from './settings';
@@ -106,7 +106,21 @@ function assertLiveRequest(envelope: DevEnvelope, epoch: number, sample: boolean
 export async function executeDevCommand(envelope: DevEnvelope, sample = false): Promise<unknown> {
     const epoch = generation;
     assertLiveRequest(envelope, epoch, sample);
-    const cmd = validateDevCommand(sample ? { call: 'TestFriendOnline', args: [] } : envelope.command);
+    const cmd = validateDevCommand(sample ? sampleCommand() : envelope.command);
+    if (sample && 'server' in cmd) {
+        // Steam's ProcessNotification applies global gates before BToastEnabled.
+        const preferences = findModuleExport((value: any) => typeof value?.GetClientSetting === 'function' && !!value?.clientSettings);
+        const client = preferences?.clientSettings;
+        const store = findServerNotificationStore();
+        if (!client || typeof store?.BToastEnabled !== 'function') throw new Error('Steam notification settings are unavailable. Reopen Notifications and try again.');
+        if (client.disable_all_toasts) throw new Error('Steam notifications are disabled. Enable them in Notifications to send a test.');
+        if (client.disable_toasts_in_game) {
+            const notificationStore: any = Reflect.get(globalThis, 'NotificationStore');
+            if (typeof notificationStore?.BIsUserInGame !== 'function') throw new Error('Steam notification context is unavailable. Try the test outside a game.');
+            if (notificationStore.BIsUserInGame()) throw new Error('Steam in-game notifications are disabled. Enable them or try the test outside a game.');
+        }
+        if (store.BToastEnabled(cmd.server.type, { notification_targets: 15 }) !== true) throw new Error('Steam General notification toasts are disabled. Enable them in Notifications to send a test.');
+    }
     let value: unknown = null;
     if ('focus' in cmd) { value = { appid: cmd.focus.appid, host: normalizeHostFocus(await hostMethod('GameHostFocus')(cmd.focus.appid)) }; }
     else if ('overlay' in cmd) { value = await runOverlayProbe(cmd.overlay); }

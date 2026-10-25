@@ -53,6 +53,10 @@ a fixed sample and confirmed reset; both panels share
 visibility, reset policy, native controls, confirmation dialogs and sample-result wording.
 `shared/settings-content.ts` owns the common view; removal is standalone-only.
 
+The standalone panel waits for Steam's native `App.GetServicesInitialized()`
+flag before requiring settings modules, whose factories initialize other stores
+as a side effect. Capture starts independently; a missing readiness signal
+leaves the panel unavailable after two minutes.
 
 Bun owns application files and command installation. Trusted package installation
 attempts per-user integration setup; explicit setup remains available for repair.

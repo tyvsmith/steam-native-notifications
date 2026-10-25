@@ -7,7 +7,8 @@ remain release gates.
 
 ## Install and remove
 
-Install Bun 1.4.3 or newer. Download `steam-native-notifications.tgz` and
+Install Bun 1.4.4 or newer. Earlier versions can crash when Windows pipes close.
+Download `steam-native-notifications.tgz` and
 `steam-native-notifications.tgz.sha256` from the
 [rolling pre-release](https://github.com/tyvsmith/steam-native-notifications/releases/tag/latest),
 then run in that download directory:
@@ -19,19 +20,21 @@ if ((Get-FileHash .\steam-native-notifications.tgz -Algorithm SHA256).Hash -ne $
 }
 bun add --global --force --trust .\steam-native-notifications.tgz
 if ($LASTEXITCODE -ne 0) { throw 'Package installation failed' }
-snn setup
+$snn = Join-Path ((bun pm bin --global).Trim()) 'snn.exe'
+& $snn setup
 ```
 
 Run setup as your normal Windows user in the logged-in desktop. Windows global
 Bun shims are not yet verified by the install-hook ownership check, so setup is
-explicit. Use `snn setup --steam-dir 'D:\Steam'` for a nonstandard Steam root.
+explicit. The commands below use Bun’s global binary directory directly because
+winget installations may leave it off PATH. Use `& $snn setup --steam-dir 'D:\Steam'` for a nonstandard Steam root.
 Restart Steam after its debugging marker is created. Configure delivery in
 Steam Settings → Notifications → Steam Native Notifications.
 
 ```powershell
-snn --host standalone doctor --json
-snn --host standalone sample
-snn teardown
+& $snn --host standalone doctor --json
+& $snn --host standalone sample
+& $snn teardown
 bun remove --global @tyvsmith/steam-native-notifications
 ```
 
@@ -99,3 +102,85 @@ click/focus behavior, gameplay and sign-in recovery remain validation gates.
 Setup interruption between registering a task and recording its returned XML
 can require manual inspection: recovery refuses an unrecognized task rather
 than overwrite it.
+
+## Fix validation (2026-10-25)
+
+Windows 11 VM, Bun 1.4.3, package build `eb1efdf25372`:
+
+- reproduced the previous ACL failure with `SeSecurityPrivilege` removed from the process token; repeated directory protection and its user/SYSTEM-only ACL assertions passed with the replacement
+- repeated the isolated ACL regression in three processes, then exercised the 21-test Windows suite
+- installed the tarball, repeated setup, ran teardown/setup and confirmed matching installed, daemon and frontend identities with hook/panel/control ready
+- verified the sign-in task used headless conhost and its daemon processes had no visible window; rebooted the guest and confirmed automatic startup and ready Steam reattachment
+- checked the shared panel's sample prerequisite and execution feedback in Steam; observed FriendOnline capture and native delivery dispatch
+- removed the temporary validation account and tasks; preserved notification preferences
+
+The VM has UAC disabled. Restricted-token checks establish the missing-privilege
+regression; they do not replace a full interactive installation under a standard
+account with UAC enabled. One combined test run crashed inside Bun 1.4.3;
+isolated ACL repeats and the subsequent combined run passed. The crash cause
+remains unresolved. Human clicks and gameplay were not exercised in this pass.
+
+### Sample preflight
+
+Build `d33f749914d6` checks Steam’s live friend-online toast preference on each
+sample request. Windows panel validation toggled it off, on and off again:
+disabled requests showed an actionable error without calling the test method;
+the enabled request called it once. The original preference was restored.
+The permanent explanatory paragraph is removed from both host panels.
+
+### Branded General sample
+
+Build `e770f5d490f9` supersedes the friend-online sample and its prerequisite:
+
+- use Steam's General notification with the title `Steam Native Notifications`
+  and body `This is a test notification. Click to open Steam.`
+- check General, global and in-game suppression before firing; show a short
+  error when Steam blocks the sample
+- verify panel delivery with friend-online notifications disabled and rejection
+  with global suppression enabled; restore both preferences
+- click the actual Windows Notification Center card with synthetic pointer
+  input; observe exact handler replay and the minimized main window restored
+- retain a new card across a full Steam process restart, attach the integration
+  after Steam loads, then click it; observe missing-stash fallback to
+  `steam://open/main` and a healthy main window
+
+Automatic startup remains a separate gap: one full startup with the integration
+active rendered `Cannot read properties of undefined (reading 'GetPlayer')`.
+Steam loaded normally without the integration and remained healthy after late
+attachment. The cause is unresolved; the retained-click check used late
+attachment to isolate routing from that startup failure.
+
+The VM's Millennium loader removed the remote-debugging marker and selected a
+pipe instead of standalone's CDP port. Validation temporarily disabled that
+loader. Physical clicks, gameplay, UAC-enabled installation and clean automatic
+startup remain open.
+
+### Runtime and startup follow-up
+
+The Windows CI crash stacks match Bun's libuv pipe use-after-free, fixed in
+[Bun 1.4.4](https://github.com/oven-sh/bun/blob/bun-v1.4.4/patches/libuv/win-pipe-read-req-count-across-callback.patch).
+Windows now requires that version; the combined CI stress suite remains enabled.
+Thirty combined guest runs also completed on 1.4.4.
+
+Settings discovery previously required Steam modules before native service
+initialization. The panel now waits for `App.GetServicesInitialized()` before
+executing those factories. Build `47f602ef36d2` completed three full client starts
+with rendering, hook and panel checks. This establishes the ordering guard;
+the exact cause of the earlier `GetPlayer` failure remains unproved.
+
+Final package `fede580525ae`, Windows 11 VM, Bun 1.4.4:
+
+- installed under a non-admin account in an interactive RDP session with UAC
+  enabled and medium integrity; repeated setup twice, verified daemon readiness,
+  then tore down the integration
+- repeated installation under the regular account without elevation
+- rebooted the guest; verified automatic task startup, matching frontend identity,
+  native service readiness, rendered Steam, no Windows Terminal process and
+  unchanged notification preferences
+- exercised panel suppression, General delivery and a Notification Center pointer
+  click; verified handler replay and the main window restored
+
+The temporary account did not sign in to Steam; its setup test establishes
+installation and daemon activation, not notification delivery for that account.
+Human Windows clicks and physical fullscreen behavior remain outside this VM
+pass. Overlay splash suppression and in-game banner-click policy remain unchanged.

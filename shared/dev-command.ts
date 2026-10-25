@@ -14,3 +14,13 @@ export function validateDevCommand(raw: unknown): DevCommand {
     throw new Error('Unsupported developer command; only approved Test methods and server/overlay/replay diagnostics are accepted');
 }
 export interface DevEnvelope { id: string; createdAt: number; deadline: number; command: DevCommand }
+
+/** General notifications use Steam's own body-link click handler. */
+export function sampleCommand(): DevCommand {
+    return { server: { type: 10, body: {
+        display_name: 'Steam Native Notifications',
+        body: 'This is a test notification. Click to open Steam.',
+        image: 'https://store.fastly.steamstatic.com/public/shared/images/responsive/steam_share_image.jpg',
+        link: 'steam://open/main',
+    } } };
+}
