@@ -54,7 +54,7 @@ test('pushed fixed samples work with developer commands disabled and reject expi
         const result = await f.context.__snnDevControl(envelope, true);
         expect(invoked).toBe(0); expect(result.value.stage).toBe('executed');
         expect(f.context.serverNotifications[0].type).toBe(10);
-        expect(JSON.parse(f.context.serverNotifications[0].item.body_data)).toMatchObject({ display_name: 'Steam Native Notifications', body: 'This is a test notification.', link: 'steam://settings/notifications' });
+        expect(JSON.parse(f.context.serverNotifications[0].item.body_data)).toMatchObject({ display_name: 'Steam Native Notifications', body: 'This is a test notification. Click to open Steam.', link: 'steam://open/main' });
         const expired = await f.context.__snnDevControl({ ...envelope, deadline: Date.now() - 1 }, true);
         expect(invoked).toBe(0); expect(expired.ok).toBe(false);
     } finally { f.stop(); }

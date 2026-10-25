@@ -58,7 +58,7 @@ test('Millennium panel uses shared visibility, confirms reset and preserves plat
         expect(f.render().some(n => n.props?.children === 'Defaults restored.')).toBe(true);
         f.button('Send test notification').props.onClick(); await f.flush();
         expect(f.samples[0][1]).toBe(true); expect(f.samples[0][0].command.server.type).toBe(10);
-        expect(f.samples[0][0].command.server.body.link).toBe('steam://settings/notifications');
+        expect(f.samples[0][0].command.server.body.link).toBe('steam://open/main');
         expect(f.render().some(n => String(n.props?.children).includes('visibility have not been confirmed'))).toBe(true);
     } finally { f.close(); }
 });

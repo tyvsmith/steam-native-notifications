@@ -19,8 +19,8 @@ export interface DevEnvelope { id: string; createdAt: number; deadline: number; 
 export function sampleCommand(): DevCommand {
     return { server: { type: 10, body: {
         display_name: 'Steam Native Notifications',
-        body: 'This is a test notification.',
+        body: 'This is a test notification. Click to open Steam.',
         image: 'https://store.fastly.steamstatic.com/public/shared/images/responsive/steam_share_image.jpg',
-        link: 'steam://settings/notifications',
+        link: 'steam://open/main',
     } } };
 }
