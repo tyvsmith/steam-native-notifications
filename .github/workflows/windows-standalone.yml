@@ -20,6 +20,9 @@ jobs:
           foreach ($iteration in 1..10) {
             bun test standalone/windows.test.ts standalone/windows-diagnostics.test.ts shared/settings-policy.test.ts shared/contracts.test.ts
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            # Keep PowerShell ACL checks separate from Bun's native pipe/FFI lifecycle.
+            bun test standalone/windows-acl.test.ts
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
       - shell: powershell
         run: ./tools/test-windows-notify-action.ps1 -Offline
