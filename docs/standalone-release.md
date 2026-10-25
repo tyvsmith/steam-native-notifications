@@ -5,7 +5,8 @@ This reference covers CLI recovery, package ownership and publication.
 
 The experimental standalone host runs on native Linux x64 Steam without
 Millennium. RT3 has recorded live coverage; non-RT3 Steam also passed user
-testing. Bun 1.4.3 or newer is required; CI tests 1.4.3. Windows, macOS and
+testing. Linux requires Bun 1.4.3 or newer; Windows requires 1.4.4 for its
+named-pipe lifetime fix. CI tests both platform minimums. Windows, macOS and
 Flatpak standalone hosts are unsupported.
 
 ## Install and update

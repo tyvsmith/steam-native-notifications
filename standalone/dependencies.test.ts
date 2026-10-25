@@ -21,3 +21,14 @@ const installed = ['/usr/lib/libwayland-client.so.0', '/usr/lib/x86_64-linux-gnu
 test.skipIf(!installed)('installed Wayland library loads using pinned Bun FFI', () => {
     expect(waylandAvailable()).toBe(true);
 });
+
+test('Windows requires the Bun named-pipe lifetime fix before opening control pipes', async () => {
+    const { assertSupportedBun } = await import('./dependencies');
+    for (const version of ['1.4.3', '1.3.20', '1.4.4-canary.1', 'invalid']) {
+        expect(() => assertSupportedBun('win32', version)).toThrow('Bun 1.4.4 or newer');
+    }
+    for (const version of ['1.4.4', '1.4.5', '1.5.0', '2.0.0']) {
+        expect(() => assertSupportedBun('win32', version)).not.toThrow();
+    }
+    expect(() => assertSupportedBun('linux', '1.4.3')).not.toThrow();
+});

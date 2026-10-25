@@ -5,7 +5,7 @@ import { setupHookAllowed } from './setup-hook';
 import { capture, sample, hostStatus } from '../tools/lib/host-client';
 import { developerCommand } from '../tools/lib/cli/developer-command';
 import { parseCommonOptions, printResult, printError } from '../tools/lib/cli-options';
-import { dependencies } from './dependencies';
+import { assertSupportedBun, dependencies } from './dependencies';
 import { BUILD_IDENTITY } from '../shared/host';
 async function runClientCommand(options: ReturnType<typeof parseCommonOptions>): Promise<void> {
     const { host, json, args } = options;
@@ -38,6 +38,7 @@ Exit: 0 success, 1 failure. Bun owns package installation and updates. Settings 
 Run teardown before removing the Bun package. Steam is never launched or stopped.`);
         return;
     }
+    assertSupportedBun();
     if (command === 'daemon') {
         process.argv = [process.argv[0]!, process.argv[1]!, ...args];
         return daemonMain();

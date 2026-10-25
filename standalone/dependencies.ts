@@ -1,5 +1,14 @@
 import { dlopen, FFIType } from 'bun:ffi';
 
+/** Bun 1.4.4 fixes a Windows libuv pipe use-after-free during disconnect. */
+export function assertSupportedBun(platform: string = process.platform, version = Bun.version): void {
+    if (platform !== 'win32') return;
+    const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
+    if (!match || Bun.semver.satisfies(version, '>=1.4.4') !== true) {
+        throw new Error('Windows requires Bun 1.4.4 or newer to avoid a named-pipe crash. Update Bun, then retry.');
+    }
+}
+
 // Resolve the documented client API, but never call it or connect to a compositor.
 const waylandSymbols = { wl_display_disconnect: { args: [FFIType.ptr], returns: FFIType.void } } as const;
 type LibraryProbe = (library: string, symbols: typeof waylandSymbols) => { close(): void };

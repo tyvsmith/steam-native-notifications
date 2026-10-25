@@ -7,7 +7,8 @@ remain release gates.
 
 ## Install and remove
 
-Install Bun 1.4.3 or newer. Download `steam-native-notifications.tgz` and
+Install Bun 1.4.4 or newer. Earlier versions can crash when Windows pipes close.
+Download `steam-native-notifications.tgz` and
 `steam-native-notifications.tgz.sha256` from the
 [rolling pre-release](https://github.com/tyvsmith/steam-native-notifications/releases/tag/latest),
 then run in that download directory:

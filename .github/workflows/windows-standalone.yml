@@ -12,15 +12,14 @@ jobs:
       - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.3
+          bun-version: 1.4.4
       - run: bun install --frozen-lockfile
       - run: bun run build:standalone
       - name: Exercise Windows process and pipe lifecycles
         run: |
           foreach ($iteration in 1..10) {
-            bun test standalone/windows.test.ts standalone/windows-diagnostics.test.ts shared/settings-policy.test.ts shared/contracts.test.ts
+            bun test standalone/windows.test.ts standalone/windows-diagnostics.test.ts standalone/dependencies.test.ts shared/settings-policy.test.ts shared/contracts.test.ts
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            # Keep PowerShell ACL checks separate from Bun's native pipe/FFI lifecycle.
             bun test standalone/windows-acl.test.ts
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
