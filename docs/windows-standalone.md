@@ -154,3 +154,33 @@ The VM's Millennium loader removed the remote-debugging marker and selected a
 pipe instead of standalone's CDP port. Validation temporarily disabled that
 loader. Physical clicks, gameplay, UAC-enabled installation and clean automatic
 startup remain open.
+
+### Runtime and startup follow-up
+
+The Windows CI crash stacks match Bun's libuv pipe use-after-free, fixed in
+[Bun 1.4.4](https://github.com/oven-sh/bun/blob/bun-v1.4.4/patches/libuv/win-pipe-read-req-count-across-callback.patch).
+Windows now requires that version; the combined CI stress suite remains enabled.
+Thirty combined guest runs also completed on 1.4.4.
+
+Settings discovery previously required Steam modules before native service
+initialization. The panel now waits for `App.GetServicesInitialized()` before
+executing those factories. Build `47f602ef36d2` completed three full client starts
+with rendering, hook and panel checks. This establishes the ordering guard;
+the exact cause of the earlier `GetPlayer` failure remains unproved.
+
+Final package `fede580525ae`, Windows 11 VM, Bun 1.4.4:
+
+- installed under a non-admin account in an interactive RDP session with UAC
+  enabled and medium integrity; repeated setup twice, verified daemon readiness,
+  then tore down the integration
+- repeated installation under the regular account without elevation
+- rebooted the guest; verified automatic task startup, matching frontend identity,
+  native service readiness, rendered Steam, no Windows Terminal process and
+  unchanged notification preferences
+- exercised panel suppression, General delivery and a Notification Center pointer
+  click; verified handler replay and the main window restored
+
+The temporary account did not sign in to Steam; its setup test establishes
+installation and daemon activation, not notification delivery for that account.
+Human Windows clicks and physical fullscreen behavior remain outside this VM
+pass. Overlay splash suppression and in-game banner-click policy remain unchanged.
