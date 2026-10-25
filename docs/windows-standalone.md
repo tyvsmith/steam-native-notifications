@@ -126,3 +126,30 @@ sample request. Windows panel validation toggled it off, on and off again:
 disabled requests showed an actionable error without calling the test method;
 the enabled request called it once. The original preference was restored.
 The permanent explanatory paragraph is removed from both host panels.
+
+### Branded General sample
+
+Build `e770f5d490f9` supersedes the friend-online sample and its prerequisite:
+
+- use Steam's General notification with the title `Steam Native Notifications`
+  and body `This is a test notification. Click to open Steam.`
+- check General, global and in-game suppression before firing; show a short
+  error when Steam blocks the sample
+- verify panel delivery with friend-online notifications disabled and rejection
+  with global suppression enabled; restore both preferences
+- click the actual Windows Notification Center card with synthetic pointer
+  input; observe exact handler replay and the minimized main window restored
+- retain a new card across a full Steam process restart, attach the integration
+  after Steam loads, then click it; observe missing-stash fallback to
+  `steam://open/main` and a healthy main window
+
+Automatic startup remains a separate gap: one full startup with the integration
+active rendered `Cannot read properties of undefined (reading 'GetPlayer')`.
+Steam loaded normally without the integration and remained healthy after late
+attachment. The cause is unresolved; the retained-click check used late
+attachment to isolate routing from that startup failure.
+
+The VM's Millennium loader removed the remote-debugging marker and selected a
+pipe instead of standalone's CDP port. Validation temporarily disabled that
+loader. Physical clicks, gameplay, UAC-enabled installation and clean automatic
+startup remain open.
