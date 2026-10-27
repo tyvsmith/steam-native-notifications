@@ -399,3 +399,30 @@ Build: `b9ee3f95d5f385049bd0d99d537c0fc9f6dcb195be144678cfdfb72252dac34a`.
 - restored original preferences after testing; user accepted both host interfaces
 
 This UI validation does not add in-game, logout/login or Windows coverage.
+## Linux package acceptance, 2026-10-26
+
+Candidate source: `4e98afb`; Bun 1.4.3, native Linux RT3 on Hyprland.
+Build: `4fdbce4991d61075d1ee381e6db8129bc340b137371a3018ef8b79bdc644dc53`.
+Tarball SHA-256: `0ac8d0599f22d8163b35318da43db0a8ee20fe88c2d27ce7c0b11a5d2e4e20ca`.
+
+- completed shared regressions, 142 standalone tests, 14 host contracts,
+  publication checks and noninstalling Millennium pack/verification
+- exercised the actual tarball through isolated trusted installation,
+  reinstall, upgrade/downgrade, teardown/removal and interrupted-setup recovery
+- verified the npm publication dry run and recomputed source identity
+- backed up the existing live package and preferences, then installed the
+  tested tarball; the expected old-frontend verdict required a Steam restart
+- restarted idle Steam; its pending client update completed, then launch failed
+  without DISPLAY; the active XWayland display was `:0`, and passing it to the
+  launcher restored Steam without changing desktop configuration
+- confirmed matching installed, daemon and frontend identities with hook,
+  panel and command control ready after restart
+- exercised live teardown, verified the owned user service was removed, then
+  repeated setup and confirmed ready attachment without another Steam restart
+- confirmed preferences remained byte-for-byte unchanged and a General sample
+  reached capture with native delivery selected
+
+This pass does not establish visible banners, physical clicks, real game/server
+notifications, gameplay, logout/login, reboot, Gamescope or compositor recovery.
+It adds no Millennium live or Windows hardware evidence. The tested candidate
+remains installed with developer and verbose diagnostic flags off.
