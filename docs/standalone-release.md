@@ -176,20 +176,34 @@ establish npm ownership or trust. See [npm trusted publishing](https://docs.npmj
 
 ### First-package bootstrap
 
-The release owner staged `0.1.0` privately to establish the npm package before
-configuring trusted publishing. Staging reserves the version without making it
-publicly installable. npm creates a public `0.0.0-stage` stub when reserving a
-new package name; that stub contains no application. Keep `0.1.0` pending until
-release approval.
+Version `0.1.0` is public on [GitHub](https://github.com/tyvsmith/steam-native-notifications/releases/tag/v0.1.0)
+and [npm](https://www.npmjs.com/package/@tyvsmith/steam-native-notifications).
+The release owner approved its exact numbered-release tarball through staged
+publication with 2FA. The package has a registry signature, without a provenance
+attestation. The restored trusted publisher subsequently reached `Valid`; see
+the [release record](https://github.com/tyvsmith/steam-native-notifications/issues/30).
+
+For a new package, staging reserves its name and version without making the
+application publicly installable. npm creates a public `0.0.0-stage` placeholder
+containing no application. Configure ownership and trusted publishing before
+publication, and retain the staged candidate until release approval.
 
 Before approval, download the staged package with `npm stage download` and
 compare its bytes with the approved numbered-release tarball. If they differ,
-reject the staged candidate and restage the approved tarball. Approving through
-`npm stage approve` requires the owner's 2FA and makes that version public.
+back up the candidate before rejecting it and restaging the approved tarball.
+During the initial bootstrap, rejecting the sole staged candidate also removed
+the package placeholder and its trusted-publisher configuration. Restaging
+restored the package; restoring trust required another owner confirmation.
+Verify ownership and trust again after replacing a bootstrap candidate.
+
+Approving through `npm stage approve` requires the owner's 2FA and makes that
+version public. Verify that the installed registry package matches the approved
+release archive, then exercise installation and explicit teardown/removal.
 Do not run the direct-publish workflow for a version that is already staged or
 published; use OIDC publication for subsequent unstaged versions.
 
 After a version is published, users can install it with
-`bun add --global --trust @tyvsmith/steam-native-notifications`. Until then, use
-the GitHub release tarball or a local build. Millennium store listing and AUR
-packaging are separate distribution channels, not requirements of these artifacts.
+`bun add --global --trust @tyvsmith/steam-native-notifications`. Unpublished
+candidates can use the GitHub release tarball or a local build. Millennium store
+listing and AUR packaging are separate distribution channels, not requirements
+of these artifacts.
