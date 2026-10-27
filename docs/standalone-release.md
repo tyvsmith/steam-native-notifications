@@ -167,7 +167,9 @@ Before a real publication, establish ownership of
 for this repository, `npm-publish.yml`, and the GitHub `npm` environment. The
 workflow uses OIDC rather than a stored registry token. Configure the trusted
 publisher with owner `tyvsmith`, repository `steam-native-notifications`, workflow
-`npm-publish.yml`, and environment `npm`. The GitHub environment permits only
+`npm-publish.yml`, and environment `npm`. Enable the **npm publish** allowed
+action; stage-only permission cannot run the direct-publish workflow. The GitHub
+environment permits only
 `v*` tags. npm account bootstrap and publisher configuration still require
 authenticated package-owner access; creating the GitHub environment does not
 establish npm ownership or trust. See [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/).

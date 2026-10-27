@@ -18,7 +18,9 @@ fullscreen acceptance remain open. macOS has not run.
 
 ## Standalone RT3 host
 
-Native Linux x64 has an experimental Bun host without Millennium. It shares
+Native Linux x64 has a supported Bun host without Millennium. Windows x64
+standalone support is experimental; see [Windows evidence](windows-standalone.md).
+Both hosts share
 capture, presentation, text, replay and routing code. Its Steam settings panel,
 private control socket and systemd lifecycle are host-specific.
 The installed candidate has matching daemon/frontend identities and verified

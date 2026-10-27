@@ -10,7 +10,7 @@ follow your OS settings, including Do Not Disturb and notification history where
 
 | Version | Use it with | Install |
 | --- | --- | --- |
-| **Standalone** | Steam RT3 without Millennium; native Linux x64 only for now | [Bun package](docs/install.md#standalone-linux) |
+| **Standalone** | Native Linux x64 Steam, including RT3, plus experimental Windows x64, without Millennium | [Bun package](docs/install.md#standalone-linux) |
 | **Millennium plugin** | A Steam client supported by [Millennium](https://steambrew.app); Linux and experimental Windows support | [`.star` plugin](docs/install.md#millennium-plugin) |
 
 RT3 means Steam's client runtime, not a game's compatibility tool. Standalone
