@@ -5,7 +5,7 @@ import { BUILD_IDENTITY } from '../shared/host';
 test('pushed requests are fenced by expiry and frontend lifetime without idle timers', async () => {
     const built = await Bun.build({ entrypoints: [resolve('frontend/millennium-diagnostics.ts')], target: 'browser', format: 'cjs', plugins: [{ name: 'fixture', setup(build) {
         build.onResolve({ filter: /^millennium$/ }, () => ({ path: 'ffi', namespace: 'fixture' }));
-        build.onResolve({ filter: /^\.\/settings$/ }, args => args.importer.endsWith('/frontend/millennium-diagnostics.ts') ? ({ path: 'settings', namespace: 'fixture' }) : undefined);
+        build.onResolve({ filter: /^\.\/settings$/ }, args => /[\\/]frontend[\\/]millennium-diagnostics\.ts$/.test(args.importer) ? ({ path: 'settings', namespace: 'fixture' }) : undefined);
         build.onLoad({ filter: /.*/, namespace: 'fixture' }, args => ({ contents: args.path === 'settings' ? 'export const settingsHost = { read: () => globalThis.reload() };' : 'export const ffi = name => (...args) => globalThis.call(name, args);', loader: 'js' }));
     } }] });
     expect(built.success).toBe(true);

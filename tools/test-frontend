@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 // Exercise the Millennium-free click, decode, and chooser subgraph.
 
 import { existsSync, readFileSync } from 'node:fs';

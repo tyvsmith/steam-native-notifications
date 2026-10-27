@@ -7,7 +7,7 @@ test('live settings gate real replay exception and callback diagnostics', async 
     const entry = resolve(import.meta.dir, '../frontend/log.ts');
     const build = await Bun.build({ entrypoints: [entry], target: 'browser', format: 'cjs', plugins: [{
         name: 'diagnostic-fixture', setup(builder) {
-            builder.onLoad({ filter: /frontend\/log\.ts$/ }, async args => ({ loader: 'ts', contents:
+            builder.onLoad({ filter: /frontend[\\/]log\.ts$/ }, async args => ({ loader: 'ts', contents:
                 readFileSync(args.path, 'utf8') + '\nexport { loadSettings } from "./settings"; export { stashToastHandler, invokeReplayHandler } from "./replay";' }));
             builder.onResolve({ filter: /^millennium$/ }, () => ({ path: 'fixture', namespace: 'fixture' }));
             builder.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ loader: 'js', contents:
