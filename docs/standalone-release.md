@@ -176,7 +176,9 @@ establish npm ownership or trust. See [npm trusted publishing](https://docs.npmj
 
 The release owner staged `0.1.0` privately to establish the npm package before
 configuring trusted publishing. Staging reserves the version without making it
-publicly installable. Keep it pending until release approval.
+publicly installable. npm creates a public `0.0.0-stage` stub when reserving a
+new package name; that stub contains no application. Keep `0.1.0` pending until
+release approval.
 
 Before approval, download the staged package with `npm stage download` and
 compare its bytes with the approved numbered-release tarball. If they differ,
