@@ -10,7 +10,7 @@ For native Linux x64 Steam, including RT3, without Millennium. Requires
 [Bun](https://bun.com) 1.4.3 or newer, a graphical desktop with a systemd user
 session, `notify-send`, `gdbus` and `curl`. LuaJIT and libwayland-client enable
 focus discovery; without them, some click destinations may be unavailable.
-Windows x64 has a [preview install](windows-standalone.md).
+Windows x64 has an [experimental install](windows-standalone.md).
 macOS and Flatpak standalone installations are unsupported.
 
 ### Install

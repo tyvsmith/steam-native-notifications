@@ -8,12 +8,19 @@ and a status: **verified** against a primary source (its own docs or code),
 or **unverified**. Earlier Linux and Windows activation paths ran natively and
 in a Windows 11 VM. The unified URL path ran on native Linux and in the Windows
 VM; Quattro history clicks worked with Linux Steam running and fully stopped.
-Windows UI clicks, visual focus, and a clean guest reboot remain untested, and
-macOS has not run.
+Later standalone VM validation covers pointer clicks, main-window restoration
+and reboot startup. Native hardware reports cover both hosts on an older build;
+see [the report](https://github.com/tyvsmith/steam-native-notifications/issues/30#issuecomment-6400560565)
+and [Windows candidate evidence](windows-standalone.md). Earlier native Millennium
+UI-click measurements remain in [PR #10](https://github.com/tyvsmith/steam-native-notifications/pull/10);
+they predate the current candidate. Final-candidate human clicks and physical
+fullscreen acceptance remain open. macOS has not run.
 
 ## Standalone RT3 host
 
-Native Linux x64 has an experimental Bun host without Millennium. It shares
+Native Linux x64 has a supported Bun host without Millennium. Windows x64
+standalone support is experimental; see [Windows evidence](windows-standalone.md).
+Both hosts share
 capture, presentation, text, replay and routing code. Its Steam settings panel,
 private control socket and systemd lifecycle are host-specific.
 The installed candidate has matching daemon/frontend identities and verified
@@ -29,10 +36,10 @@ Millennium host; it does not imply standalone support on other platforms.
 
 | platform | status | delivery | click |
 |---|---|---|---|
-| Linux, native Steam | **shipped**; Quattro history clicks observed with Steam running and fully stopped; live-banner and in-game clicks untested | `notify-send` to the FreeDesktop daemon | live `default` action launches the canonical Steam URL; Quickshell persists the fixed argv for exact replay or durable fallback |
+| Linux, native Steam | **shipped**; Quattro history clicks observed with Steam running and fully stopped; user-reported Quickshell live-banner and restart-survival clicks on 2026-09-10; final-candidate gameplay/session acceptance open | `notify-send` to the FreeDesktop daemon | live `default` action launches the canonical Steam URL; Quickshell persists the fixed argv for exact replay or durable fallback |
 | Linux, Flatpak Steam | paths ready; the host is unsupported by Millennium | same helper; inside the sandbox libnotify routes through the notification portal (plan) | canonical URL; portal action semantics unverified |
 | macOS | backend paths ready; delivery refused, loudly | terminal-notifier `-execute` (plan) | `-execute` opens the canonical Steam URL (plan) |
-| Windows | **shipped**, EXPERIMENTAL; canonical history, FriendOnline/Achievement exact replay, and Achievement restart/cold-start fallback observed; UI clicks and visual focus untested | WinRT toast via notify-action.ps1 (Windows PowerShell 5.1, no vendored binary): branding, artwork, re-encode | canonical notification URL; exact replay or durable live-focus fallback, then one-shot route-aware focus |
+| Windows | **shipped**, EXPERIMENTAL; canonical activation and fallback observed; standalone VM pointer activation/main-window restoration and older-build hardware checks recorded; human clicks and final-candidate physical fullscreen acceptance open | WinRT toast via notify-action.ps1 (Windows PowerShell 5.1, no vendored binary): branding, artwork, re-encode | canonical notification URL; exact replay or durable live-focus fallback, then one-shot route-aware focus |
 
 Refused (macOS today) means: the backend loads, logs `desktop delivery is
 not implemented on <platform>` at load and `unsupported platform: <platform>
@@ -173,8 +180,10 @@ The current helper converts a validated `click:<base64url-envelope>` route to
 `steam://steam-native-notifications/notification/<base64url-envelope>`. A live
 `notify-send` default action launches `steam` with that URL as one argv element;
 no Linux notification click writes `.click`. The notification daemon controls
-the popup lifetime, and the helper stays detached. Live-action survival across
-a Steam restart remains untested.
+the popup lifetime, and the helper stays detached. The user reported Quickshell live-banner clicks
+and survival across Steam restart on 2026-09-10, recorded in
+[#27](https://github.com/tyvsmith/steam-native-notifications/issues/27). This does
+not establish login/reboot survival or behavior on other notification daemons.
 
 When `GetServerInformation` names Quickshell, the helper adds
 `omarchy-exec-argv:["steam","<canonical-url>"]`. Quattro stores that fixed argv
@@ -204,9 +213,11 @@ The unified URL path ran on native Linux with Quickshell 1.2, 2026-09-05:
 - user-verified Quattro history clicks through the UI with Steam running and
   fully stopped, 2026-09-06; both opened their intended Steam destination
 
-Still pending: clicking the live banner through the UI, explicit focus-owner
-measurement, a shell/login restart, a host reboot, arbitrary FreeDesktop
-daemons, and real in-game focus changes. The instrumented run executed
+At that run, live-banner UI clicks were pending; the later 2026-09-10 user
+report above covers Quickshell banner clicks and Steam-restart survival.
+Explicit focus-owner measurement, a shell/login restart, a host reboot,
+arbitrary FreeDesktop daemons and final-candidate real-game focus checks remain
+open. The instrumented run executed
 Quattro's persisted argv directly and did not synthesize mouse input; the later
 history checks used the UI.
 

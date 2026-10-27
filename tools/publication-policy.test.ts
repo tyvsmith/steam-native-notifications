@@ -1,5 +1,7 @@
 import { expect, test } from 'bun:test';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 const star = 'me.tysmith.steam-native-notifications.star';
 const workflowDirectory = new URL('../.github/workflows/', import.meta.url);
@@ -58,4 +60,28 @@ test('npm publication requires a manual run and an explicit publishing choice', 
   expect(checks.run).toContain('process.env.TAG');
   expect(checks.run).toContain('bun tools/verify-release-source.ts');
   expect(npm.steps.some((step: any) => step.run === 'bun tools/gen-proto.mjs')).toBe(true);
+});
+
+
+test('npm metadata gate accepts the distributed platforms and refuses mismatched releases', () => {
+  const checks = workflows['npm-publish'].jobs.npm.steps.find((step: any) => step.name === 'Check the exact release package');
+  const script = checks.run.match(/<<'JS'\n([\s\S]*?)\nJS/)[1];
+  const root = mkdtempSync(join(tmpdir(), 'snn-publish-metadata-'));
+  const pkg = { name: '@tyvsmith/steam-native-notifications', version: '0.1.0', os: ['linux', 'win32'], cpu: ['x64'] };
+  try {
+    writeFileSync(join(root, 'check.mjs'), script);
+    const accepts = (metadata: unknown): boolean => {
+      writeFileSync(join(root, 'package-metadata.json'), JSON.stringify(metadata));
+      return Bun.spawnSync([process.execPath, 'check.mjs'], {
+        cwd: root, env: { ...process.env, TAG: 'v0.1.0' }, stdout: 'pipe', stderr: 'pipe',
+      }).exitCode === 0;
+    };
+    expect(accepts(pkg)).toBe(true);
+    for (const patch of [
+      { name: 'another-package' }, { version: '0.2.0' },
+      { os: ['linux'] }, { os: ['linux', 'win32', 'darwin'] }, { cpu: ['arm64'] },
+    ]) expect(accepts({ ...pkg, ...patch })).toBe(false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

@@ -54,7 +54,7 @@ jobs:
           import { readFileSync } from 'node:fs';
           const pkg = JSON.parse(readFileSync('package-metadata.json', 'utf8'));
           if (pkg.name !== '@tyvsmith/steam-native-notifications' || `v${pkg.version}` !== process.env.TAG ||
-              JSON.stringify(pkg.os) !== '["linux"]' || JSON.stringify(pkg.cpu) !== '["x64"]') {
+              JSON.stringify(pkg.os) !== '["linux","win32"]' || JSON.stringify(pkg.cpu) !== '["x64"]') {
             throw new Error('Unexpected package identity, version, or target');
           }
           JS

@@ -324,7 +324,10 @@ action.
   Achievement restart/cold-start fallback through active-session protocol
   invocation. The final artifact repeated Achievement exact replay and
   post-restart fallback after the surface and dispatch-completion fixes. UI
-  clicks and visual focus remain untested. Chat selection
+  clicks and visual focus were untested in that pass. Later standalone VM checks
+  exercised Notification Center pointer clicks and main-window restoration; see
+  `docs/windows-standalone.md`. Human clicks and final-candidate physical
+  fullscreen acceptance remain open. Chat selection
   accepts the first visible titled `steamwebhelper` window other than `Steam`;
   another Steam dialog can match, so selecting the intended chat is unverified
   when several candidate windows exist. `ShellExperienceHost` can remain the

@@ -1,5 +1,36 @@
 # Standalone candidate validation
 
+## Public release gates, 2026-10-26
+
+The first numbered release targets supported Linux x64 and experimental Windows
+x64. Existing Windows VM evidence is sufficient for that experimental scope;
+physical hardware acceptance remains a follow-up before claiming Windows
+production support. VM, hardware and fixture records apply to their recorded
+builds, not every later artifact. [Issue #30](https://github.com/tyvsmith/steam-native-notifications/issues/30)
+is the public checklist.
+
+- verify the final Linux package through install, update, removal, a real event,
+  gameplay, visible history activation, logout/login and reboot recovery
+- verify Gamescope/compositor reconnect and Millennium external-write refresh
+  separately on their actual clients
+- retain Windows VM evidence and the experimental label; defer physical hardware
+  gameplay/fullscreen, human clicks and broader session recovery to follow-up
+- retain overlay-splash mirroring and current desktop activation from in-game
+  banners, per the release-owner decision; validate those existing behaviors
+- configure npm ownership/trusted publishing; the GitHub `npm` environment now
+  restricts execution to `v*` tags, but does not establish npm trust
+- verify the publication metadata gate accepts the Linux/Windows x64 package;
+  run the numbered release and npm dry runs before explicit publication
+
+PR #54 merged standard-user ACL setup, headless startup, a General sample,
+Steam-service initialization ordering and the Windows Bun 1.4.4 minimum.
+Its VM evidence includes UAC setup/teardown, reboot startup, settings readiness,
+Notification Center pointer activation and main-window restoration. The
+[hardware report](https://github.com/tyvsmith/steam-native-notifications/issues/30#issuecomment-6400560565)
+covers both hosts on the older `91bd504` candidate, using synthetic clicks.
+Neither record establishes human clicks or final-candidate physical fullscreen.
+
+
 ## Follow-up: explicit Millennium settings refresh
 
 - replace periodic settings reads with one reload request after each CLI write
@@ -106,7 +137,8 @@ converged the panel and repaired Millennium bindings and settings snapshots.
 - cover Gamescope and compositor reconnect separately from ordinary gameplay
 - repeat Millennium live regression for the new external-write refresh when its
   client is installed; do not switch clients solely for this RT3 pass
-- keep Windows hardware/focus work separate; standalone is Linux x64 only
+- retain Windows x64 as experimental using existing VM evidence; physical
+  hardware production acceptance remains a follow-up
 - resolve the older Windows blockers in the public-release tracker explicitly
   before describing a release as cross-platform production-ready
 - configure npm ownership and trusted publishing, then explicitly run publication
@@ -368,3 +400,30 @@ Build: `b9ee3f95d5f385049bd0d99d537c0fc9f6dcb195be144678cfdfb72252dac34a`.
 - restored original preferences after testing; user accepted both host interfaces
 
 This UI validation does not add in-game, logout/login or Windows coverage.
+## Linux package acceptance, 2026-10-26
+
+Candidate source: `4e98afb`; Bun 1.4.3, native Linux RT3 on Hyprland.
+Build: `4fdbce4991d61075d1ee381e6db8129bc340b137371a3018ef8b79bdc644dc53`.
+Tarball SHA-256: `0ac8d0599f22d8163b35318da43db0a8ee20fe88c2d27ce7c0b11a5d2e4e20ca`.
+
+- completed shared regressions, 142 standalone tests, 14 host contracts,
+  publication checks and noninstalling Millennium pack/verification
+- exercised the actual tarball through isolated trusted installation,
+  reinstall, upgrade/downgrade, teardown/removal and interrupted-setup recovery
+- verified the npm publication dry run and recomputed source identity
+- backed up the existing live package and preferences, then installed the
+  tested tarball; the expected old-frontend verdict required a Steam restart
+- restarted idle Steam; its pending client update completed, then launch failed
+  without DISPLAY; the active XWayland display was `:0`, and passing it to the
+  launcher restored Steam without changing desktop configuration
+- confirmed matching installed, daemon and frontend identities with hook,
+  panel and command control ready after restart
+- exercised live teardown, verified the owned user service was removed, then
+  repeated setup and confirmed ready attachment without another Steam restart
+- confirmed preferences remained byte-for-byte unchanged and a General sample
+  reached capture with native delivery selected
+
+This pass does not establish visible banners, physical clicks, real game/server
+notifications, gameplay, logout/login, reboot, Gamescope or compositor recovery.
+It adds no Millennium live or Windows hardware evidence. The tested candidate
+remains installed with developer and verbose diagnostic flags off.
