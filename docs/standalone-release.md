@@ -172,6 +172,19 @@ publisher with owner `tyvsmith`, repository `steam-native-notifications`, workfl
 authenticated package-owner access; creating the GitHub environment does not
 establish npm ownership or trust. See [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/).
 
+### First-package bootstrap
+
+The release owner staged `0.1.0` privately to establish the npm package before
+configuring trusted publishing. Staging reserves the version without making it
+publicly installable. Keep it pending until release approval.
+
+Before approval, download the staged package with `npm stage download` and
+compare its bytes with the approved numbered-release tarball. If they differ,
+reject the staged candidate and restage the approved tarball. Approving through
+`npm stage approve` requires the owner's 2FA and makes that version public.
+Do not run the direct-publish workflow for a version that is already staged or
+published; use OIDC publication for subsequent unstaged versions.
+
 After a version is published, users can install it with
 `bun add --global --trust @tyvsmith/steam-native-notifications`. Until then, use
 the GitHub release tarball or a local build. Millennium store listing and AUR
