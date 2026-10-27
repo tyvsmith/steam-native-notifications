@@ -19,8 +19,8 @@ macOS and Flatpak Steam are unsupported. See [platform coverage](docs/platforms.
 
 The [rolling pre-release](https://github.com/tyvsmith/steam-native-notifications/releases/tag/latest)
 provides the Millennium `.star` and standalone [Bun package](docs/install.md#install)
-with a SHA-256 checksum. Standalone Windows x64 is available as a
-[preview](docs/windows-standalone.md); Linux x64 is the supported install.
+with a SHA-256 checksum. Standalone Windows x64 is available as an
+[experimental install](docs/windows-standalone.md); Linux x64 is the supported install.
 
 ## Configure notifications
 

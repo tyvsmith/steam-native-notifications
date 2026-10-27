@@ -3,13 +3,15 @@
 For installation, updates and removal, start with the [user guide](install.md#standalone-linux).
 This reference covers CLI recovery, package ownership and publication.
 
-The experimental standalone host runs on native Linux x64 Steam without
+The supported standalone host runs on native Linux x64 Steam without
 Millennium. RT3 has recorded live coverage; non-RT3 Steam also passed user
 testing. Linux requires Bun 1.4.3 or newer; Windows requires 1.4.4 for its
-named-pipe lifetime fix. CI tests both platform minimums. The same package includes Windows x64 preview
-support; see [Windows installation and evidence](windows-standalone.md). macOS
-and Flatpak standalone hosts are unsupported. Windows production support is a
-required gate for the first numbered public release, tracked in [#30](https://github.com/tyvsmith/steam-native-notifications/issues/30).
+named-pipe lifetime fix. CI tests both platform minimums. The same package
+includes experimental Windows x64 support based on the existing VM evidence;
+see [Windows installation and evidence](windows-standalone.md). macOS and
+Flatpak standalone hosts are unsupported. Windows hardware acceptance remains
+a follow-up before claiming production support, tracked in
+[#30](https://github.com/tyvsmith/steam-native-notifications/issues/30).
 
 ## Install and update
 

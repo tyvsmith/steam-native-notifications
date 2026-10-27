@@ -1,9 +1,10 @@
-# Windows standalone preview
+# Windows standalone (experimental)
 
-Preview support for native Windows x64 Steam without Millennium. The same Bun
-package contains both Linux and Windows support. Do not enable both hosts.
-Windows gameplay, sign-in recovery, and physical notification-history clicks
-remain release gates.
+Experimental support for native Windows x64 Steam without Millennium, based on
+the VM evidence below. The same Bun package contains Linux and Windows support.
+Do not enable both hosts. Physical hardware gameplay, human notification-history
+clicks and broader sign-in recovery remain follow-ups before Windows production
+support; they do not block the Linux release with Windows labelled experimental.
 
 ## Install and remove
 
