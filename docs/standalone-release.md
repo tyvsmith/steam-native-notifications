@@ -176,6 +176,9 @@ establish npm ownership or trust. See [npm trusted publishing](https://docs.npmj
 
 ### First-package bootstrap
 
+Use npm CLI 11.15.0 or newer and Node 22.14.0 or newer for
+[staged publishing](https://docs.npmjs.com/staged-publishing/).
+
 Version `0.1.0` is public on [GitHub](https://github.com/tyvsmith/steam-native-notifications/releases/tag/v0.1.0)
 and [npm](https://www.npmjs.com/package/@tyvsmith/steam-native-notifications).
 The release owner approved its exact numbered-release tarball through staged
@@ -188,15 +191,17 @@ application publicly installable. npm creates a public `0.0.0-stage` placeholder
 containing no application. Configure ownership and trusted publishing before
 publication, and retain the staged candidate until release approval.
 
-Before approval, download the staged package with `npm stage download` and
-compare its bytes with the approved numbered-release tarball. If they differ,
+Before approval, find the stage ID with
+`npm stage list @tyvsmith/steam-native-notifications`, download it with
+`npm stage download <stage-id>`, and compare its bytes with the approved
+numbered-release tarball. If they differ,
 back up the candidate before rejecting it and restaging the approved tarball.
 During the initial bootstrap, rejecting the sole staged candidate also removed
 the package placeholder and its trusted-publisher configuration. Restaging
 restored the package; restoring trust required another owner confirmation.
 Verify ownership and trust again after replacing a bootstrap candidate.
 
-Approving through `npm stage approve` requires the owner's 2FA and makes that
+Approving through `npm stage approve <stage-id>` requires the owner's 2FA and makes that
 version public. Verify that the installed registry package matches the approved
 release archive, then exercise installation and explicit teardown/removal.
 Do not run the direct-publish workflow for a version that is already staged or
