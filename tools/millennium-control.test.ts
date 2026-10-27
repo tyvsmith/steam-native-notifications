@@ -17,7 +17,8 @@ test('readiness requires matching build, protocol, hook and live control', () =>
 });
 test('push transport correlates overlapping replies, expires and deletes transient config keys', async () => {
     const root = await mkdtemp(join(tmpdir(), 'snn-push-'));
-    const socketPath = join(root, 'mep.sock'); const deleted: string[] = []; let respond = true;
+    const socketPath = process.platform === 'win32' ? `\\\\.\\pipe\\snn-push-${crypto.randomUUID()}` : join(root, 'mep.sock');
+    const deleted: string[] = []; let respond = true;
     const buffers = new Map<any, Uint8Array>();
     const server = Bun.listen({ unix: socketPath, socket: {
         data(socket, data) {

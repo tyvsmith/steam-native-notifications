@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 // Exercise the frontend routing subgraph without Steam.
 //
 // Every expected URL below is a full literal string: these tests lock the

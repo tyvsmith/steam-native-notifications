@@ -15,6 +15,8 @@ jobs:
           bun-version: 1.4.4
       - run: bun install --frozen-lockfile
       - run: bun run build:standalone
+      - name: Exercise shared developer checks
+        run: bun run test:shared
       - name: Exercise Windows process and pipe lifecycles
         run: |
           foreach ($iteration in 1..10) {
@@ -23,7 +25,5 @@ jobs:
             bun test standalone/windows-acl.test.ts
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
-      - shell: powershell
-        run: ./tools/test-windows-notify-action.ps1 -Offline
-      - shell: powershell
-        run: ./tools/test-game-focus.ps1
+      - name: Exercise Windows delivery and focus checks
+        run: bun run test:windows

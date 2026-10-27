@@ -48,6 +48,11 @@ package; Bun removal alone does not reliably clean up the background service.
 
 ## Get help or contribute
 
+Run `bun run test:shared` for offline frontend and developer-tool checks on Linux
+or Windows. `bun run test:linux` runs Lua/Wayland checks; `bun run test:windows`
+runs native PowerShell checks. `bun run test` runs shared and current-platform
+checks. Run `bun run typecheck` separately for TypeScript validation.
+
 - [Troubleshoot delivery](docs/install.md#troubleshoot)
 - [Standalone CLI, lifecycle and packaging](docs/standalone-release.md)
 - [Platform support and limitations](docs/platforms.md)

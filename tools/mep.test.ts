@@ -61,11 +61,13 @@ type Script = (s: Sock, request: Record<string, Packable>) => void | Promise<voi
 const servers: Bun.UnixSocketListener<undefined>[] = [];
 const paths: string[] = [];
 let n = 0;
+const endpoint = () => process.platform === 'win32'
+	? `\\\\.\\pipe\\snn-mep-${process.pid}-${n++}`
+	: join(tmpdir(), `snn-mep-${process.pid}-${n++}.sock`);
 
 function listen(script: Script): string {
-	// Unix socket paths are short by law (~108 bytes), so tmpdir, not the
-	// project tree.
-	const path = join(tmpdir(), `snn-mep-${process.pid}-${n++}.sock`);
+	// Keep Unix sockets short; Windows listeners require named-pipe endpoints.
+	const path = endpoint();
 	const chunks: Uint8Array[] = [];
 	const server = Bun.listen({
 		unix: path,
@@ -171,7 +173,7 @@ describe('mepCall', () => {
 	});
 
 	test('no socket file names the socket and asks after Steam', async () => {
-		const socketPath = join(tmpdir(), `snn-mep-${process.pid}-absent.sock`);
+		const socketPath = endpoint();
 		await expect(mepCall('m', {}, { socketPath })).rejects.toThrow(`${socketPath} is not there -- is Steam running with Millennium?`);
 		await expect(mepCall('m', {}, { socketPath })).rejects.toMatchObject({ code: 'ENOENT' });
 	});

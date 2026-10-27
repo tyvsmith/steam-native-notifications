@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /**
  * Generate docs/notification-types.md: every notification type, what Steam's
  * own toast click does, and which durable fallbacks this plugin can derive.
@@ -9,8 +9,8 @@
  * prose summarizes.
  *
  * The routed-or-not classification is NOT restated here: it is derived by
- * calling the real routing rules (frontend/routes.ts, compiled on the fly via
- * tsc) with synthesized payloads, and generation fails when a row's prose
+ * calling the real routing rules (frontend/routes.ts, loaded through Bun) with
+ * synthesized payloads, and generation fails when a row's prose
  * disagrees with what the code does. The catalog once drifted three types from
  * routes.ts and published a wrong count; deriving makes that impossible.
  */
@@ -26,7 +26,7 @@ const { types, messages } = parseProto(
 	readFileSync(join(root, 'vendor', 'steammessages_clientnotificationtypes.proto'), 'utf8'),
 );
 
-// --- the real routing rules, compiled out of the frontend ------------------
+// --- the real routing rules, loaded from the frontend ------------------
 
 const { routes, urlstore, identity } = loadFrontendModules(['routes', 'urlstore', 'identity']);
 

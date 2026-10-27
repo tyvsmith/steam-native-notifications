@@ -13,7 +13,7 @@ async function panelFixture() {
         './devfire': 'export const executeDevCommand = globalThis.sample;',
     };
     const built = await Bun.build({ entrypoints: [resolve('frontend/SettingsPanel.tsx')], target: 'browser', format: 'cjs', plugins: [{ name: 'panel-fixture', setup(build) {
-        build.onLoad({ filter: /frontend\/settings\.ts$/ }, async args => ({ contents: await Bun.file(args.path).text() + '\nglobalThis.runtimeSettings = settings;', loader: 'ts' }));
+        build.onLoad({ filter: /frontend[\\/]settings\.ts$/ }, async args => ({ contents: await Bun.file(args.path).text() + '\nglobalThis.runtimeSettings = settings;', loader: 'ts' }));
         build.onResolve({ filter: /^(react(?:\/jsx(?:-dev)?-runtime)?|millennium|\.\/(platform|devfire)|\.\.\/shared\/steam-settings-controls)$/ }, args => ({ path: args.path, namespace: 'fixture' }));
         build.onLoad({ filter: /.*/, namespace: 'fixture' }, args => ({ contents: sources[args.path]!, loader: 'js' }));
     } }] });
