@@ -6,8 +6,10 @@ This reference covers CLI recovery, package ownership and publication.
 The experimental standalone host runs on native Linux x64 Steam without
 Millennium. RT3 has recorded live coverage; non-RT3 Steam also passed user
 testing. Linux requires Bun 1.4.3 or newer; Windows requires 1.4.4 for its
-named-pipe lifetime fix. CI tests both platform minimums. Windows, macOS and
-Flatpak standalone hosts are unsupported.
+named-pipe lifetime fix. CI tests both platform minimums. The same package includes Windows x64 preview
+support; see [Windows installation and evidence](windows-standalone.md). macOS
+and Flatpak standalone hosts are unsupported. Windows production support is a
+required gate for the first numbered public release, tracked in [#30](https://github.com/tyvsmith/steam-native-notifications/issues/30).
 
 ## Install and update
 
@@ -161,9 +163,12 @@ use `latest`. No compilation or lifecycle setup runs during publication.
 Before a real publication, establish ownership of
 `@tyvsmith/steam-native-notifications` on npm and configure its trusted publisher
 for this repository, `npm-publish.yml`, and the GitHub `npm` environment. The
-workflow uses OIDC rather than a stored registry token. Account bootstrap and
-publisher configuration are separate release-owner tasks; this repository does
-not establish them. See [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/).
+workflow uses OIDC rather than a stored registry token. Configure the trusted
+publisher with owner `tyvsmith`, repository `steam-native-notifications`, workflow
+`npm-publish.yml`, and environment `npm`. The GitHub environment permits only
+`v*` tags. npm account bootstrap and publisher configuration still require
+authenticated package-owner access; creating the GitHub environment does not
+establish npm ownership or trust. See [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/).
 
 After a version is published, users can install it with
 `bun add --global --trust @tyvsmith/steam-native-notifications`. Until then, use

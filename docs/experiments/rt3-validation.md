@@ -1,5 +1,35 @@
 # Standalone candidate validation
 
+## Public release gates, 2026-10-26
+
+The first numbered release requires Linux and Windows production acceptance.
+Windows stays labelled preview until those checks are complete. Existing VM,
+hardware and fixture records apply to their recorded builds, not every later
+artifact. [Issue #30](https://github.com/tyvsmith/steam-native-notifications/issues/30)
+is the public checklist.
+
+- verify the final Linux package through install, update, removal, a real event,
+  gameplay, visible history activation, logout/login and reboot recovery
+- verify Gamescope/compositor reconnect and Millennium external-write refresh
+  separately on their actual clients
+- repeat final Windows hardware gameplay, fullscreen/alt-tab, human banner and
+  history clicks, sign-out/sign-in, reboot, remove-button and failure recovery
+- retain overlay-splash mirroring and current desktop activation from in-game
+  banners, per the release-owner decision; validate those existing behaviors
+- configure npm ownership/trusted publishing; the GitHub `npm` environment now
+  restricts execution to `v*` tags, but does not establish npm trust
+- verify the publication metadata gate accepts the Linux/Windows x64 package;
+  run the numbered release and npm dry runs before explicit publication
+
+PR #54 merged standard-user ACL setup, headless startup, a General sample,
+Steam-service initialization ordering and the Windows Bun 1.4.4 minimum.
+Its VM evidence includes UAC setup/teardown, reboot startup, settings readiness,
+Notification Center pointer activation and main-window restoration. The
+[hardware report](https://github.com/tyvsmith/steam-native-notifications/issues/30#issuecomment-6400560565)
+covers both hosts on the older `91bd504` candidate, using synthetic clicks.
+Neither record establishes human clicks or final-candidate physical fullscreen.
+
+
 ## Follow-up: explicit Millennium settings refresh
 
 - replace periodic settings reads with one reload request after each CLI write
@@ -106,7 +136,8 @@ converged the panel and repaired Millennium bindings and settings snapshots.
 - cover Gamescope and compositor reconnect separately from ordinary gameplay
 - repeat Millennium live regression for the new external-write refresh when its
   client is installed; do not switch clients solely for this RT3 pass
-- keep Windows hardware/focus work separate; standalone is Linux x64 only
+- complete Windows standalone production acceptance on physical hardware; the
+  package supports Linux x64 and Windows x64 preview
 - resolve the older Windows blockers in the public-release tracker explicitly
   before describing a release as cross-platform production-ready
 - configure npm ownership and trusted publishing, then explicitly run publication

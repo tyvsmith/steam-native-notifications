@@ -41,12 +41,14 @@ Linux launches that URL after a live `notify-send` default action. Quickshell
 also receives `omarchy-exec-argv` with a fixed `steam`, URL argv pair for
 Quattro history. Other FreeDesktop daemons do not promise a reboot-durable
 executable action. Windows stores the same URL in the WinRT toast. Linux
-validated stored-argv replay and Achievement fallback after restart/cold start;
-UI clicks, visual focus, and shell/login restart remain untested. Windows
-validated canonical history storage, exact replay, and Achievement fallback
-after restart/cold start through active-session protocol invocation. UI clicks,
-visual focus, and a clean guest reboot remain untested. Subsequent surface and
-dispatch-completion fixes have offline coverage only. See `docs/platforms.md`.
+validated stored-argv replay and Achievement fallback after restart/cold start.
+The user reported Quickshell live-banner and restart-survival clicks on
+2026-09-10; shell/login and host-reboot acceptance remain open. Windows hardware
+results in issue #30 cover both hosts, gameplay and synthetic clicks on an older
+build. PR #54 adds standalone VM checks for standard-user setup, reboot startup,
+Notification Center pointer clicks and main-window restoration. Human clicks
+and final-candidate physical fullscreen acceptance remain open. See
+`docs/platforms.md` and `docs/windows-standalone.md` for build-specific limits.
 
 ## Commands
 
