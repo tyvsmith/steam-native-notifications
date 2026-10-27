@@ -11,8 +11,10 @@ VM; Quattro history clicks worked with Linux Steam running and fully stopped.
 Later standalone VM validation covers pointer clicks, main-window restoration
 and reboot startup. Native hardware reports cover both hosts on an older build;
 see [the report](https://github.com/tyvsmith/steam-native-notifications/issues/30#issuecomment-6400560565)
-and [Windows candidate evidence](windows-standalone.md). Human clicks and final
-physical fullscreen acceptance remain open. macOS has not run.
+and [Windows candidate evidence](windows-standalone.md). Earlier native Millennium
+UI-click measurements remain in [PR #10](https://github.com/tyvsmith/steam-native-notifications/pull/10);
+they predate the current candidate. Final-candidate human clicks and physical
+fullscreen acceptance remain open. macOS has not run.
 
 ## Standalone RT3 host
 
