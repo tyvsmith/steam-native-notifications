@@ -15,7 +15,8 @@
 # Usage: notify-action.ps1 -Setup            register AUMID branding (idempotent)
 #        notify-action.ps1 -Teardown         remove the registration and the icon
 #        notify-action.ps1 -Id <id>          deliver <id>.notify from the runtime directory
-#        notify-action.ps1 -FocusKind <kind> pulse the main or chat window
+#        notify-action.ps1 -FocusKind main  pulse the main window
+#        notify-action.ps1 -FocusKind chat -FocusTarget <base64-title>
 #
 # The .notify file carries the five POSIX slots plus the Windows-only boolean
 # suppressPopup. A file, not a command line, so quoting stays out of the contract.
@@ -24,6 +25,7 @@ param(
     [string]$Id,
     [ValidateSet('chat', 'main')]
     [string]$FocusKind,
+    [string]$FocusTarget = '',
     [switch]$Setup,
     [switch]$Teardown
 )
@@ -234,9 +236,11 @@ public static class SnnToastFocus
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int GetWindowText(IntPtr window, StringBuilder text, int count);
 
-    private static IntPtr FindSteamWindow(bool chat)
+    private static IntPtr FindSteamWindow(bool chat, string expectedTitle)
     {
+        if (chat && String.IsNullOrWhiteSpace(expectedTitle)) return IntPtr.Zero;
         IntPtr found = IntPtr.Zero;
+        bool ambiguous = false;
         EnumWindows(delegate(IntPtr window, IntPtr parameter)
         {
             if (!IsWindowVisible(window))
@@ -244,15 +248,15 @@ public static class SnnToastFocus
                 return true;
             }
 
-            StringBuilder title = new StringBuilder(256);
+            StringBuilder title = new StringBuilder(514);
             GetWindowText(window, title, title.Capacity);
             string windowTitle = title.ToString();
-            if (String.IsNullOrWhiteSpace(windowTitle))
+            if (windowTitle.Length > 512 || String.IsNullOrWhiteSpace(windowTitle))
             {
                 return true;
             }
             bool main = String.Equals(windowTitle, "Steam", StringComparison.Ordinal);
-            if (chat == main) return true;
+            if (chat ? !String.Equals(windowTitle, expectedTitle, StringComparison.Ordinal) : !main) return true;
 
             uint processId;
             GetWindowThreadProcessId(window, out processId);
@@ -262,17 +266,19 @@ public static class SnnToastFocus
                 if (String.Equals(process.ProcessName, "steamwebhelper",
                     StringComparison.OrdinalIgnoreCase))
                 {
+                    if (!chat) { found = window; return false; }
+                    if (found != IntPtr.Zero) { ambiguous = true; return false; }
                     found = window;
-                    return false;
+                    return true;
                 }
             }
             catch {}
             return true;
         }, IntPtr.Zero);
-        return found;
+        return ambiguous ? IntPtr.Zero : found;
     }
 
-    public static string Raise(string kind)
+    public static string Raise(string kind, string encodedTitle)
     {
         try
         {
@@ -283,11 +289,18 @@ public static class SnnToastFocus
             IntPtr HWND_NOTOPMOST = new IntPtr(-2);
 
             bool chat = String.Equals(kind, "chat", StringComparison.Ordinal);
+            string expectedTitle = "";
+            if (chat) {
+                if (String.IsNullOrEmpty(encodedTitle) || encodedTitle.Length > 4096) return "target-missing kind=chat";
+                expectedTitle = new UTF8Encoding(false, true).GetString(Convert.FromBase64String(encodedTitle));
+                if (expectedTitle.Length > 512 || String.IsNullOrWhiteSpace(expectedTitle)) return "target-missing kind=chat";
+                foreach (char c in expectedTitle) if (Char.IsControl(c)) return "target-missing kind=chat";
+            }
             IntPtr target = IntPtr.Zero;
             DateTime deadline = DateTime.UtcNow.AddSeconds(4);
             while (target == IntPtr.Zero && DateTime.UtcNow < deadline)
             {
-                target = FindSteamWindow(chat);
+                target = FindSteamWindow(chat, expectedTitle);
                 if (target == IntPtr.Zero) Thread.Sleep(100);
             }
             if (target == IntPtr.Zero)
@@ -315,7 +328,7 @@ public static class SnnToastFocus
 if ($FocusKind) {
     try {
         Add-Type -TypeDefinition $FocusSinkSource
-        $result = [SnnToastFocus]::Raise($FocusKind)
+        $result = [SnnToastFocus]::Raise($FocusKind, $FocusTarget)
         Write-PluginLog "focus: $result"
         if ($result -like 'raised *') { exit 0 }
     } catch {

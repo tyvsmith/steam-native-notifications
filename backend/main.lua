@@ -352,13 +352,20 @@ end
 --- finding and raising the requested Steam window.
 ---@ffi
 ---@param kind any
+---@param target any
 ---@return string
-function FocusSteam(kind)
+function FocusSteam(kind, target)
     kind = tostring(kind or "")
     if not IS_WINDOWS or (kind ~= "chat" and kind ~= "main") then
         return "unsupported"
     end
-    if not spawn_windows_helper('-FocusKind "' .. kind .. '"') then
+    target = tostring(target or "")
+    if #target > 4096 or (kind == "chat" and (target == "" or not target:match("^[A-Za-z0-9+/=]+$"))) or (kind == "main" and target ~= "") then
+        return "unsupported"
+    end
+    local focus_args = '-FocusKind "' .. kind .. '"'
+    if kind == "chat" then focus_args = focus_args .. ' -FocusTarget "' .. target .. '"' end
+    if not spawn_windows_helper(focus_args) then
         return "unsupported"
     end
     return "ok"

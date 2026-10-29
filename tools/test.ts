@@ -5,7 +5,7 @@ const shared = [
     [bun, 'tools/test-frontend'],
     [bun, 'test', 'tools/load-frontend.test.ts', 'tools/diagnostics.test.ts', 'tools/cli-options.test.ts',
         'tools/millennium-control.test.ts', 'tools/millennium-diagnostics.test.ts', 'tools/click-dispatch.test.ts',
-        'tools/devtools.test.ts', 'tools/windows-host-focus.test.ts', 'tools/mep.test.ts', 'tools/snn.test.ts',
+        'tools/chatfocus.test.ts', 'tools/devtools.test.ts', 'tools/windows-host-focus.test.ts', 'tools/mep.test.ts', 'tools/snn.test.ts',
         'tools/toastdb.test.ts', 'tools/capture.test.ts'],
     [bun, 'test', 'shared/diagnostics.test.ts', 'shared/contracts.test.ts', 'shared/settings-policy.test.ts',
         'shared/settings-actions.test.ts', 'shared/command-result.test.ts'],
@@ -19,6 +19,7 @@ const linux = [
 ];
 const windows = [
     ['powershell.exe', '-NoProfile', '-File', 'tools/test-windows-notify-lifecycle.ps1'],
+    ['powershell.exe', '-NoProfile', '-File', 'tools/test-windows-focus.ps1'],
     ['powershell.exe', '-NoProfile', '-File', 'tools/test-windows-notify-action.ps1', '-Offline'],
     ['powershell.exe', '-NoProfile', '-File', 'tools/test-game-focus.ps1'],
 ];

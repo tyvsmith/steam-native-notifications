@@ -611,10 +611,17 @@ protocol invocation rather than UI clicks.
 - a clean planned guest reboot remains untested; the persistence result came
   from the external VM/container power cycle
 
-Chat selection currently accepts the first visible titled `steamwebhelper`
-window whose title is not `Steam`. Other Steam dialogs can match; no verified
-chat-specific discriminator is available in the current helper. Selection of
-the intended chat with several candidate windows remains unverified.
+Friend-chat focus resolves Steam's root-desktop conversation container after
+routing, then requires one exact visible `steamwebhelper` title match. Missing
+containers and duplicate native titles refuse the extra OS raise. Group-chat
+replay without a verified friend route also skips that raise; Steam still runs
+its captured handler. Titles travel only in the transient focus request.
+
+Windows 11 VM checks matched a live friend-chat container to its native window
+with Settings also open. Native fixtures covered Unicode titles, missing and
+duplicate targets, and unrelated processes. Combined friends/chat mode, real
+banner/history clicks, keyboard focus and physical fullscreen acceptance remain
+unverified on this change.
 
 Windows can still report `ShellExperienceHost` as the foreground owner after a
 toast click. The pulse is a visibility guarantee above ordinary windows, not a

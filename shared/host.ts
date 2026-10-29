@@ -7,7 +7,7 @@ export const BUILD_IDENTITY: BuildIdentity = { ...identity, protocolVersion: PRO
 export type HostKind = 'millennium' | 'standalone';
 export interface HostMethods {
     Notify: [string, string, string, string, string, string]; Identity: []; Platform: []; Log: [string];
-    GameHostFocus: [number]; FocusSteam: [string];
+    GameHostFocus: [number]; FocusSteam: [string, string];
 }
 export type HostMethod = keyof HostMethods;
 export interface RuntimeHost { call<M extends HostMethod>(method: M, ...args: HostMethods[M]): Promise<string> }

@@ -1,3 +1,4 @@
+import { waitForChatFocusTarget } from './chatfocus';
 import { hostMethod } from './host';
 import { deliveryMode, surfaceMatches, type ClickEnvelope, type FocusKind } from './click';
 import { dlog } from './log';
@@ -19,8 +20,12 @@ import {
 const focusSteam = hostMethod('FocusSteam');
 const OPENURL_PREFIX = 'steam://openurl/';
 
-function requestFocus(kind: FocusKind): void {
-	void focusSteam(kind).catch((e: unknown) => dlog(`focus request failed: (enable verboseDiagnostics for details)`, () => `focus request failed: ${(e as Error)?.message ?? e}`));
+function requestFocus(kind: FocusKind, fallback: string | null): void {
+	void (async () => {
+		const target = kind === 'chat' ? await waitForChatFocusTarget(fallback) : '';
+		if (target === null) { dlog('click-bridge: chat focus target unavailable; raise refused'); return; }
+		await focusSteam(kind, target);
+	})().catch((e: unknown) => dlog(`focus request failed: (enable verboseDiagnostics for details)`, () => `focus request failed: ${(e as Error)?.message ?? e}`));
 }
 
 /**
@@ -211,7 +216,7 @@ export async function dispatchClick(envelope: ClickEnvelope): Promise<void> {
 		const mode = deliveryMode(envelope, focusedAppId, replayed);
 		if (mode === 'replay') {
 			dlog(`click-bridge: replay token=${envelope.token.slice(0, 8)}`);
-			if (focusedAppId === 0) requestFocus(envelope.focus);
+			if (focusedAppId === 0) requestFocus(envelope.focus, envelope.fallback);
 			return;
 		}
 		if (mode === 'none' || !envelope.fallback) {
@@ -223,7 +228,7 @@ export async function dispatchClick(envelope: ClickEnvelope): Promise<void> {
 			(await dispatchFallback(focusedAppId, envelope.fallback)) &&
 			(focusedAppId === 0 || isDesktopOnlyRoute(envelope.fallback))
 		) {
-			requestFocus(envelope.focus);
+			requestFocus(envelope.focus, envelope.fallback);
 		}
 	} catch (e) {
 		dlog(`click-bridge failed: (enable verboseDiagnostics for details)`, () => `click-bridge failed: ${(e as Error)?.message ?? e}`);

@@ -1025,16 +1025,24 @@ for _, case in ipairs({
 end
 
 local focus_result
-ok, focus_result = pcall(FocusSteam, "chat")
+ok, focus_result = pcall(FocusSteam, "chat", "Q2hhdA==")
 check("windows+ffi: FocusSteam runs", ok, focus_result)
 check("windows+ffi: FocusSteam reports ok", focus_result == "ok", tostring(focus_result))
 check("windows+ffi: chat focus is a one-shot helper invocation",
-	ffi_commands[#ffi_commands]:find('%-FocusKind "chat"$') ~= nil,
+	ffi_commands[#ffi_commands]:find('%-FocusKind "chat" %-FocusTarget "Q2hhdA=="$') ~= nil,
 	tostring(ffi_commands[#ffi_commands]))
 local before_invalid_focus = #ffi_commands
+for _, target in ipairs({"", "bad;command", string.rep("A", 4097)}) do
+    ok, focus_result = pcall(FocusSteam, "chat", target)
+    check("windows+ffi: invalid chat target refused", ok and focus_result == "unsupported", tostring(focus_result))
+end
+check("windows+ffi: invalid targets spawn nothing", #ffi_commands == before_invalid_focus, tostring(#ffi_commands))
 ok, focus_result = pcall(FocusSteam, "other")
 check("windows+ffi: invalid focus is refused", ok and focus_result == "unsupported", tostring(focus_result))
 check("windows+ffi: invalid focus spawns nothing", #ffi_commands == before_invalid_focus, tostring(#ffi_commands))
+ok, focus_result = pcall(FocusSteam, "main", "")
+check("windows+ffi: main focus retains its original argument shape", ok and focus_result == "ok" and
+    ffi_commands[#ffi_commands]:find('%-FocusKind "main"$') ~= nil, tostring(focus_result))
 package.preload["ffi"] = nil
 
 -- Identity: only millennium.steam_path is consulted (no ~/.steam guesses),

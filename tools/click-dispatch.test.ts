@@ -3,6 +3,7 @@ import type { ClickEnvelope } from '../frontend/click';
 
 // Keep replay, surface discovery, and dispatch real; replace only the host APIs.
 const events: string[] = [];
+const focusTargets: string[] = [];
 let navigator: any;
 let hostFocus: string | Promise<string> = 'unknown';
 const overlayStore = {
@@ -11,8 +12,8 @@ const overlayStore = {
 	GetNavigator() { return navigator; },
 };
 mock.module('millennium', () => ({
-	ffi: (name: string) => async (value: string) => {
-		if (name === 'FocusSteam') events.push(`focus:${value}`);
+	ffi: (name: string) => async (value: string, target: string) => {
+		if (name === 'FocusSteam') { events.push(`focus:${value}`); focusTargets.push(target); }
 		if (name === 'GameHostFocus') return hostFocus;
 		return '';
 	},
@@ -65,6 +66,8 @@ async function advance(ms: number) {
 
 beforeEach(() => {
 	events.length = 0;
+	focusTargets.length = 0;
+	Reflect.set(globalThis, 'g_FriendsUIApp', undefined);
 	hostFocus = 'unknown';
 	intervals = new Map();
 	now = 100000;
@@ -94,7 +97,7 @@ test('desktop chat replay does not open the main window from tray', async () => 
 	capture(click);
 	void dispatchClick(click);
 	await flush();
-	expect(events).toEqual(['replay', 'focus:chat']);
+	expect(events).toEqual(['replay']);
 });
 
 for (const running of [false, true]) {
@@ -104,7 +107,7 @@ for (const running of [false, true]) {
 		const click = { ...envelope('steam://friends/message/76561197982882208'), focus: 'chat' as const };
 		void dispatchClick(click);
 		await flush();
-		expect(events).toEqual(['overlay:0:chat', 'focus:chat']);
+		expect(events).toEqual(['overlay:0:chat']);
 	});
 }
 
@@ -392,7 +395,7 @@ test('group chat preserves same-session exact replay', async () => {
 	const click = { ...envelope(), focus: 'chat' as const };
 	capture(click);
 	await dispatchClick(click);
-	expect(events).toEqual(['replay', 'focus:chat']);
+	expect(events).toEqual(['replay']);
 });
 
 test('a group-chat notification without its session callback remains inert', async () => {
@@ -485,4 +488,22 @@ test('a refused URL dispatch does not request focus', async () => {
 	sc.URL.ExecuteSteamURL = () => false;
 	await dispatchClick(envelope('steam://nav/games/details/570'));
 	expect(events).toEqual([]);
+});
+
+function routedChatWindow() {
+ const win = { closed: false, document: { title: 'chat window', visibilityState: 'visible' } };
+ Reflect.set(globalThis, 'g_PopupManager', { m_mapPopups: new Map([['chat', {m_popup:win}]]) });
+ Reflect.set(globalThis, 'g_FriendsUIApp', {m_ChatStore:{GetFriendChat:()=>({})},m_UIStore:{GetAppContainerForChat:()=>({m_window:win,BIsClosed:()=>false})}});
+ return win;
+}
+test('desktop chat forwards its resolved target after replay', async () => {
+ routedChatWindow(); const click={...envelope('steam://friends/message/76561197960265770'),focus:'chat' as const}; capture(click); await dispatchClick(click); await flush();
+ expect(events).toEqual(['replay','focus:chat']); expect(Buffer.from(focusTargets[0],'base64').toString()).toBe('chat window');
+});
+test('new chat focus waits for its registered container', async () => {
+ const click={...envelope('steam://friends/message/76561197960265770'),focus:'chat' as const}; capture(click); await dispatchClick(click); await flush(); expect(events).toEqual(['replay']);
+ routedChatWindow(); await advance(100); expect(events).toEqual(['replay','focus:chat']);
+});
+test('unresolved chat target times out without raising another dialog', async () => {
+ const click={...envelope('steam://friends/message/76561197960265770'),focus:'chat' as const}; capture(click); await dispatchClick(click); await flush(); await advance(4000); expect(events).toEqual(['replay']); expect(intervals.size).toBe(0);
 });
