@@ -18,6 +18,7 @@ const linux = [
     ...['game-focus', 'gamescope-focus', 'windows-focus-adapter'].map(name => ['luajit', `tools/${name}.test.lua`]),
 ];
 const windows = [
+    ['powershell.exe', '-NoProfile', '-File', 'tools/test-windows-notify-lifecycle.ps1'],
     ['powershell.exe', '-NoProfile', '-File', 'tools/test-windows-notify-action.ps1', '-Offline'],
     ['powershell.exe', '-NoProfile', '-File', 'tools/test-game-focus.ps1'],
 ];
