@@ -383,10 +383,22 @@ Build: `3eb00f7b00c1114f9d4e12245a4c0aaa551e6addc0a033f0983365f376c19aa8`.
 - invoked the retained Aircar action and confirmed exact replay without a throw
 - restored original plugin preferences, including absent diagnostic keys
 
-Steam relaunched successfully, but three shutdowns crashed in its audio/PulseAudio
-thread. These traces do not establish a plugin cause; clean shutdown remains
-unverified. Panel pointer interaction, in-game routing, physical history clicks,
-logout/login and Windows were not tested in this pass.
+Three interim debug/trace/fields launches crashed during shutdown before the
+final fixed launch completed at 15:42:53 Pacific. They are not three verified
+shutdown failures of build `3eb00f7`.
+
+- 15:40:51, PID 2081413: SIGABRT in `threaded-ml`; allocator/PulseAudio property cleanup
+- 15:41:34, PID 2087479: SIGABRT; only the crash listing was retained
+- 15:42:51, PID 2093431: SIGSEGV in `threaded-ml`; `libaudio.so` and PulseAudio dispatch, while the main thread was exiting through Millennium's lifecycle destructor
+
+The preserved stacks establish audio-thread activity during teardown but do not
+establish plugin causation. No baseline without Millennium was recorded. The
+earlier X11-display launch failure is a separate signature. The original cores
+are no longer available; the observations above were recovered from the validation session's recorded
+output. [Shutdown investigation](https://github.com/tyvsmith/steam-native-notifications/issues/59)
+remains open; clean shutdown is unverified. Panel pointer interaction, in-game
+routing, physical history clicks, logout/login and Windows were not tested in
+this pass.
 
 ### Shared delivery dropdowns, 2026-10-17
 
