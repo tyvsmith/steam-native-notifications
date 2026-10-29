@@ -11,7 +11,11 @@ $icon = Join-Path $testRoot 'steam.ico'
 $originalLocation = Get-Location
 
 function Assert-That([bool]$Condition, [string]$Message) {
-    if (-not $Condition) { throw "FAIL $Message" }
+    if (-not $Condition) {
+        $log = Join-Path $testRoot 'plugin.log'
+        if (Test-Path -LiteralPath $log) { Get-Content -LiteralPath $log | Write-Output }
+        throw "FAIL $Message"
+    }
 }
 function Invoke-Helper([string[]]$Arguments, [int]$Expected = 0) {
     & "$PSHOME\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File $helper @Arguments
@@ -43,7 +47,7 @@ try {
         Invoke-Helper -Arguments @('-Setup')
         $registration = Get-ItemProperty -LiteralPath $testAumidKey
         Assert-That ($registration.DisplayName -ceq 'Steam') 'setup registers branding'
-        Assert-That ($registration.IconUri -ceq $icon) 'setup registers the extracted icon'
+        Assert-That ($registration.IconUri -ceq $icon) "setup registers the extracted icon (actual: $($registration.IconUri), expected: $icon)"
         Assert-That (Test-Path -LiteralPath $icon) 'setup writes the icon'
         Assert-That (-not (Test-Path -LiteralPath $testSchemeKey)) 'setup removes the legacy scheme'
     }
