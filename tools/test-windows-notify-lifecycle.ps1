@@ -47,8 +47,10 @@ try {
         Invoke-Helper -Arguments @('-Setup')
         $registration = Get-ItemProperty -LiteralPath $testAumidKey
         Assert-That ($registration.DisplayName -ceq 'Steam') 'setup registers branding'
-        Assert-That ($registration.IconUri -ceq $icon) "setup registers the extracted icon (actual: $($registration.IconUri), expected: $icon)"
         Assert-That (Test-Path -LiteralPath $icon) 'setup writes the icon'
+        $registeredIcon = (Resolve-Path -LiteralPath $registration.IconUri).ProviderPath
+        $expectedIcon = (Resolve-Path -LiteralPath $icon).ProviderPath
+        Assert-That ($registeredIcon -ieq $expectedIcon) 'setup registers the extracted icon after resolving Windows path aliases'
         Assert-That (-not (Test-Path -LiteralPath $testSchemeKey)) 'setup removes the legacy scheme'
     }
     Write-Output 'PASS repeated setup from an unrelated cwd with space/non-ASCII paths and icon extraction'
