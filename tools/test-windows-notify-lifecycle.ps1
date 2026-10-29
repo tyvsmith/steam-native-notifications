@@ -10,6 +10,23 @@ $helper = Join-Path $testRoot 'notify-action.ps1'
 $icon = Join-Path $testRoot 'steam.ico'
 $originalLocation = Get-Location
 
+# PowerShell's Resolve-Path can retain 8.3 aliases from the runner's TEMP.
+Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+public static class SnnLifecyclePaths {
+    [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
+    static extern uint GetLongPathName(string path, StringBuilder expanded, uint capacity);
+    public static string Expand(string path) {
+        var expanded = new StringBuilder(32768);
+        uint length = GetLongPathName(path, expanded, (uint)expanded.Capacity);
+        if (length == 0 || length >= expanded.Capacity) throw new InvalidOperationException("Cannot expand fixture path: " + path);
+        return expanded.ToString();
+    }
+}
+'@
+
 function Assert-That([bool]$Condition, [string]$Message) {
     if (-not $Condition) {
         $log = Join-Path $testRoot 'plugin.log'
@@ -48,8 +65,8 @@ try {
         $registration = Get-ItemProperty -LiteralPath $testAumidKey
         Assert-That ($registration.DisplayName -ceq 'Steam') 'setup registers branding'
         Assert-That (Test-Path -LiteralPath $icon) 'setup writes the icon'
-        $registeredIcon = (Resolve-Path -LiteralPath $registration.IconUri).ProviderPath
-        $expectedIcon = (Resolve-Path -LiteralPath $icon).ProviderPath
+        $registeredIcon = [SnnLifecyclePaths]::Expand($registration.IconUri)
+        $expectedIcon = [SnnLifecyclePaths]::Expand($icon)
         Assert-That ($registeredIcon -ieq $expectedIcon) 'setup registers the extracted icon after resolving Windows path aliases'
         Assert-That (-not (Test-Path -LiteralPath $testSchemeKey)) 'setup removes the legacy scheme'
     }
