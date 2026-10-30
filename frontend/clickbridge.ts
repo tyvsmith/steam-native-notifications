@@ -1,3 +1,4 @@
+import { waitForChatFocusTarget } from './chatfocus';
 import { hostMethod } from './host';
 import { deliveryMode, surfaceMatches, type ClickEnvelope, type FocusKind } from './click';
 import { dlog } from './log';
@@ -18,9 +19,16 @@ import {
 /** Canonical Steam URLs enter shared replay and durable dispatch here. */
 const focusSteam = hostMethod('FocusSteam');
 const OPENURL_PREFIX = 'steam://openurl/';
+let focusGeneration = 0;
 
-function requestFocus(kind: FocusKind): void {
-	void focusSteam(kind).catch((e: unknown) => dlog(`focus request failed: (enable verboseDiagnostics for details)`, () => `focus request failed: ${(e as Error)?.message ?? e}`));
+/** A later click supersedes pending window discovery from earlier clicks. */
+function requestFocus(kind: FocusKind, fallback: string | null, generation: number): void {
+	void (async () => {
+		const target = kind === 'chat' ? await waitForChatFocusTarget(fallback) : '';
+		if (generation !== focusGeneration) return;
+		if (target === null) { dlog('click-bridge: chat focus target unavailable; raise refused'); return; }
+		await focusSteam(kind, target);
+	})().catch((e: unknown) => dlog(`focus request failed: (enable verboseDiagnostics for details)`, () => `focus request failed: ${(e as Error)?.message ?? e}`));
 }
 
 /**
@@ -191,6 +199,7 @@ async function dispatchFallback(focusedAppId: number, route: string): Promise<bo
 }
 
 export async function dispatchClick(envelope: ClickEnvelope): Promise<void> {
+	const generation = ++focusGeneration;
 	try {
 		const surface = await currentClickSurface();
 		if (!surface) {
@@ -211,7 +220,7 @@ export async function dispatchClick(envelope: ClickEnvelope): Promise<void> {
 		const mode = deliveryMode(envelope, focusedAppId, replayed);
 		if (mode === 'replay') {
 			dlog(`click-bridge: replay token=${envelope.token.slice(0, 8)}`);
-			if (focusedAppId === 0) requestFocus(envelope.focus);
+			if (focusedAppId === 0) requestFocus(envelope.focus, envelope.fallback, generation);
 			return;
 		}
 		if (mode === 'none' || !envelope.fallback) {
@@ -223,7 +232,7 @@ export async function dispatchClick(envelope: ClickEnvelope): Promise<void> {
 			(await dispatchFallback(focusedAppId, envelope.fallback)) &&
 			(focusedAppId === 0 || isDesktopOnlyRoute(envelope.fallback))
 		) {
-			requestFocus(envelope.focus);
+			requestFocus(envelope.focus, envelope.fallback, generation);
 		}
 	} catch (e) {
 		dlog(`click-bridge failed: (enable verboseDiagnostics for details)`, () => `click-bridge failed: ${(e as Error)?.message ?? e}`);

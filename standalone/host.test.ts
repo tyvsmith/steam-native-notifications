@@ -123,3 +123,19 @@ for (const line of (await Bun.file(join(import.meta.dir, '../shared/login-users.
         expect(JSON.parse(await host.dispatch('Identity', [])).steamid64).toBe(expected === '-' ? undefined : expected);
     });
 }
+
+test('Windows focus accepts legacy main calls and refuses unidentified legacy chats', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'snn-focus-contract-')); dirs.push(root);
+    const program = `import {mock} from 'bun:test';
+      const commands=[];
+      mock.module(${JSON.stringify(join(import.meta.dir,'windows.ts'))},()=>({powershell:async line=>{commands.push(line);},psQuote:value=>JSON.stringify(value)}));
+      const {Host}=await import(${JSON.stringify(join(import.meta.dir,'host.ts'))});
+      const host=new Host(${JSON.stringify(root)},${JSON.stringify(join(root,'config.json'))},${JSON.stringify(root)});
+      Reflect.set(host,'platform','windows');
+      const results=[]; for(const args of [['main'],['main',''],['chat'],['chat','Q2hhdA=='],['main','invalid'],['chat','bad;command'],['chat','Q2hhdA==','extra']]) results.push(await host.dispatch('FocusSteam',args));
+      console.log(JSON.stringify({results,commands}));`;
+    const child=Bun.spawn([process.execPath,'-e',program],{stdout:'pipe',stderr:'pipe'});
+    const result=JSON.parse(await new Response(child.stdout).text()); expect(await child.exited).toBe(0);
+    expect(result.results).toEqual(['ok','ok','unsupported','ok','unsupported','unsupported','unsupported']);
+    expect(result.commands).toHaveLength(3); expect(result.commands[2]).toContain('Q2hhdA==');
+});

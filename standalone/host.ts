@@ -72,9 +72,13 @@ export class Host {
                     return JSON.stringify({ steamid64: loginUser(text) });
                 } catch { return '{}'; }
             }
-            case 'FocusSteam':
-                if (this.platform !== 'windows' || args.length !== 1 || !['main', 'chat'].includes(String(args[0]))) return 'unsupported';
-                { const { powershell, psQuote } = await import('./windows'); await powershell(`& ${psQuote(join(this.runtime, 'notify-action.ps1'))} -FocusKind ${psQuote(String(args[0]))}`); return 'ok'; } // Linux focus is performed inside Steam's existing dispatcher.
+            case 'FocusSteam': {
+                const [kind, target = ''] = args;
+                if (this.platform !== 'windows' || args.length < 1 || args.length > 2 || !['main', 'chat'].includes(String(kind)) || typeof target !== 'string' || target.length > 4096 || (kind === 'chat' ? !/^[A-Za-z0-9+/=]+$/.test(target) : target !== '')) return 'unsupported';
+                const { powershell, psQuote } = await import('./windows');
+                await powershell(`& ${psQuote(join(this.runtime, 'notify-action.ps1'))} -FocusKind ${psQuote(String(kind))} -FocusTarget ${psQuote(target)}`);
+                return 'ok'; // Linux focus is performed inside Steam's existing dispatcher.
+            }
             case 'GameHostFocus': {
                 const appid = args[0];
                 if (args.length !== 1 || typeof appid !== 'number' || !Number.isInteger(appid) || appid <= 0 || appid > 0xffffffff) return 'unknown';
