@@ -617,6 +617,10 @@ containers and duplicate native titles refuse the extra OS raise. Group-chat
 replay without a verified friend route also skips that raise; Steam still runs
 its captured handler. Titles travel only in the transient focus request.
 
+Fully restart Steam after updating either integration. Legacy main-window focus
+calls remain compatible; an older frontend's chat request lacks target identity,
+so only its extra OS raise is refused until the restart. Steam routing still runs.
+
 Windows 11 VM checks matched a live friend-chat container to its native window
 with Settings also open. Native fixtures covered Unicode titles, missing and
 duplicate targets, and unrelated processes. Combined friends/chat mode, real

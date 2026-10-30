@@ -507,3 +507,18 @@ test('new chat focus waits for its registered container', async () => {
 test('unresolved chat target times out without raising another dialog', async () => {
  const click={...envelope('steam://friends/message/76561197960265770'),focus:'chat' as const}; capture(click); await dispatchClick(click); await flush(); await advance(4000); expect(events).toEqual(['replay']); expect(intervals.size).toBe(0);
 });
+
+test('a newer chat focus supersedes an older unresolved conversation', async () => {
+ const chats = new Map<number, any>();
+ const popups = new Map<string, any>();
+ Reflect.set(globalThis, 'g_PopupManager', {m_mapPopups:popups});
+ Reflect.set(globalThis, 'g_FriendsUIApp', {m_ChatStore:{GetFriendChat:(id:number)=>chats.get(id)},m_UIStore:{GetAppContainerForChat:(chat:any)=>chat.container}});
+ function register(id:number, title:string) {
+  const win={closed:false,document:{title,visibilityState:'visible'}};
+  chats.set(id,{container:{m_window:win,BIsClosed:()=>false}}); popups.set(String(id),{m_popup:win});
+ }
+ const first={...envelope('steam://friends/message/76561197960265770'),focus:'chat' as const}; capture(first); await dispatchClick(first); await flush();
+ register(43,'newer chat'); const second={...envelope('steam://friends/message/76561197960265771'),focus:'chat' as const}; capture(second); await dispatchClick(second); await flush();
+ register(42,'older chat'); await advance(100);
+ expect(focusTargets.map(value=>Buffer.from(value,'base64').toString())).toEqual(['newer chat']);
+});

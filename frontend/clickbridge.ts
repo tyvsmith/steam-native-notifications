@@ -19,10 +19,14 @@ import {
 /** Canonical Steam URLs enter shared replay and durable dispatch here. */
 const focusSteam = hostMethod('FocusSteam');
 const OPENURL_PREFIX = 'steam://openurl/';
+let focusGeneration = 0;
 
+/** A later click supersedes pending window discovery from earlier clicks. */
 function requestFocus(kind: FocusKind, fallback: string | null): void {
+	const generation = ++focusGeneration;
 	void (async () => {
 		const target = kind === 'chat' ? await waitForChatFocusTarget(fallback) : '';
+		if (generation !== focusGeneration) return;
 		if (target === null) { dlog('click-bridge: chat focus target unavailable; raise refused'); return; }
 		await focusSteam(kind, target);
 	})().catch((e: unknown) => dlog(`focus request failed: (enable verboseDiagnostics for details)`, () => `focus request failed: ${(e as Error)?.message ?? e}`));
