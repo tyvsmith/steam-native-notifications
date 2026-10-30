@@ -522,3 +522,11 @@ test('a newer chat focus supersedes an older unresolved conversation', async () 
  register(42,'older chat'); await advance(100);
  expect(focusTargets.map(value=>Buffer.from(value,'base64').toString())).toEqual(['newer chat']);
 });
+
+test('an overlay replay cancels an earlier pending desktop chat raise', async () => {
+ const chat={...envelope('steam://friends/message/76561197960265770'),focus:'chat' as const}; capture(chat); await dispatchClick(chat); await flush();
+ sc.Overlay.GetOverlayBrowserInfo=async()=>[{appID:570}]; focusChanged(570);
+ const overlay=envelope(null,570); capture(overlay,'notificationtoasts_uid570-42'); await dispatchClick(overlay); await flush();
+ routedChatWindow(); await advance(100);
+ expect(events).toEqual(['replay','replay']); expect(focusTargets).toEqual([]);
+});
