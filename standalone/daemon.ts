@@ -7,6 +7,8 @@ import { join } from 'node:path';
 import { CDP, endpoint, targetSocket } from './cdp';
 import { Host, requestPayload } from './host';
 import { inspectEndpoint } from './diagnostics';
+import { markerRepairer } from './marker';
+import { Pacer, watchSteam } from './steam-watch';
 import { discoverSteam, setupPaths } from './paths';
 import { acquireDaemonLock } from './lock';
 import { healthExpression } from './health';
@@ -229,21 +231,38 @@ export async function daemonMain(): Promise<void> {
         stopControl = await startControl(controlHandler(host), undefined, { exclusiveLock: release });
         let running = true;
         let client: CDP | undefined;
-        const stop = () => { running = false; client?.close(); host.stop(); };
+        // The persistent marker only configures 8080; an explicit --port is someone else's endpoint.
+        const markerOwned = port === 8080;
+        // True from the moment inspection sees Steam's listener until the session ends.
+        let listening = false;
+        const repair = markerRepairer({ statePath: paths.state, steam: host.steam, log: line => host.log(line),
+            advise: action => { host.live.action = action; console.error(action); } });
+        const repairMarker = (advise: boolean) => markerOwned ? repair(advise) : Promise.resolve();
+        const watched = watchSteam({ steam: host.steam, home: paths.home, platform: process.platform,
+            onLaunch: () => pacer.hurry(),
+            onMarker: () => { void repairMarker(!listening); },
+            log: line => { void host.log(line); } });
+        const pacer = new Pacer(watched.launchEvents);
+        const stop = () => { running = false; watched.close(); pacer.hurry(); client?.close(); host.stop(); };
         host.removal = integrationRemoval(stop, paths);
         for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, stop);
         let previousFailure = '';
         while (running) {
             try {
                 const inspection = await inspectEndpoint(port, undefined, host.steam);
+                // The restart advice only answers a missing listener; any other verdict supersedes it.
+                if (inspection.kind !== 'missing') host.live.action = null;
+                listening = inspection.kind === 'steam';
+                // Every pass repairs: a marker deleted while the service was stopped predates the watcher.
+                await repairMarker(inspection.kind === 'missing');
                 if (inspection.kind !== 'steam') throw new Error(inspection.message);
                 const selected = await connectSteamContext(inspection.targets!, port);
                 client = selected.client; previousFailure = '';
                 await attach(client, bundle, host, () => running, selected.contexts);
             } catch (error: any) {
                 if (running && error.message !== previousFailure) { previousFailure = error.message; console.error(`Waiting for Steam: ${error.message}`); await host.log(`standalone: waiting: ${error.message}`); }
-            } finally { client?.close(); client = undefined; host.frontendCommand = undefined; host.live.frontendBuild = null; await host.readiness('disconnected'); }
-            if (running) await Bun.sleep(2000);
+            } finally { listening = false; if (client) pacer.hurry(); client?.close(); client = undefined; host.frontendCommand = undefined; host.live.frontendBuild = null; await host.readiness('disconnected'); }
+            if (running) await pacer.wait();
         }
     } finally { await stopControl?.(); await release(); }
 }

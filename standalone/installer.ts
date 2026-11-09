@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { setupPaths, discoverSteam, exists, UNIT, type Paths } from './paths';
 import { serviceState, restoreService, waitForService, desktopQuote, systemdQuote, systemctl, importSession, type Runner, type Readiness, type ServiceState } from './service-lifecycle';
 import { runtimeRoot } from './runtime-paths';
+import { MARKER } from './marker';
 import { CONFIG_DEFAULTS } from './host';
 
 export type Runtime = { bun: string; cli: string; buildId: string };
@@ -83,7 +84,7 @@ export async function setupIntegration(p: Paths, runtime: Runtime, steamOption?:
     if (!old) for (const path of [p.unit, p.autostart]) if (await exists(path)) throw new Error(`Unowned collision: ${path}`);
     const steam = await discoverSteam(p, steamOption ?? old?.steam);
     if (old && old.steam !== steam) throw new Error('Steam root change refused; teardown the existing integration first');
-    const marker = join(steam, '.cef-enable-remote-debugging');
+    const marker = join(steam, MARKER);
     for (const path of [p.config, marker]) await content(path);
     const manager = old ? await serviceState(run) : { enabled: false, active: false };
     const files = {
@@ -151,7 +152,7 @@ export async function integrationCommand(command: string, args: string[], p = se
             const tx: Transaction = { kind: 'teardown', changes: await Promise.all(targets(p).map(async (path): Promise<Change> => ({ path, before: await content(path), after: null }))), previous: true, manager: await serviceState(run) };
             await atomic(transactionPath(p), JSON.stringify(tx)); await checkpoint('teardown-journaled');
             await recover(p, run, checkpoint);
-            return { removed: true, preserved: [p.config, join(state.steam, '.cef-enable-remote-debugging')], restartNeeded: true };
+            return { removed: true, preserved: [p.config, join(state.steam, MARKER)], restartNeeded: true };
         }
         throw new Error('Unknown integration command');
     } finally { await rm(lock, { recursive: true }); }
