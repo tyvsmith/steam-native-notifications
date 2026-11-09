@@ -16,3 +16,24 @@ export async function restoreMarker(statePath: string, steam: string): Promise<'
     catch (error: any) { if (error.code === 'EEXIST') return 'present'; throw error; }
     return 'restored';
 }
+
+/**
+ * The daemon's repair step. `advise` is true only when Steam has no debug listener: a listening
+ * Steam keeps its endpoint and only the next launch needs the marker. Failures never throw, so
+ * they cannot displace the endpoint diagnostic, and each distinct failure is logged once.
+ */
+export function markerRepairer(options: { statePath: string; steam: string; log: (line: string) => Promise<void> | void; advise: (action: string) => void }) {
+    let failure = '';
+    return async (advise: boolean) => {
+        let result;
+        try { result = await restoreMarker(options.statePath, options.steam); failure = ''; }
+        catch (error: any) {
+            const message = String(error?.message ?? error);
+            if (message !== failure) { failure = message; await options.log(`standalone: marker: repair failed: ${message}`); }
+            return;
+        }
+        if (result !== 'restored') return;
+        if (advise) options.advise(MARKER_ACTION);
+        await options.log(`standalone: marker: recreated ${join(options.steam, MARKER)}; ${advise ? 'Steam restart required' : 'next Steam launch uses it'}`);
+    };
+}

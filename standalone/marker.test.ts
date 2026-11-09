@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { MARKER, restoreMarker } from './marker';
+import { MARKER, MARKER_ACTION, markerRepairer, restoreMarker } from './marker';
 
 async function fixture(owner?: string) {
     const root = await mkdtemp(join(tmpdir(), 'snn-marker-'));
@@ -34,5 +34,32 @@ test('leaves Steam alone without an integration owning that root', async () => {
     try {
         await writeFile(f.state, '{not json');
         expect(await restoreMarker(f.state, f.steam)).toBe('unowned');
+    } finally { await rm(f.root, { recursive: true, force: true }); }
+});
+
+test('a missing marker with Steam still listening is repaired without restart advice', async () => {
+    const f = await fixture('self');
+    const actions: string[] = [], logs: string[] = [];
+    const repair = markerRepairer({ statePath: f.state, steam: f.steam, log: line => { logs.push(line); }, advise: action => actions.push(action) });
+    try {
+        await repair(false);
+        expect(await Bun.file(f.marker).exists()).toBe(true);
+        expect(actions).toEqual([]);
+        expect(logs.at(-1)).toContain('next Steam launch uses it');
+        await rm(f.marker);
+        await repair(true);
+        expect(actions).toEqual([MARKER_ACTION]);
+        expect(logs.at(-1)).toContain('Steam restart required');
+    } finally { await rm(f.root, { recursive: true, force: true }); }
+});
+
+test('repair failures are logged once and never thrown', async () => {
+    const f = await fixture('self');
+    const logs: string[] = [];
+    await rm(f.steam, { recursive: true });
+    const repair = markerRepairer({ statePath: f.state, steam: f.steam, log: line => { logs.push(line); }, advise: () => {} });
+    try {
+        await repair(true); await repair(true);
+        expect(logs.filter(line => line.startsWith('standalone: marker: repair failed:'))).toHaveLength(1);
     } finally { await rm(f.root, { recursive: true, force: true }); }
 });

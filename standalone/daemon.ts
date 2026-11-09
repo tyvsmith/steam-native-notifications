@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { CDP, endpoint, targetSocket } from './cdp';
 import { Host, requestPayload } from './host';
 import { inspectEndpoint } from './diagnostics';
-import { MARKER, MARKER_ACTION, restoreMarker } from './marker';
+import { markerRepairer } from './marker';
 import { Pacer, watchSteam } from './steam-watch';
 import { discoverSteam, setupPaths } from './paths';
 import { acquireDaemonLock } from './lock';
@@ -235,24 +235,12 @@ export async function daemonMain(): Promise<void> {
         const markerOwned = port === 8080;
         // True from the moment inspection sees Steam's listener until the session ends.
         let listening = false;
-        let markerFailure = '';
-        const repairMarker = async () => {
-            if (!markerOwned) return;
-            let result;
-            try { result = await restoreMarker(paths.state, host.steam); markerFailure = ''; }
-            catch (error: any) {
-                // Never displace the endpoint diagnostic; report each distinct failure once.
-                if (error?.message !== markerFailure) { markerFailure = error?.message; await host.log(`standalone: marker: repair failed: ${markerFailure}`); }
-                return;
-            }
-            if (result !== 'restored') return;
-            // A listening Steam keeps its endpoint; only the next launch needs the marker.
-            if (!listening) { host.live.action = MARKER_ACTION; console.error(MARKER_ACTION); }
-            await host.log(`standalone: marker: recreated ${join(host.steam, MARKER)}; ${listening ? 'next Steam launch uses it' : 'Steam restart required'}`);
-        };
+        const repair = markerRepairer({ statePath: paths.state, steam: host.steam, log: line => host.log(line),
+            advise: action => { host.live.action = action; console.error(action); } });
+        const repairMarker = (advise: boolean) => markerOwned ? repair(advise) : Promise.resolve();
         const watched = watchSteam({ steam: host.steam, home: paths.home, platform: process.platform,
             onLaunch: () => pacer.hurry(),
-            onMarker: () => { void repairMarker(); },
+            onMarker: () => { void repairMarker(!listening); },
             log: line => { void host.log(line); } });
         const pacer = new Pacer(watched.launchEvents);
         const stop = () => { running = false; watched.close(); pacer.hurry(); client?.close(); host.stop(); };
@@ -262,11 +250,12 @@ export async function daemonMain(): Promise<void> {
         while (running) {
             try {
                 const inspection = await inspectEndpoint(port, undefined, host.steam);
-                if (inspection.kind === 'missing') await repairMarker();
                 // The restart advice only answers a missing listener; any other verdict supersedes it.
-                else host.live.action = null;
+                if (inspection.kind !== 'missing') host.live.action = null;
+                listening = inspection.kind === 'steam';
+                // Every pass repairs: a marker deleted while the service was stopped predates the watcher.
+                await repairMarker(inspection.kind === 'missing');
                 if (inspection.kind !== 'steam') throw new Error(inspection.message);
-                listening = true;
                 const selected = await connectSteamContext(inspection.targets!, port);
                 client = selected.client; previousFailure = '';
                 await attach(client, bundle, host, () => running, selected.contexts);
