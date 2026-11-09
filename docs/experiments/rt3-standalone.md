@@ -38,6 +38,15 @@ The installer discovers native Steam roots, canonicalizes symlinks and requires
 `--steam-dir` when multiple installations exist. Flatpak is unsupported.
 It creates `.cef-enable-remote-debugging` if absent, without changing launchers,
 binaries or RT3 selection. A full Steam restart activates a new marker or bundle.
+Steam client updates can delete the marker (observed 2026-11-08). The installed
+service watches its integrated root and recreates a deleted marker at once; if
+Steam has no listener at that point, status reports the restart action. Deleting
+the marker by hand does not disable debugging while the service runs; use
+`snn teardown` to remove the integration.
+
+On Linux the daemon treats a rewrite of `~/.steam/steam.pid` as a launch. It
+polls 8080 every 2s for 5 minutes after startup, a disconnect or a launch, and
+every 60s otherwise. Without that file, and on Windows, it keeps the 2s poll.
 The package commands manage only their own service; they do not restart Steam.
 
 Persistent debugging uses port 8080. Foreground `--port` selects an existing

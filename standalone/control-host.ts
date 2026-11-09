@@ -15,7 +15,7 @@ export function controlHandler(host: Host) {
                 const degraded = host.live.state === 'ready' && (!compatible || host.live.hook === 'failed');
                 return { host: 'standalone', build: BUILD_IDENTITY, installedBuild: await installedBuild(), ...host.live,
                     state: degraded ? 'degraded' : host.live.state,
-                    action: degraded ? 'Restart Steam to load the installed frontend; check hook diagnostics if capture remains unavailable' : null,
+                    action: degraded ? 'Restart Steam to load the installed frontend; check hook diagnostics if capture remains unavailable' : host.live.action ?? null,
                     pid: process.pid, configPath: host.config, config: await host.store.read(),
                     dependencies: dependencies(),
                     capabilities: { settingsWrite: true, sample: compatible && !!host.frontendCommand, developerCommands: compatible && !!host.frontendCommand } };

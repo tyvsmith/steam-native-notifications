@@ -7,6 +7,8 @@ import { join } from 'node:path';
 import { CDP, endpoint, targetSocket } from './cdp';
 import { Host, requestPayload } from './host';
 import { inspectEndpoint } from './diagnostics';
+import { MARKER, MARKER_ACTION, restoreMarker } from './marker';
+import { Pacer, watchSteam } from './steam-watch';
 import { discoverSteam, setupPaths } from './paths';
 import { acquireDaemonLock } from './lock';
 import { healthExpression } from './health';
@@ -229,21 +231,49 @@ export async function daemonMain(): Promise<void> {
         stopControl = await startControl(controlHandler(host), undefined, { exclusiveLock: release });
         let running = true;
         let client: CDP | undefined;
-        const stop = () => { running = false; client?.close(); host.stop(); };
+        // The persistent marker only configures 8080; an explicit --port is someone else's endpoint.
+        const markerOwned = port === 8080;
+        // True from the moment inspection sees Steam's listener until the session ends.
+        let listening = false;
+        let markerFailure = '';
+        const repairMarker = async () => {
+            if (!markerOwned) return;
+            let result;
+            try { result = await restoreMarker(paths.state, host.steam); markerFailure = ''; }
+            catch (error: any) {
+                // Never displace the endpoint diagnostic; report each distinct failure once.
+                if (error?.message !== markerFailure) { markerFailure = error?.message; await host.log(`standalone: marker: repair failed: ${markerFailure}`); }
+                return;
+            }
+            if (result !== 'restored') return;
+            // A listening Steam keeps its endpoint; only the next launch needs the marker.
+            if (!listening) { host.live.action = MARKER_ACTION; console.error(MARKER_ACTION); }
+            await host.log(`standalone: marker: recreated ${join(host.steam, MARKER)}; ${listening ? 'next Steam launch uses it' : 'Steam restart required'}`);
+        };
+        const watched = watchSteam({ steam: host.steam, home: paths.home, platform: process.platform,
+            onLaunch: () => pacer.hurry(),
+            onMarker: () => { void repairMarker(); },
+            log: line => { void host.log(line); } });
+        const pacer = new Pacer(watched.launchEvents);
+        const stop = () => { running = false; watched.close(); pacer.hurry(); client?.close(); host.stop(); };
         host.removal = integrationRemoval(stop, paths);
         for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, stop);
         let previousFailure = '';
         while (running) {
             try {
                 const inspection = await inspectEndpoint(port, undefined, host.steam);
+                if (inspection.kind === 'missing') await repairMarker();
+                // The restart advice only answers a missing listener; any other verdict supersedes it.
+                else host.live.action = null;
                 if (inspection.kind !== 'steam') throw new Error(inspection.message);
+                listening = true;
                 const selected = await connectSteamContext(inspection.targets!, port);
                 client = selected.client; previousFailure = '';
                 await attach(client, bundle, host, () => running, selected.contexts);
             } catch (error: any) {
                 if (running && error.message !== previousFailure) { previousFailure = error.message; console.error(`Waiting for Steam: ${error.message}`); await host.log(`standalone: waiting: ${error.message}`); }
-            } finally { client?.close(); client = undefined; host.frontendCommand = undefined; host.live.frontendBuild = null; await host.readiness('disconnected'); }
-            if (running) await Bun.sleep(2000);
+            } finally { listening = false; if (client) pacer.hurry(); client?.close(); client = undefined; host.frontendCommand = undefined; host.live.frontendBuild = null; await host.readiness('disconnected'); }
+            if (running) await pacer.wait();
         }
     } finally { await stopControl?.(); await release(); }
 }

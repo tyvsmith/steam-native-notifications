@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { discoverSteam, exists, type Paths } from './paths';
 import { runtimeRoot } from './runtime-paths';
+import { MARKER } from './marker';
 import { BUILD_IDENTITY } from '../shared/host';
 import { DEFAULTS } from '../shared/settings';
 import { controlCall } from './control';
@@ -71,7 +72,7 @@ export async function windowsIntegration(command: string, args: string[], p: Pat
         const runtime = join(p.cacheHome, 'steam-native-notifications');
         await privateDirectory(runtime);
         if (!await exists(p.config)) await writeFile(p.config, JSON.stringify(DEFAULTS, null, 2));
-        const marker = join(steam, '.cef-enable-remote-debugging');
+        const marker = join(steam, MARKER);
         if (!await exists(marker)) await writeFile(marker, '', { flag: 'wx' });
         const launchId = crypto.randomUUID();
         const transaction = { task: current, running, state: old ?? null, after: '', launchId };
