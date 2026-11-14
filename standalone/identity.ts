@@ -11,3 +11,5 @@ export const IDENTITY_DEFINE = {
     __SNN_BUILD_ID__: JSON.stringify(STANDALONE_IDENTITY.buildId),
     __SNN_VERSION__: JSON.stringify(STANDALONE_IDENTITY.version),
 };
+/** Whether a reported build (frontend or daemon) is this one. */
+export const isThisBuild = (build: { buildId?: string | null } | null | undefined): boolean => build?.buildId === STANDALONE_IDENTITY.buildId;

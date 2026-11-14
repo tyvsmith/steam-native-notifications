@@ -12,7 +12,7 @@ import { Pacer, watchSteam } from './steam-watch';
 import { discoverSteam, setupPaths } from './paths';
 import { acquireDaemonLock } from './lock';
 import { healthExpression } from './health';
-import { STANDALONE_IDENTITY } from './identity';
+import { isThisBuild } from './identity';
 
 export async function attach(client: CDP, bundle: string, host: Host, alive: () => boolean = () => true, initialContexts: number[] = []): Promise<void> {
     let context: number | undefined;
@@ -43,7 +43,7 @@ export async function attach(client: CDP, bundle: string, host: Host, alive: () 
         if (!current(epoch, id)) return;
         const encoded = JSON.stringify(snapshot.values);
         const panel = { config: snapshot, ...host.live,
-            compatible: host.live.frontendBuild?.buildId === STANDALONE_IDENTITY.buildId && host.live.control === true };
+            compatible: isThisBuild(host.live.frontendBuild) && host.live.control === true };
         const result = await client.call('Runtime.evaluate', { contextId: id,
             expression: `${encoded !== previousConfig ? `globalThis.__snnConfig(${encoded});` : ''}globalThis.__snnState?.(${JSON.stringify(panel)})` });
         if (result.exceptionDetails) throw new Error('Frontend state update failed');

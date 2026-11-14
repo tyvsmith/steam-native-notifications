@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { discoverSteam, exists, type Paths } from './paths';
 import { runtimeRoot } from './runtime-paths';
 import { MARKER } from './marker';
-import { STANDALONE_IDENTITY } from './identity';
+import { isThisBuild } from './identity';
 import { DEFAULTS } from '../shared/settings';
 import { controlCall } from './control';
 import { exclusiveFile, powershell, privateDirectory, psQuote } from './windows';
@@ -84,7 +84,7 @@ export async function windowsIntegration(command: string, args: string[], p: Pat
             await atomic(journal, transaction);
             if (!old || running) await powershell(`Start-ScheduledTask -TaskName ${psQuote(TASK)}`);
             const deadline = Date.now() + 10000; let ready = !!old && !running;
-            while (!ready && Date.now() < deadline) { try { const status = await controlCall('status', undefined, { timeoutMs: 500 }); const launched = JSON.parse(await readFile(p.config + '.launch', 'utf8')); if (launched.id === launchId && Number.isSafeInteger(launched.pid) && launched.pid > 0 && status.pid === launched.pid && status.build?.buildId === STANDALONE_IDENTITY.buildId) { ready = true; break; } } catch {} await Bun.sleep(200); }
+            while (!ready && Date.now() < deadline) { try { const status = await controlCall('status', undefined, { timeoutMs: 500 }); const launched = JSON.parse(await readFile(p.config + '.launch', 'utf8')); if (launched.id === launchId && Number.isSafeInteger(launched.pid) && launched.pid > 0 && status.pid === launched.pid && isThisBuild(status.build)) { ready = true; break; } } catch {} await Bun.sleep(200); }
             if (!ready) throw new Error('Windows daemon did not become ready');
             const task = await powershell(`Export-ScheduledTask -TaskName ${psQuote(TASK)}`);
             await atomic(p.state, { version: 1, steam, task, launchId });
