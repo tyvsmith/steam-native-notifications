@@ -507,7 +507,7 @@ if gate_dir and gate_dir ~= "" then
 	lh:close()
 	io.popen("chmod +x '" .. launcher .. "'"):close()
 	io.popen("rm -f '" .. gate_dir .. "/steam-native-notifications/plugin.log'"):close()
-	status = io.popen("container=pressure-vessel XDG_CACHE_HOME='" .. gate_dir .. "' PATH='" .. bare .. "' "
+	status = io.popen("container=pressure-vessel SNN_HOST_HELPER= XDG_CACHE_HOME='" .. gate_dir .. "' PATH='" .. bare .. "' "
 		.. root .. "/tools/notify-action 'T i' 'b' '' 'click:abc' >/dev/null 2>&1; echo $?"):read("*l")
 	local launched = slurp(gate_dir .. "/launched") or "(not launched)"
 	check("rt3 container helper: reruns on the host with its arguments",
@@ -520,14 +520,14 @@ if gate_dir and gate_dir ~= "" then
 
 	-- On the host the guard stops a second hop, and outside the container
 	-- the launcher is never consulted: both reach the notify-send refusal.
-	for _, env in ipairs({ "container=pressure-vessel SNN_HOST_HELPER=1", "" }) do
+	for _, env in ipairs({ "container=pressure-vessel SNN_HOST_HELPER=1", "container= SNN_HOST_HELPER=" }) do
 		io.popen("rm -f '" .. gate_dir .. "/launched' '" .. gate_dir .. "/steam-native-notifications/plugin.log'"):close()
 		io.popen(env .. " XDG_CACHE_HOME='" .. gate_dir .. "' PATH='" .. bare .. "' "
 			.. root .. "/tools/notify-action 'T' 'b' '' '' >/dev/null 2>&1"):close()
-		check("rt3 guard (" .. (env == "" and "no container" or "host hop") .. "): launcher not used",
+		check("rt3 guard (" .. (env:find("^container= ") and "no container" or "host hop") .. "): launcher not used",
 			slurp(gate_dir .. "/launched") == nil)
 		gate_log = slurp(gate_dir .. "/steam-native-notifications/plugin.log") or "(no log)"
-		check("rt3 guard (" .. (env == "" and "no container" or "host hop") .. "): notify-send refusal",
+		check("rt3 guard (" .. (env:find("^container= ") and "no container" or "host hop") .. "): notify-send refusal",
 			gate_log:find("notify-action: notify-send not found", 1, true) ~= nil, gate_log)
 	end
 	io.popen("rm -rf '" .. gate_dir .. "'"):close()
