@@ -17,7 +17,7 @@
     "proto:update": "bun tools/proto-sync.mjs --update",
     "gen:table": "bun tools/gen-types-table.mjs",
     "typecheck": "tsc --noEmit",
-    "prepare": "starlight lsp",
+    "prepare": "bun tools/gen-build-identity.ts && starlight lsp",
     "test": "bun tools/test.ts",
     "build:standalone": "bun tools/gen-proto.mjs && bun tools/gen-build-identity.ts && bun standalone/build.ts && tsc --noEmit",
     "start:standalone": "bun standalone/daemon.ts",
