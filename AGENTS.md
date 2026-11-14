@@ -252,7 +252,9 @@ frontend/steamurl.ts      register and validate the canonical Steam URL
 ## Experimental standalone host
 
 `standalone/` hosts the shared frontend over loopback CEF CDP on native Linux
-RT3 (`steamrt64` / `steamrt3c`), without Millennium. See
+RT3 (`steamrt64` / `steamrt3c`), without Millennium. Millennium 3.6.3 also
+runs there, with its backend inside pressure-vessel; `tools/notify-action`
+relays itself to the host (`docs/platforms.md`). See
 `docs/experiments/rt3-standalone.md` for setup, settings, and pending live checks.
 `bun run build:standalone` builds in the checkout without installing anything;
 `bun run test:standalone` uses isolated sockets and browser fixtures. Build

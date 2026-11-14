@@ -62,7 +62,7 @@ Restart Steam to finish unloading the injected hooks. Teardown never deletes pac
 
 The package declares a guarded `preuninstall` hook, but Bun 1.4.3 does not invoke
 it. Trusted local/global tests with tarballs and registry packages confirm this
-for both `remove` and `uninstall`. Although [Bun's documentation](https://bun.com/docs/pm/lifecycle)
+for both `remove` and `uninstall`. The 1.4.4 source keeps the same hook list (untested). Although [Bun's documentation](https://bun.com/docs/pm/lifecycle)
 lists it, the [1.4.3 implementation](https://github.com/oven-sh/bun/blob/bun-v1.4.3/src/install/lockfile/Package/Scripts.rs#L22-L58)
 recognizes only install and prepare hooks. Use the button or `snn teardown`;
 removing only the package leaves integration entries behind.
