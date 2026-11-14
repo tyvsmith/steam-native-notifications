@@ -1,6 +1,6 @@
 import { probeMillennium, millenniumReadiness, millenniumCommand, refreshMillenniumSettings } from './millennium-control';
 import { runtimeAsset } from '../../standalone/runtime-paths';
-import { BUILD_IDENTITY, parseCallableJson, type BuildIdentity, type HostKind } from '../../shared/host';
+import { parseCallableJson, type BuildIdentity, type HostKind } from '../../shared/host';
 import { preferenceDefaults } from '../../shared/settings-policy';
 import { normalizeSettings, validateSettingsPatch } from '../../shared/settings';
 import { validateDevCommand } from '../../shared/dev-command';
@@ -15,7 +15,7 @@ async function millennium(method: string, params: Record<string, any> = {}): Pro
 }
 export interface HostStatus {
     host: HostKind; present: boolean | null; state: string;
-    build?: BuildIdentity; frontendBuild?: BuildIdentity | null;
+    build?: BuildIdentity; frontendBuild?: BuildIdentity | null; sourceCommit?: string | null;
     capabilities?: { settingsWrite: boolean; sample: boolean; developerCommands: boolean };
     evidence?: string; action?: string; error?: string; config?: ConfigSnapshot;
     pid?: number; installedBuild?: BuildIdentity | null; hook?: string; control?: boolean; dependencies?: ReturnType<typeof import('../../standalone/dependencies').dependencies>;
@@ -28,7 +28,8 @@ export async function hostStatus(): Promise<HostStatus[]> {
             const status = await millennium('plugin.status', { name: PLUGIN_ID });
             const running = status?.running === true || status?.backend?.running === true;
             const measured = running ? millenniumReadiness(await probeMillennium()) : { state: 'stopped', frontendBuild: null as BuildIdentity | null, capabilities: { settingsWrite: true, sample: false, developerCommands: false } };
-            return { host: kind, present: true, status, build: BUILD_IDENTITY, ...measured, evidence: 'Correlated frontend reply measures build, hook and control; capture and banner visibility are unmeasured' };
+            const sourceCommit = (await millennium('plugin.get', { name: PLUGIN_ID }).catch((): null => null))?.config?.sourceCommit || null;
+            return { host: kind, present: true, status, sourceCommit, ...measured, evidence: 'Correlated frontend reply measures build, hook and control; capture and banner visibility are unmeasured' };
         } catch (e: any) {
             const absent = e.code === 'ENOENT' || e.code === 'ECONNREFUSED';
             return { host: kind, present: absent ? false : null, state: absent ? 'unavailable' : 'unknown', error: e.message };

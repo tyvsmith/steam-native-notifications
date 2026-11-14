@@ -57,7 +57,8 @@ export async function refreshMillenniumSettings(): Promise<{ refreshed: boolean;
     return { refreshed: false, message: 'Settings saved; live reload unconfirmed. Reopen plugin settings or restart Steam.' };
 }
 export function millenniumReadiness(reply: any): { state: string; frontendBuild: any; hook: string; control: boolean; action: string | null; capabilities: { settingsWrite: boolean; sample: boolean; developerCommands: boolean } } {
-    const compatible = reply?.frontendBuild?.buildId === BUILD_IDENTITY.buildId && reply?.frontendBuild?.protocolVersion === BUILD_IDENTITY.protocolVersion;
+    // A .star carries no build id (shared/host.ts); tools/capture judges staleness by the .star's sha256.
+    const compatible = reply?.frontendBuild?.protocolVersion === BUILD_IDENTITY.protocolVersion;
     const ready = compatible && reply?.hook === 'installed' && reply?.control === true;
     return { state: ready ? 'ready' : reply ? 'degraded' : 'backend-running', frontendBuild: reply?.frontendBuild ?? null,
         hook: reply?.hook ?? 'unknown', control: reply?.control === true,

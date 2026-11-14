@@ -1,16 +1,17 @@
 import { mkdir, cp, readFile, writeFile, rm, chmod } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { ASSETS, sha256, validateRelease, type Manifest } from '../standalone/package-manifest';
-import { BUILD_IDENTITY } from '../shared/host';
+import { IDENTITY_DEFINE, STANDALONE_IDENTITY as identity } from '../standalone/identity';
 
 const pkg = JSON.parse(await readFile('package.json', 'utf8'));
 const toml = await readFile('millennium.toml', 'utf8');
-if (toml.match(/^version\s*=\s*"([^"]+)"/m)?.[1] !== pkg.version || BUILD_IDENTITY.version !== pkg.version) throw new Error('Version metadata differs');
-const name = `snn-${pkg.version}-${BUILD_IDENTITY.buildId.slice(0, 12)}`;
+if (toml.match(/^version\s*=\s*"([^"]+)"/m)?.[1] !== pkg.version || identity.version !== pkg.version) throw new Error('Version metadata differs');
+const name = `snn-${pkg.version}-${identity.buildId.slice(0, 12)}`;
 const root = resolve('dist/releases', name);
 await rm(root, { recursive: true, force: true });
 await mkdir(root, { recursive: true });
-const build = await Bun.build({ entrypoints: ['standalone/cli.ts'], target: 'bun', format: 'esm', outdir: join(root, 'standalone'), naming: 'cli.js' });
+const build = await Bun.build({ entrypoints: ['standalone/cli.ts'], target: 'bun', format: 'esm', outdir: join(root, 'standalone'), naming: 'cli.js',
+    define: IDENTITY_DEFINE });
 if (!build.success) throw new AggregateError(build.logs, 'CLI bundle failed');
 const cli = join(root, 'standalone/cli.js');
 await writeFile(cli, '#!/usr/bin/env bun\n' + (await readFile(cli, 'utf8')).replace(/^#![^\n]*\n/, ''));
@@ -29,7 +30,7 @@ await writeFile(join(root, 'package.json'), JSON.stringify({
     files: [...ASSETS.filter(p => p !== 'package.json'), 'manifest.json'].sort(),
     scripts: { postinstall: 'bun standalone/cli.js setup --hook', preuninstall: 'bun standalone/cli.js teardown --hook' },
 }, null, 2) + '\n');
-const manifest: Manifest = { format: 3, version: pkg.version, buildId: BUILD_IDENTITY.buildId, target: 'linux-windows-x64', bun: '>=1.4.3', files: {} };
+const manifest: Manifest = { format: 3, version: pkg.version, buildId: identity.buildId, target: 'linux-windows-x64', bun: '>=1.4.3', files: {} };
 for (const rel of ASSETS) manifest.files[rel] = sha256(await readFile(join(root, rel)));
 await writeFile(join(root, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
 await validateRelease(root);

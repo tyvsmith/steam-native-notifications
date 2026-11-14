@@ -2,7 +2,7 @@ import { dependencies } from './dependencies';
 import { runtimeAsset } from './runtime-paths';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { BUILD_IDENTITY } from '../shared/host';
+import { STANDALONE_IDENTITY, isThisBuild } from './identity';
 import { sampleCommand, validateDevCommand } from '../shared/dev-command';
 import type { Host } from './host';
 import type { ControlRequest } from './control';
@@ -11,9 +11,9 @@ export function controlHandler(host: Host) {
         switch (request.operation) {
             case 'status': {
                 await host.refreshFrontend?.();
-                const compatible = host.live.frontendBuild?.buildId === BUILD_IDENTITY.buildId && host.live.control === true;
+                const compatible = isThisBuild(host.live.frontendBuild) && host.live.control === true;
                 const degraded = host.live.state === 'ready' && (!compatible || host.live.hook === 'failed');
-                return { host: 'standalone', build: BUILD_IDENTITY, installedBuild: await installedBuild(), ...host.live,
+                return { host: 'standalone', build: STANDALONE_IDENTITY, installedBuild: await installedBuild(), ...host.live,
                     state: degraded ? 'degraded' : host.live.state,
                     action: degraded ? 'Restart Steam to load the installed frontend; check hook diagnostics if capture remains unavailable' : host.live.action ?? null,
                     pid: process.pid, configPath: host.config, config: await host.store.read(),
@@ -30,7 +30,7 @@ export function controlHandler(host: Host) {
                 const command = sample ? sampleCommand() : validateDevCommand(request.payload);
                 if (!sample && !(await host.store.read()).values.devFire) throw new Error('Developer commands are disabled');
                 if (host.live.state !== 'ready' || !host.frontendCommand) throw new Error('Frontend unavailable; start Steam and the standalone daemon');
-                if (host.live.frontendBuild?.buildId !== BUILD_IDENTITY.buildId) throw new Error('Frontend build is stale; restart Steam to load the installed bundle');
+                if (!isThisBuild(host.live.frontendBuild)) throw new Error('Frontend build is stale; restart Steam to load the installed bundle');
                 if (request.deadline <= Date.now()) throw new Error('Request expired');
                 return host.frontendCommand({ id: request.id, createdAt: Date.now(), deadline: request.deadline, command }, sample);
             }

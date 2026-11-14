@@ -155,6 +155,7 @@ Building and installing a tarball do not publish it. A numbered `v*` release
 builds the `.star` and Bun tarball together, checks matching versions and uploads
 both to GitHub. Release notes use reachable numbered tags and ignore the moving
 `latest` tag; the first numbered release includes the available commit history.
+A Millennium plugin store submission pins the commit of that numbered tag.
 
 The separate **Publish npm package** workflow is manual and defaults to dry run.
 Run it from the numbered release tag. It downloads that release's tarball,

@@ -6,10 +6,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { millenniumReadiness, pushRequest } from './lib/millennium-control';
 import { BUILD_IDENTITY } from '../shared/host';
-test('readiness requires matching build, protocol, hook and live control', () => {
+test('readiness requires a matching protocol, hook and live control', () => {
     const good = { frontendBuild: BUILD_IDENTITY, hook: 'installed', control: true };
     expect(millenniumReadiness(good).state).toBe('ready');
-    for (const change of [{ frontendBuild: { ...BUILD_IDENTITY, buildId: 'old' } }, { frontendBuild: { ...BUILD_IDENTITY, protocolVersion: 99 } }, { hook: 'failed' }, { control: false }]) {
+    // A store-built or older dev .star carries a different (or no) build id and still speaks the protocol.
+    for (const frontendBuild of [{ ...BUILD_IDENTITY, buildId: null }, { ...BUILD_IDENTITY, buildId: 'old' }]) {
+        expect(millenniumReadiness({ ...good, frontendBuild }).state).toBe('ready');
+    }
+    for (const change of [{ frontendBuild: null }, { frontendBuild: { ...BUILD_IDENTITY, protocolVersion: 99 } }, { hook: 'failed' }, { control: false }]) {
         expect(millenniumReadiness({ ...good, ...change }).capabilities.sample).toBe(false);
     }
     expect(millenniumReadiness(null).state).toBe('backend-running');

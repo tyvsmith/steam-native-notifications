@@ -11,7 +11,7 @@
   },
   "scripts": {
     "dev": "starlight watch",
-    "build": "bun tools/gen-proto.mjs && bun tools/gen-build-identity.ts && tsc --noEmit && starlight pack",
+    "build": "bun tools/gen-proto.mjs && tsc --noEmit && starlight pack",
     "gen": "bun tools/gen-proto.mjs",
     "proto:check": "bun tools/proto-sync.mjs --check",
     "proto:update": "bun tools/proto-sync.mjs --update",
@@ -19,7 +19,7 @@
     "typecheck": "tsc --noEmit",
     "prepare": "starlight lsp",
     "test": "bun tools/test.ts",
-    "build:standalone": "bun tools/gen-proto.mjs && bun tools/gen-build-identity.ts && bun standalone/build.ts && tsc --noEmit",
+    "build:standalone": "bun tools/gen-proto.mjs && bun standalone/build.ts && tsc --noEmit",
     "start:standalone": "bun standalone/daemon.ts",
     "test:standalone": "bun test standalone/*.test.ts && bun test ./standalone/client.contract-test.ts",
     "snn": "bun standalone/cli.ts",

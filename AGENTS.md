@@ -130,6 +130,12 @@ names or nil globals the bundler emitted happily. The build type-checks;
 `bun run test` covers the Lua side, the toast decode, and the click chooser.
 Run both, then confirm behaviour in the running client.
 
+**The store packs a bare checkout** (`starlight pack --release
+--source-commit`, no install or build): frontend and backend may import only
+committed files, and no build may write a tracked file. CI's `store-pack` job
+and clean-checkout step enforce this. `package.json` keeps `starlight lsp`'s
+format (no final newline).
+
 **Diagnostics must never throw.** A debug log calling `JSON.stringify` on a
 BigInt silently killed every notification. Use `safeJson`; keep `dlog` wrapped.
 The log prefixes in `frontend/log.ts` own the vocabulary; `tools/lib/snn.ts`

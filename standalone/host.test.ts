@@ -108,8 +108,8 @@ test('panel settings restrict writes and preserve hidden settings on reset', asy
 test('panel sample is fixed and rejects stale frontend and arbitrary arguments', async () => {
     const { host } = await fixture();
     await expect(host.dispatch('PanelSample', [])).rejects.toThrow();
-    const { BUILD_IDENTITY } = await import('../shared/host');
-    host.live = { state: 'ready', frontendBuild: BUILD_IDENTITY, control: true };
+    const { STANDALONE_IDENTITY } = await import('./identity');
+    host.live = { state: 'ready', frontendBuild: STANDALONE_IDENTITY, control: true };
     host.frontendCommand = async (envelope, sample) => ({ command: envelope.command, sample });
     expect(JSON.parse(await host.dispatch('PanelSample', []))).toEqual({ command: sampleCommand(), sample: true });
     await expect(host.dispatch('PanelSample', ['TestIncomingVoiceChat'])).rejects.toThrow();

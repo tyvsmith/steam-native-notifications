@@ -6,11 +6,11 @@ import { capture, sample, hostStatus } from '../tools/lib/host-client';
 import { developerCommand } from '../tools/lib/cli/developer-command';
 import { parseCommonOptions, printResult, printError } from '../tools/lib/cli-options';
 import { assertSupportedBun, dependencies } from './dependencies';
-import { BUILD_IDENTITY } from '../shared/host';
+import { STANDALONE_IDENTITY } from './identity';
 async function runClientCommand(options: ReturnType<typeof parseCommonOptions>): Promise<void> {
     const { host, json, args } = options;
     let result: unknown;
-    if (['status', 'doctor'].includes(args[0]!)) { if (args.length !== 1) throw new Error('Unexpected status arguments'); const hosts = (await hostStatus()).filter(s => host === 'auto' || s.host === host); result = hosts; if (args[0] === 'doctor') { const deps = dependencies(); result = { build: BUILD_IDENTITY, dependencies: deps, hosts }; if (deps.delivery !== 'available' || !hosts.some(s => s.present && !['failed','degraded','stopped'].includes(s.state) && !s.config?.error)) process.exitCode = 1; } }
+    if (['status', 'doctor'].includes(args[0]!)) { if (args.length !== 1) throw new Error('Unexpected status arguments'); const hosts = (await hostStatus()).filter(s => host === 'auto' || s.host === host); result = hosts; if (args[0] === 'doctor') { const deps = dependencies(); result = { build: STANDALONE_IDENTITY, dependencies: deps, hosts }; if (deps.delivery !== 'available' || !hosts.some(s => s.present && !['failed','degraded','stopped'].includes(s.state) && !s.config?.error)) process.exitCode = 1; } }
     else if (args[0] === 'capture' && args.length <= 2) result = await capture(args[1] === undefined ? 8 : Number(args[1]), host);
     else if (args[0] === 'sample' && args.length === 1) result = await sample(host);
     else if (args[0] === 'dev' && ['fire', 'replay', 'server'].includes(args[1]!)) result = await developerCommand(args[1] === 'fire' ? args.slice(2) : [`--${args[1]}`, ...args.slice(2)], host);
@@ -21,7 +21,7 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
     const options = parseCommonOptions(argv);
     const [command, ...args] = options.args;
     if (command === '--version') {
-        console.log(JSON.stringify(BUILD_IDENTITY));
+        console.log(JSON.stringify(STANDALONE_IDENTITY));
         return;
     }
     if (!command || ['--help', '-h'].includes(command)) {

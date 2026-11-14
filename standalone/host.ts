@@ -8,7 +8,7 @@ import { mkdir, readFile, readdir, realpath, copyFile, writeFile, unlink } from 
 import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { DEFAULTS, normalizeSettings } from '../shared/settings';
-import { BUILD_IDENTITY } from '../shared/host';
+import { STANDALONE_IDENTITY, isThisBuild } from './identity';
 export const CONFIG_DEFAULTS = DEFAULTS;
 export const configValues = normalizeSettings;
 export function requestPayload(payload: string): { id: number; method: string; args: unknown[] } {
@@ -50,8 +50,8 @@ export class Host {
                 if (args.length) break;
                 await this.refreshFrontend?.();
                 return JSON.stringify({ config: await this.store.read(), state: this.live.state,
-                    compatible: this.live.frontendBuild?.buildId === BUILD_IDENTITY.buildId && this.live.control === true,
-                    hook: this.live.hook, build: BUILD_IDENTITY });
+                    compatible: isThisBuild(this.live.frontendBuild) && this.live.control === true,
+                    hook: this.live.hook, build: STANDALONE_IDENTITY });
             case 'PanelPatch':
                 if (args.length !== 1) break;
                 return JSON.stringify(await this.store.update(preferencePatch(args[0], (await this.store.read()).values, this.platform), Date.now() + 4000));

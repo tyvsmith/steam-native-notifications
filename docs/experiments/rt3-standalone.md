@@ -29,7 +29,9 @@ an already configured Steam client, stop the packaged service first, then run:
 bun run snn daemon --steam-dir /absolute/native/Steam
 ```
 
-The foreground daemon uses the checkout's built bundle and helper assets.
+The foreground daemon uses the checkout's built bundle and helper assets. It
+hashes the checkout and the running Bun, so it reports a bundle as stale after
+a source edit or under a different Bun than `build:standalone` used.
 Do not run both hosts or two daemons against the same client. The kernel lock
 prevents duplicate daemons using the same cache root and releases on exit.
 Different cache roots bypass that guard and are unsupported.

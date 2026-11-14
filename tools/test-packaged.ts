@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, writeFile, chmod, readFile, rm, realpath, cp } from 'no
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { ASSETS, sha256, validateRelease } from '../standalone/package-manifest';
-const identity = JSON.parse(await readFile('shared/build-identity.json', 'utf8'));
+import { STANDALONE_IDENTITY as identity } from '../standalone/identity';
 const name = `snn-${identity.version}-${identity.buildId.slice(0, 12)}`;
 const archive = resolve('dist/releases', `${name}.tgz`);
 const home = await mkdtemp(join(tmpdir(), 'snn bun package spaces '));
@@ -79,8 +79,10 @@ exit 0
     const next = { ...identity, version: `${identity.version.split('.')[0]}.${identity.version.split('.')[1]}.${Number(identity.version.split('.')[2]) + 1}`, buildId: sha256(`fixture next release:${identity.buildId}`) };
     for (const asset of ['standalone/cli.js', 'dist/standalone/frontend.js']) {
         const text = await readFile(join(future, asset), 'utf8');
-        if (!text.includes(identity.buildId) || !text.includes(`version: "${identity.version}"`)) throw new Error(`Fixture identity missing in ${asset}`);
-        await writeFile(join(future, asset), text.replaceAll(identity.buildId, next.buildId).replaceAll(`version: "${identity.version}"`, `version: "${next.version}"`));
+        // Both values are injected literals (standalone/identity.ts IDENTITY_DEFINE).
+        const version = JSON.stringify(identity.version);
+        if (!text.includes(identity.buildId) || !text.includes(version)) throw new Error(`Fixture identity missing in ${asset}`);
+        await writeFile(join(future, asset), text.replaceAll(identity.buildId, next.buildId).replaceAll(version, JSON.stringify(next.version)));
     }
     await writeFile(join(future, 'dist/standalone/build.json'), JSON.stringify(next));
     const futurePackage = JSON.parse(await readFile(join(future, 'package.json'), 'utf8'));
