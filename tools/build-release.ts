@@ -1,20 +1,17 @@
 import { mkdir, cp, readFile, writeFile, rm, chmod } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { ASSETS, sha256, validateRelease, type Manifest } from '../standalone/package-manifest';
-import { CHECKOUT_ROOT, sourceBuildIdentity } from './gen-build-identity';
+import { IDENTITY_DEFINE, STANDALONE_IDENTITY as identity } from '../standalone/identity';
 
 const pkg = JSON.parse(await readFile('package.json', 'utf8'));
 const toml = await readFile('millennium.toml', 'utf8');
-const identity = await sourceBuildIdentity(CHECKOUT_ROOT);
 if (toml.match(/^version\s*=\s*"([^"]+)"/m)?.[1] !== pkg.version || identity.version !== pkg.version) throw new Error('Version metadata differs');
-const frontend = JSON.parse(await readFile('dist/standalone/build.json', 'utf8'));
-if (frontend.buildId !== identity.buildId) throw new Error('Standalone frontend was built from other source; run bun run build:standalone');
 const name = `snn-${pkg.version}-${identity.buildId.slice(0, 12)}`;
 const root = resolve('dist/releases', name);
 await rm(root, { recursive: true, force: true });
 await mkdir(root, { recursive: true });
 const build = await Bun.build({ entrypoints: ['standalone/cli.ts'], target: 'bun', format: 'esm', outdir: join(root, 'standalone'), naming: 'cli.js',
-    define: { __SNN_BUILD_ID__: JSON.stringify(identity.buildId) } });
+    define: IDENTITY_DEFINE });
 if (!build.success) throw new AggregateError(build.logs, 'CLI bundle failed');
 const cli = join(root, 'standalone/cli.js');
 await writeFile(cli, '#!/usr/bin/env bun\n' + (await readFile(cli, 'utf8')).replace(/^#![^\n]*\n/, ''));

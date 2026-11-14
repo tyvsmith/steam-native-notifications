@@ -1,9 +1,12 @@
 import { execFileSync } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { sourceBuildIdentity } from './gen-build-identity';
+import { PROTOCOL_VERSION } from '../shared/host';
+import { sourceBuildId } from '../standalone/source-hash';
 
 export async function verifyReleaseSource(root: string, manifest: unknown, identity: unknown): Promise<void> {
-    const expected = await sourceBuildIdentity(root);
+    const { version } = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
+    const expected = { protocolVersion: PROTOCOL_VERSION, version, buildId: await sourceBuildId(root) };
     const matches = (value: unknown): boolean => typeof value === 'object' && value !== null &&
         'version' in value && value.version === expected.version &&
         'buildId' in value && value.buildId === expected.buildId;

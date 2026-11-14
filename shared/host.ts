@@ -2,16 +2,11 @@ import { version } from '../package.json';
 import { normalizeSettings, validateSettingsPatch, type Settings } from './settings';
 export const PROTOCOL_VERSION = 1 as const;
 export interface BuildIdentity { protocolVersion: typeof PROTOCOL_VERSION; version: string; buildId: string | null }
-/** The source fingerprint our Bun builds inject (tools/gen-build-identity.ts). */
-declare const __SNN_BUILD_ID__: string | undefined;
-/**
- * buildId is present only in bundles we build with Bun: the standalone frontend
- * and the release CLI. A starlight-packed .star carries none; Millennium records
- * its identity as the .star's version and sourceCommit. Never written into the
- * checkout, so no build dirties the tree.
- */
+// Injected by our Bun builds; absent from a starlight .star, which Millennium identifies by version and sourceCommit.
+declare const __SNN_BUILD_ID__: string, __SNN_VERSION__: string;
 export const BUILD_IDENTITY: BuildIdentity = {
-    protocolVersion: PROTOCOL_VERSION, version,
+    protocolVersion: PROTOCOL_VERSION,
+    version: typeof __SNN_VERSION__ === 'string' ? __SNN_VERSION__ : version,
     buildId: typeof __SNN_BUILD_ID__ === 'string' ? __SNN_BUILD_ID__ : null,
 };
 export type HostKind = 'millennium' | 'standalone';

@@ -1,0 +1,3 @@
+# starlight lsp (bun install's prepare) writes package.json without a final newline.
+[package.json]
+insert_final_newline = false

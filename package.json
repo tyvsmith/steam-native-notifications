@@ -11,7 +11,7 @@
   },
   "scripts": {
     "dev": "starlight watch",
-    "build": "bun tools/gen-proto.mjs && tsc --noEmit && starlight pack --source-commit $(git rev-parse HEAD)",
+    "build": "bun tools/gen-proto.mjs && tsc --noEmit && starlight pack",
     "gen": "bun tools/gen-proto.mjs",
     "proto:check": "bun tools/proto-sync.mjs --check",
     "proto:update": "bun tools/proto-sync.mjs --update",

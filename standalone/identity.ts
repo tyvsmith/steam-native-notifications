@@ -1,12 +1,13 @@
-import { BUILD_IDENTITY, type BuildIdentity } from '../shared/host';
-import { CHECKOUT_ROOT, sourceBuildIdentity } from '../tools/gen-build-identity';
+import { BUILD_IDENTITY } from '../shared/host';
 
-/**
- * The daemon and the frontend it injects must come from one build. Bundles
- * (release CLI, standalone frontend) carry the injected id; a run from source
- * computes it from the checkout, so a source daemon still refuses a frontend
- * built from other source.
- */
-export const STANDALONE_IDENTITY: BuildIdentity & { buildId: string } = BUILD_IDENTITY.buildId !== null
-    ? { ...BUILD_IDENTITY, buildId: BUILD_IDENTITY.buildId }
-    : { ...BUILD_IDENTITY, buildId: (await sourceBuildIdentity(CHECKOUT_ROOT)).buildId };
+declare const __SNN_BUILD_ID__: string;
+/** The daemon and its injected frontend must match: bundles carry the injected id, source runs hash the checkout. */
+export const STANDALONE_IDENTITY = {
+    ...BUILD_IDENTITY,
+    buildId: typeof __SNN_BUILD_ID__ === 'string' ? __SNN_BUILD_ID__ : await (await import('./source-hash')).sourceBuildId(),
+};
+/** Bun.build `define` that stamps this identity into a bundle. */
+export const IDENTITY_DEFINE = {
+    __SNN_BUILD_ID__: JSON.stringify(STANDALONE_IDENTITY.buildId),
+    __SNN_VERSION__: JSON.stringify(STANDALONE_IDENTITY.version),
+};

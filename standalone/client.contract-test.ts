@@ -6,6 +6,7 @@ let standalone = true, millennium = true, failWrite = false; let refreshes = 0, 
 mock.module('../tools/lib/mep', () => ({ mepCall: async (method: string, params: any): Promise<any> => {
     if (!millennium) throw Object.assign(new Error('offline'), { code: probeError });
     if (method === 'plugin.status') return { error: null, result: { running: true } };
+    if (method === 'plugin.get') return { error: null, result: { config: { sourceCommit: 'abc123' } } };
     if (method === 'plugin.config.get_all' && failRead) throw new Error('readback unavailable');
     if (method === 'plugin.config.get_all') return { error: null, result: { config: settings } };
     if (method === 'plugin.config.set' && params.key === failSetKey) throw new Error('write interrupted');
@@ -147,4 +148,10 @@ test('partial writes request reload without retrying the failed mutation', async
         await expect(updateConfig({ devMode: true, devFire: true }, 'millennium')).rejects.toThrow('some values may have been saved');
         expect(settings.devMode).toBe(true); expect(settings.devFire).toBe(false); expect(refreshes).toBe(1);
     } finally { failSetKey = ''; settings = { ...DEFAULTS }; }
+});
+
+test('millennium status names the installed source commit, not a build id', async () => {
+    const row = (await hostStatus()).find(host => host.host === 'millennium');
+    expect(row?.sourceCommit).toBe('abc123');
+    expect(row?.build).toBeUndefined();
 });
