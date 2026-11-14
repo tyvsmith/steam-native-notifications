@@ -62,6 +62,15 @@ jobs:
           # Parses the header and checks every section's CRC32.
           ./node_modules/.bin/starlight verify "$star"
 
+      # No build step may write a tracked file (the build identity is injected
+      # into bundles, and package.json is committed as starlight lsp writes it).
+      - name: Builds leave the checkout clean
+        run: |
+          if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
+            git status --short; git diff
+            echo "a build step modified the checkout"; exit 1
+          fi
+
       # archive: false keeps the artifact a bare .star, installable as downloaded.
       - if: inputs.upload
         uses: actions/upload-artifact@v7
@@ -78,3 +87,21 @@ jobs:
             dist/releases/*.tgz
             dist/releases/*.tgz.sha256
           if-no-files-found: error
+
+  # The plugin store packs a bare checkout: no install, no build, the latest
+  # Starlight in our range, then starlight pack --release --source-commit
+  # (SteamClientHomebrew/PluginDatabase scripts/build/prepare-dist.sh).
+  store-pack:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Starlight as the store does
+        run: npm install -g "@steambrew/starlight@$(node -p "require('./package.json').devDependencies['@steambrew/starlight']")"
+      - name: Pack the bare checkout
+        run: mkdir -p dist && starlight pack -o dist --release --source-commit "$GITHUB_SHA"
+      - run: starlight verify dist/me.tysmith.steam-native-notifications.star

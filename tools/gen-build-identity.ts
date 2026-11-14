@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readdir, readFile, writeFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { resolve, relative, extname } from 'node:path';
 
 // Fingerprints the shared source and build recipe, not compiled artifact bytes.
@@ -23,7 +23,7 @@ export async function sourceBuildIdentity(root: string, bunVersion = Bun.version
             const path = resolve(directory, entry.name);
             if (entry.isDirectory()) {
                 if (!excludedDirectories.has(entry.name)) await visit(path);
-            } else if (entry.isFile() && entry.name !== 'build-identity.json' && sourceExtensions.has(extname(entry.name))) {
+            } else if (entry.isFile() && sourceExtensions.has(extname(entry.name))) {
                 await addFile(path);
             }
         }
@@ -33,7 +33,6 @@ export async function sourceBuildIdentity(root: string, bunVersion = Bun.version
     const { version } = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
     return { protocolVersion: 1, version, buildId: hash.digest('hex') };
 }
-if (import.meta.main) {
-    const root = resolve(import.meta.dir, '..');
-    await writeFile(resolve(root, 'shared/build-identity.json'), JSON.stringify(await sourceBuildIdentity(root)) + '\n');
-}
+/** The checkout this tool lives in; Bun builds inject its identity as __SNN_BUILD_ID__. */
+export const CHECKOUT_ROOT = resolve(import.meta.dir, '..');
+if (import.meta.main) console.log(JSON.stringify(await sourceBuildIdentity(CHECKOUT_ROOT)));

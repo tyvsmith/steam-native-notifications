@@ -13,7 +13,7 @@ async function fixture() {
             export const daemonMain = integrationCommand, configCommand = integrationCommand, developerCommand = integrationCommand;
             export const capture = integrationCommand, sample = integrationCommand, hostStatus = integrationCommand;
             export const parseCommonOptions = args => ({ args, host: 'auto', json: false });
-            export const printResult = () => {}, printError = () => {}, dependencies = () => ({}), BUILD_IDENTITY = {};
+            export const printResult = () => {}, printError = () => {}, dependencies = () => ({}), STANDALONE_IDENTITY = {};
         ` }));
     } }] });
     if (!built.success) throw Error(built.logs.join('\n'));

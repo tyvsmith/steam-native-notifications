@@ -13,7 +13,6 @@ test('publication recomputes source identity and rejects stale same-version asse
         for (const file of ['bun.lock', 'millennium.toml', 'tsconfig.json']) await writeFile(join(root, file), 'original');
         const identity = await sourceBuildIdentity(root);
         const manifest = { version: identity.version, buildId: identity.buildId };
-        await writeFile(join(root, 'shared/build-identity.json'), JSON.stringify(identity));
         await verifyReleaseSource(root, manifest, identity);
         await expect(verifyReleaseSource(root, manifest, { ...identity, buildId: 'wrong' })).rejects.toThrow('source');
         await expect(verifyReleaseSource(root, { ...manifest, buildId: 'wrong' }, identity)).rejects.toThrow('source');

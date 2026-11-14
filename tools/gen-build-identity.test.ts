@@ -23,8 +23,6 @@ test('equivalent source checkouts ignore cache additions/content but retain sour
             expect(await sourceBuildIdentity(first)).toEqual(original);
         }
         expect((await sourceBuildIdentity(first, `${Bun.version}-different`)).buildId).not.toBe(original.buildId);
-        await writeFile(join(first, 'shared/build-identity.json'), JSON.stringify(original));
-        expect(await sourceBuildIdentity(first)).toEqual(original);
         await mkdir(join(second, 'tools/__pycache__'), { recursive: true });
         await writeFile(join(second, 'tools/__pycache__/game-focus.cpython-314.pyc'), 'cache one');
         await writeFile(join(second, 'tools/other.pyc'), 'bytecode');

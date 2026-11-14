@@ -1,9 +1,14 @@
-import { BUILD_IDENTITY } from '../shared/host';
 import { resolve } from 'node:path';
+import { PROTOCOL_VERSION } from '../shared/host';
+import { CHECKOUT_ROOT, sourceBuildIdentity } from '../tools/gen-build-identity';
+
+// The identity goes into the bundle and dist/, never into the checkout.
+const identity = { ...await sourceBuildIdentity(CHECKOUT_ROOT), protocolVersion: PROTOCOL_VERSION };
 const result = await Bun.build({
     entrypoints: [resolve(import.meta.dir, 'browser.ts')],
     outdir: resolve(import.meta.dir, '../dist/standalone'),
     naming: 'frontend.js', target: 'browser', format: 'iife',
+    define: { __SNN_BUILD_ID__: JSON.stringify(identity.buildId) },
     plugins: [{ name: 'standalone-host', setup(build) {
         build.onResolve({ filter: /^millennium$/ }, () => ({ path: resolve(import.meta.dir, 'adapter.ts') }));
     } }],
@@ -11,4 +16,4 @@ const result = await Bun.build({
 if (!result.success) { for (const log of result.logs) console.error(log); process.exit(1); }
 console.log(`Standalone frontend: ${result.outputs[0]?.path}`);
 
-await Bun.write(resolve(import.meta.dir, '../dist/standalone/build.json'), JSON.stringify(BUILD_IDENTITY));
+await Bun.write(resolve(import.meta.dir, '../dist/standalone/build.json'), JSON.stringify(identity));

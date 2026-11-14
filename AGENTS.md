@@ -130,6 +130,15 @@ names or nil globals the bundler emitted happily. The build type-checks;
 `bun run test` covers the Lua side, the toast decode, and the click chooser.
 Run both, then confirm behaviour in the running client.
 
+**The store packs a bare checkout.** PluginDatabase runs `starlight pack
+--release --source-commit` with no install or build, so frontend and backend
+sources may import only committed files. A build never writes a tracked file:
+the standalone build id is injected into Bun bundles (`__SNN_BUILD_ID__`,
+`standalone/identity.ts`), a `.star` carries Millennium's own `version` and
+`sourceCommit`, and `package.json` stays in `starlight lsp`'s format (no final
+newline). CI's `store-pack` job and clean-checkout check enforce both. Store
+submissions pin the commit of a `v*` release tag.
+
 **Diagnostics must never throw.** A debug log calling `JSON.stringify` on a
 BigInt silently killed every notification. Use `safeJson`; keep `dlog` wrapped.
 The log prefixes in `frontend/log.ts` own the vocabulary; `tools/lib/snn.ts`

@@ -50,6 +50,8 @@ for (const kind of ['millennium', 'standalone'] as const) {
 }
 test('build identity and malformed serialized values fail safely', () => {
     expect(BUILD_IDENTITY.protocolVersion).toBe(1);
-    expect(BUILD_IDENTITY.buildId).toMatch(/^[a-f0-9]{64}$/);
+    // Source runs and starlight packs carry no injected build id (shared/host.ts).
+    expect(BUILD_IDENTITY.buildId).toBeNull();
+    expect(BUILD_IDENTITY.version).toMatch(/^\d+\.\d+\.\d+/);
     for (const raw of ['broken', '"bad"', undefined, null]) expect(parseCallableJson(raw, {})).toEqual({});
 });
