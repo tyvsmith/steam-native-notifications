@@ -29,7 +29,7 @@
     "test:windows": "bun tools/test.ts windows"
   },
   "devDependencies": {
-    "@steambrew/starlight": "^1.1.6",
+    "@steambrew/starlight": "^1.1.7",
     "@types/bun": "^1.4.2",
     "@types/react": "19.1.1",
     "@types/react-dom": "19.1.1",
