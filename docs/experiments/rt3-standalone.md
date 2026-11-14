@@ -1,7 +1,9 @@
 # Develop the standalone RT3 host
 
 The native Linux host supports Steam's 64-bit client (`steamrt64` / `steamrt3c`)
-without Millennium. This is the client runtime, not a game's compatibility tool.
+without Millennium. Millennium 3.6.3 now runs on that client too
+([platforms](../platforms.md#64-bit-client-rt3)); this host remains the
+Millennium-free option. This is the client runtime, not a game's compatibility tool.
 Capture, localized text, presentation, replay, durable routing and the Linux
 notification helper are shared with the Millennium plugin.
 
