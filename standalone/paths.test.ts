@@ -21,8 +21,12 @@ test('discovery deduplicates symlinks, supports XDG and explicit root, rejects a
     const { paths, steam } = await fixture();
     await mkdir(join(paths.home, '.steam')); await symlink(steam, join(paths.home, '.steam/steam'));
     expect(await discoverSteam(paths)).toBe(steam);
-    const second = join(paths.home, 'other'); await mkdir(join(second, 'ubuntu12_32'), { recursive: true });
-    await writeFile(join(second, 'steam.sh'), ''); await writeFile(join(second, 'ubuntu12_32/steam'), '');
+    const second = join(paths.home, 'other'); await mkdir(join(second, 'steamrt64'), { recursive: true });
+    await writeFile(join(second, 'steam.sh'), ''); await writeFile(join(second, 'steamrt64/steam'), '');
+    // Only the 64-bit client counts; a legacy ubuntu12_32-only root is not Steam.
+    const legacy = join(paths.home, 'legacy'); await mkdir(join(legacy, 'ubuntu12_32'), { recursive: true });
+    await writeFile(join(legacy, 'steam.sh'), ''); await writeFile(join(legacy, 'ubuntu12_32/steam'), '');
+    await expect(discoverSteam(paths, legacy)).rejects.toThrow('not found');
     expect(await discoverSteam(paths, second)).toBe(second);
     await symlink(second, join(paths.home, '.steam/root'));
     await expect(discoverSteam(paths)).rejects.toThrow('Multiple');

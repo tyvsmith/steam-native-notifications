@@ -35,9 +35,9 @@ export async function discoverSteam(paths: Paths, explicit?: string): Promise<st
         try {
             const root = await realpath(path);
             if (root.includes('/.var/app/') || root.includes('/app/com.valvesoftware.Steam/')) continue;
-            if (await exists(join(root, 'steam.sh')) && (await exists(join(root, 'steamrt64/steam')) || await exists(join(root, 'ubuntu12_32/steam')))) roots.add(root);
+            if (await exists(join(root, 'steam.sh')) && await exists(join(root, 'steamrt64/steam'))) roots.add(root);
         } catch { /* missing native candidate */ }
     }
-    if (roots.size !== 1) throw new Error(roots.size ? 'Multiple native Steam roots found; select --steam-dir DIR.' : 'Native Steam root not found; select --steam-dir DIR containing steam.sh and the client runtime. Flatpak is unsupported.');
+    if (roots.size !== 1) throw new Error(roots.size ? 'Multiple native Steam roots found; select --steam-dir DIR.' : 'Native Steam root not found; select --steam-dir DIR containing steam.sh and steamrt64/steam (the 64-bit client). Flatpak is unsupported.');
     return [...roots][0]!;
 }

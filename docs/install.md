@@ -6,7 +6,7 @@ a plugin settings panel.
 
 ## Standalone (Linux)
 
-For native Linux x64 Steam, including RT3, without Millennium. Requires
+For native Linux x64 Steam's 64-bit client (RT3), without Millennium. Requires
 [Bun](https://bun.com) 1.4.3 or newer, a graphical desktop with a systemd user
 session, `notify-send`, `gdbus` and `curl`. LuaJIT and libwayland-client enable
 focus discovery; without them, some click destinations may be unavailable.
@@ -74,8 +74,9 @@ See [cleanup details](standalone-release.md#remove).
 
 ## Millennium plugin
 
-Requires [Millennium](https://steambrew.app) 3.5 or newer on a supported Steam
-client. Native Linux is the primary platform; Windows support is experimental.
+Requires [Millennium](https://steambrew.app) 3.5 or newer; Linux requires 3.6.3
+or newer on Steam's 64-bit client. Native Linux is the primary platform; Windows
+support is experimental.
 Linux requires `notify-send`, `curl`, `steam` and POSIX shell utilities. Windows
 uses the built-in Windows PowerShell 5.1, not PowerShell 7.
 

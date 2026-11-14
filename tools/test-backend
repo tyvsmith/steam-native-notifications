@@ -319,14 +319,14 @@ end
 
 -- Config notifications carry their own request value; no mailbox reads.
 local push_id = "12345678-1234-1234-1234-123456789abc"
-local push_payload = '{"id":"' .. push_id .. '","kind":"status","deadline":"' .. (os.time() * 1000 + 5000) .. '"}'
+local push_payload = '{"id":"' .. push_id .. '","kind":"status","deadline":' .. (os.time() * 1000 + 5000) .. '}'
 config_listener("snnControl", push_payload)
 check("config push targets exported frontend control", #pushed_controls == 1 and pushed_controls[1][1] == "receiveControl" and pushed_controls[1][2][1] == push_payload)
 config_listener("snnControl", '{"id":"' .. push_id .. '","kind":"status","deadline":1}')
-config_listener("snnControl", '{"id":"' .. push_id .. '","kind":"status","deadline":"1"}')
+config_listener("snnControl", '{"id":"' .. push_id .. '","kind":"status","deadline":"' .. (os.time() * 1000 + 5000) .. '"}')
 config_listener("other", push_payload)
 config_listener("snnControl", nil)
-check("expired, unrelated and delete events never execute", #pushed_controls == 1)
+check("expired, string-deadline, unrelated and delete events never execute", #pushed_controls == 1)
 
 -- Diagnostic channels isolate concurrent callers and bound receipt writes.
 local probe_id = "12345678-1234-1234-1234-123456789abc"
@@ -673,9 +673,9 @@ check("caps: plain-text daemon gets the raw body",
 check("caps: unreachable daemon defaults to escaped",
 	delivered_body([[exit 1]]) == "a &lt; b &amp; c")
 
--- The icon download must not inherit Steam's loader environment: the runtime
--- pins a libcurl.so.4 the system curl refuses, so resolve_icon clears the
--- loader vars. curl is shimmed to fail whenever LD_LIBRARY_PATH is set.
+-- Children must not inherit the loader variables of whatever launched Steam
+-- (a foreign libnotify or libcurl breaks them), so the helper clears them.
+-- curl is shimmed to fail whenever LD_LIBRARY_PATH is set.
 local scrub_h = io.popen("mktemp -d")
 local scrub_dir = scrub_h:read("*l")
 scrub_h:close()
