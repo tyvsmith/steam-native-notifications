@@ -356,9 +356,8 @@ action.
   (`~/.steam/steam` on native Linux, a link to `~/.local/share/Steam`) or
   the helper's per-platform guess (`docs/platforms.md`); friend avatars
   are public CDN URLs, fetched once and cached by notify-action. The fetch
-  runs curl with `LD_LIBRARY_PATH`/`LD_PRELOAD` cleared — the helper inherits
-  Steam's loader environment, whose pinned_libs_64 libcurl the system curl
-  refuses.
+  runs curl with `LD_LIBRARY_PATH`/`LD_PRELOAD` cleared: the helper's host run
+  inherits the loader variables of whatever launched Steam.
 - A file-backed icon is sent as a `file://` reference in the `image-path`
   hint (`-i` stays the themed fallback) so the daemon can copy it and the
   icon survives into notification history; a path through `-i` becomes

@@ -49,10 +49,10 @@ if [ "${container:-}" = pressure-vessel ] && [ -z "${SNN_HOST_HELPER:-}" ] \
 	exit "$status"
 fi
 
-# Steam's loader environment is poison to system child binaries: its runtime
-# LD_LIBRARY_PATH pins an old libcurl.so.4 the system curl refuses
-# (CURL_OPENSSL_4 not found, verified 2026-08-30), and only path ordering
-# spares notify-send and gdbus. Scrubbed once here so every child is immune.
+# The host run inherits the loader variables of whatever launched Steam (an
+# AppImage or snap launcher, or a shell): a foreign libnotify then fails
+# notify-send with an undefined symbol (observed 2026-11-14). Scrubbed once
+# here so every child uses the system libraries.
 unset LD_LIBRARY_PATH LD_PRELOAD
 
 APP_NAME="Steam"

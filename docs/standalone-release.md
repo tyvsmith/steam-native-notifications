@@ -3,9 +3,8 @@
 For installation, updates and removal, start with the [user guide](install.md#standalone-linux).
 This reference covers CLI recovery, package ownership and publication.
 
-The supported standalone host runs on native Linux x64 Steam without
-Millennium. RT3 has recorded live coverage; non-RT3 Steam also passed user
-testing. Linux requires Bun 1.4.3 or newer; Windows requires 1.4.4 for its
+The supported standalone host runs on native Linux x64 Steam's 64-bit client
+(RT3) without Millennium. Linux requires Bun 1.4.3 or newer; Windows requires 1.4.4 for its
 named-pipe lifetime fix. CI tests both platform minimums. The same package
 includes experimental Windows x64 support based on the existing VM evidence;
 see [Windows installation and evidence](windows-standalone.md). macOS and

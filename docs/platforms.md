@@ -18,7 +18,11 @@ fullscreen acceptance remain open. macOS has not run.
 
 ## 64-bit client (RT3)
 
-Millennium 3.6.3 also runs on the 64-bit client (`steamrt3c`). It hosts the
+Linux support requires Steam's 64-bit client (`steamrt64` / `steamrt3c`),
+which reached the Stable channel on 2026-11-11; the 32-bit `ubuntu12_32` client
+is unsupported. The Millennium plugin requires Millennium 3.6.3 or newer.
+
+Millennium runs on the 64-bit client (`steamrt3c`). It hosts the
 plugin backend inside Steam's pressure-vessel container, whose `/usr/bin:/bin`
 has no `notify-send`, `gdbus` or `curl`, so `tools/notify-action` reruns itself
 on the host through `steam-runtime-launch-client --alongside-steam --host` ([#66](https://github.com/tyvsmith/steam-native-notifications/pull/66)).
@@ -47,7 +51,7 @@ Millennium host; it does not imply standalone support on other platforms.
 
 | platform | status | delivery | click |
 |---|---|---|---|
-| Linux, native Steam | **shipped**, including Millennium on the 64-bit client via the host relay above; Quattro history clicks observed with Steam running and fully stopped; user-reported Quickshell live-banner and restart-survival clicks on 2026-09-10; final-candidate gameplay/session acceptance open | `notify-send` to the FreeDesktop daemon | live `default` action launches the canonical Steam URL; Quickshell persists the fixed argv for exact replay or durable fallback |
+| Linux, native Steam (64-bit client) | **shipped**, through the host relay above; Quattro history clicks observed with Steam running and fully stopped; user-reported Quickshell live-banner and restart-survival clicks on 2026-09-10; final-candidate gameplay/session acceptance open | `notify-send` to the FreeDesktop daemon | live `default` action launches the canonical Steam URL; Quickshell persists the fixed argv for exact replay or durable fallback |
 | Linux, Flatpak Steam | paths ready; the host is unsupported by Millennium | same helper; inside the sandbox libnotify routes through the notification portal (plan) | canonical URL; portal action semantics unverified |
 | macOS | backend paths ready; delivery refused, loudly | terminal-notifier `-execute` (plan) | `-execute` opens the canonical Steam URL (plan) |
 | Windows | **shipped**, EXPERIMENTAL; canonical activation and fallback observed; standalone VM pointer activation/main-window restoration and older-build hardware checks recorded; human clicks and final-candidate physical fullscreen acceptance open | WinRT toast via notify-action.ps1 (Windows PowerShell 5.1, no vendored binary): branding, artwork, re-encode | canonical notification URL; exact replay or durable live-focus fallback, then one-shot route-aware focus |

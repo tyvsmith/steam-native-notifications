@@ -673,9 +673,9 @@ check("caps: plain-text daemon gets the raw body",
 check("caps: unreachable daemon defaults to escaped",
 	delivered_body([[exit 1]]) == "a &lt; b &amp; c")
 
--- The icon download must not inherit Steam's loader environment: the runtime
--- pins a libcurl.so.4 the system curl refuses, so resolve_icon clears the
--- loader vars. curl is shimmed to fail whenever LD_LIBRARY_PATH is set.
+-- Children must not inherit the loader variables of whatever launched Steam
+-- (a foreign libnotify or libcurl breaks them), so the helper clears them.
+-- curl is shimmed to fail whenever LD_LIBRARY_PATH is set.
 local scrub_h = io.popen("mktemp -d")
 local scrub_dir = scrub_h:read("*l")
 scrub_h:close()

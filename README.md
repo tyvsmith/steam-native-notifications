@@ -13,8 +13,9 @@ follow your OS settings, including Do Not Disturb and notification history where
 | **Standalone** | Native Linux x64 Steam, including RT3, plus experimental Windows x64, without Millennium | [Bun package](docs/install.md#standalone-linux) |
 | **Millennium plugin** | A Steam client supported by [Millennium](https://steambrew.app); Linux and experimental Windows support | [`.star` plugin](docs/install.md#millennium-plugin) |
 
-RT3 means Steam's client runtime, not a game's compatibility tool. Standalone
-has also passed testing on non-RT3 Linux Steam. Use only one integration at a time.
+RT3 means Steam's client runtime, not a game's compatibility tool. Linux needs
+Steam's 64-bit client (Stable since 2026-11-11); the Millennium plugin also needs
+Millennium 3.6.3 or newer. Use only one integration at a time.
 macOS and Flatpak Steam are unsupported. See [platform coverage](docs/platforms.md).
 
 The [rolling pre-release](https://github.com/tyvsmith/steam-native-notifications/releases/tag/latest)
