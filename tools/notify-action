@@ -29,6 +29,26 @@
 
 set -u
 
+# Millennium on Steam's 64-bit client runs this backend inside Steam's
+# pressure-vessel container, whose /usr/bin:/bin has no notify-send, gdbus or
+# curl (observed 2026-11-14, Millennium 3.6.3, steamrt3c). Steam's launcher
+# service runs a command on the host with the host session's environment, so
+# the whole helper reruns there. SNN_HOST_HELPER stops a second hop; a host
+# without notify-send is still refused below.
+if [ "${container:-}" = pressure-vessel ] && [ -z "${SNN_HOST_HELPER:-}" ] \
+	&& ! command -v notify-send >/dev/null 2>&1 \
+	&& command -v steam-runtime-launch-client >/dev/null 2>&1; then
+	steam-runtime-launch-client --alongside-steam --host -- \
+		env SNN_HOST_HELPER=1 sh "$0" "$@"
+	status=$?
+	if [ "$status" -ne 0 ]; then
+		printf '%s [steam-native-notifications] notify-action: host helper exited %s\n' \
+			"$(date '+[%Y-%m-%d %H:%M:%S]')" "$status" \
+			>>"${XDG_CACHE_HOME:-$HOME/.cache}/steam-native-notifications/plugin.log" 2>/dev/null
+	fi
+	exit "$status"
+fi
+
 # Steam's loader environment is poison to system child binaries: its runtime
 # LD_LIBRARY_PATH pins an old libcurl.so.4 the system curl refuses
 # (CURL_OPENSSL_4 not found, verified 2026-08-30), and only path ordering

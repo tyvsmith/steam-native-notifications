@@ -496,6 +496,40 @@ if gate_dir and gate_dir ~= "" then
 	check("helper without notify-send: refused in plugin.log",
 		gate_log:find("notify-action: notify-send not found", 1, true) ~= nil, gate_log)
 	check("helper without notify-send: exits non-zero", status == "1", tostring(status))
+
+	-- Inside Steam's pressure-vessel container (Millennium on the 64-bit
+	-- client) notify-send is absent; the helper reruns itself on the host
+	-- through steam-runtime-launch-client with its arguments intact, and the
+	-- host's exit status comes back.
+	local launcher = bare .. "/steam-runtime-launch-client"
+	local lh = assert(io.open(launcher, "w"))
+	lh:write("#!/bin/sh\nprintf '%s\\n' \"$@\" > '" .. gate_dir .. "/launched'\nexit 3\n")
+	lh:close()
+	io.popen("chmod +x '" .. launcher .. "'"):close()
+	io.popen("rm -f '" .. gate_dir .. "/steam-native-notifications/plugin.log'"):close()
+	status = io.popen("container=pressure-vessel SNN_HOST_HELPER= XDG_CACHE_HOME='" .. gate_dir .. "' PATH='" .. bare .. "' "
+		.. root .. "/tools/notify-action 'T i' 'b' '' 'click:abc' >/dev/null 2>&1; echo $?"):read("*l")
+	local launched = slurp(gate_dir .. "/launched") or "(not launched)"
+	check("rt3 container helper: reruns on the host with its arguments",
+		launched == "--alongside-steam\n--host\n--\nenv\nSNN_HOST_HELPER=1\nsh\n"
+			.. root .. "/tools/notify-action\nT i\nb\n\nclick:abc\n", launched)
+	check("rt3 container helper: returns the host status", status == "3", tostring(status))
+	gate_log = slurp(gate_dir .. "/steam-native-notifications/plugin.log") or "(no log)"
+	check("rt3 container helper: a failed host run is logged",
+		gate_log:find("notify-action: host helper exited 3", 1, true) ~= nil, gate_log)
+
+	-- On the host the guard stops a second hop, and outside the container
+	-- the launcher is never consulted: both reach the notify-send refusal.
+	for _, env in ipairs({ "container=pressure-vessel SNN_HOST_HELPER=1", "container= SNN_HOST_HELPER=" }) do
+		io.popen("rm -f '" .. gate_dir .. "/launched' '" .. gate_dir .. "/steam-native-notifications/plugin.log'"):close()
+		io.popen(env .. " XDG_CACHE_HOME='" .. gate_dir .. "' PATH='" .. bare .. "' "
+			.. root .. "/tools/notify-action 'T' 'b' '' '' >/dev/null 2>&1"):close()
+		check("rt3 guard (" .. (env:find("^container= ") and "no container" or "host hop") .. "): launcher not used",
+			slurp(gate_dir .. "/launched") == nil)
+		gate_log = slurp(gate_dir .. "/steam-native-notifications/plugin.log") or "(no log)"
+		check("rt3 guard (" .. (env:find("^container= ") and "no container" or "host hop") .. "): notify-send refusal",
+			gate_log:find("notify-action: notify-send not found", 1, true) ~= nil, gate_log)
+	end
 	io.popen("rm -rf '" .. gate_dir .. "'"):close()
 else
 	print("  skip platform gate (mktemp failed)")
