@@ -16,12 +16,16 @@ follow your OS settings, including Do Not Disturb and notification history where
 RT3 means Steam's client runtime, not a game's compatibility tool. Linux needs
 Steam's 64-bit client (Stable since 2026-11-11); the Millennium plugin also needs
 Millennium 3.6.3 or newer. Use only one integration at a time.
-macOS and Flatpak Steam are unsupported. See [platform coverage](docs/platforms.md).
+
+- **Linux:** Wayland is supported. X11 support is currently missing, including
+  [native game-focus detection](https://github.com/tyvsmith/steam-native-notifications/issues/15).
+- **Windows x64:** Both integrations are experimental and have less test coverage
+  than Linux. See [Windows validation](docs/windows-standalone.md).
+- **macOS and Flatpak Steam:** Unsupported. See [platform coverage](docs/platforms.md).
 
 The [rolling pre-release](https://github.com/tyvsmith/steam-native-notifications/releases/tag/latest)
 provides the Millennium `.star` and standalone [Bun package](docs/install.md#install)
-with a SHA-256 checksum. Standalone Windows x64 is available as an
-[experimental install](docs/windows-standalone.md); Linux x64 is the supported install.
+with a SHA-256 checksum.
 
 ## Configure notifications
 
