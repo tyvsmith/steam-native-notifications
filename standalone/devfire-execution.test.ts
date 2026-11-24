@@ -45,6 +45,41 @@ test('overlay diagnostics propagate missing/rejected API and return measured suc
         const success = await f.context.__snnDevControl(request()); expect(success.ok).toBe(true); expect(success.value.stage).toBe('executed'); expect(success.value.value).toEqual({ browsers: [123] });
     } finally { f.stop(); }
 });
+test('fixed sample uses the native General toast when Steam hides the server store', async () => {
+    const f = await fixture();
+    const sample = () => f.context.__snnDevControl(f.request({ replay: { call: 'inspect' } }), true);
+    const target = { strTest: 'General', eFeature: 0, fnTray() {}, showToast: false };
+    const toasts: any[] = [];
+    f.context.serverStore = undefined;
+    f.context.settingsStore = { clientSettings: {}, notificationPreferences: [] };
+    f.context.steamPreferences = undefined;
+    f.context.NotificationStore = {
+        BIsUserInGame: () => true,
+        GetNotificationTargets: () => ({ 31: target }),
+        ProcessNotification: (...args: any[]) => { toasts.push(args); },
+    };
+    try {
+        expect((await sample()).value?.stage).toBe('executed');
+        const [definition, toast, event] = toasts[0];
+        expect(definition).toMatchObject({ strTest: 'General', showToast: true, fnTray: null });
+        expect(target.showToast).toBe(false);
+        expect(event).toBe(0);
+        expect(toast).toMatchObject({ eType: 31, eSource: 2, data: { type: 10 } });
+        expect(JSON.parse(toast.data.item.body_data)).toMatchObject({ display_name: 'Steam Native Notifications', link: 'steam://open/main' });
+        f.context.settingsStore.notificationPreferences = [{ notification_type: 10, notification_targets: 1 }];
+        expect((await sample()).error).toContain('General');
+        f.context.settingsStore.notificationPreferences = [];
+        f.context.settingsStore.clientSettings.disable_all_toasts = true;
+        expect((await sample()).error).toContain('Steam notifications are disabled');
+        f.context.settingsStore.clientSettings.disable_all_toasts = false;
+        f.context.settingsStore.clientSettings.disable_toasts_in_game = true;
+        expect((await sample()).error).toContain('in-game');
+        f.context.settingsStore.clientSettings.disable_toasts_in_game = false;
+        target.strTest = 'Other';
+        expect((await sample()).error).toContain('unavailable');
+        expect(toasts).toHaveLength(1);
+    } finally { f.stop(); }
+});
 test('pushed fixed samples work with developer commands disabled and reject expiry', async () => {
     const f = await fixture(); let invoked = 0;
     f.context.enabled = false;

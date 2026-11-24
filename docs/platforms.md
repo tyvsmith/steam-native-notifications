@@ -22,6 +22,15 @@ Linux support requires Steam's 64-bit client (`steamrt64` / `steamrt3c`),
 which reached the Stable channel on 2026-11-11; the 32-bit `ubuntu12_32` client
 is unsupported. The Millennium plugin requires Millennium 3.6.3 or newer.
 
+On November 23, Steam Beta build `1795048523` with Millennium `3.7.0-beta.2`
+loaded the notification hook, but opening the plugin settings failed because
+Steam no longer exposed its Webpack loader. The panel opened on the same
+versions after switching to Millennium's SDK controls. Steam Beta also stopped
+exporting the server notification store. The fixed sample uses Steam's General
+toast target and respects its toast preferences. On that same build, the Linux
+notification daemon received both the fixed sample with artwork and a
+Steam-generated download test, each with an Open action.
+
 Millennium runs on the 64-bit client (`steamrt3c`). It hosts the
 plugin backend inside Steam's pressure-vessel container, whose `/usr/bin:/bin`
 has no `notify-send`, `gdbus` or `curl`, so `tools/notify-action` reruns itself

@@ -3,7 +3,7 @@ import type { discoverControls } from './steam-settings-controls';
 import { SETTINGS_SCHEMA, type SettingKey, type Settings, type Platform } from './settings';
 import { visibleSettings, settingDisabled } from './settings-policy';
 
-type Controls = ReturnType<typeof discoverControls>;
+type Controls = Omit<ReturnType<typeof discoverControls>, 'Body' | 'ActionSection'> & { ActionSection?: string };
 interface Props {
     values: Settings | null; platform: Platform; disabled: boolean; sampleDisabled: boolean;
     status?: string; error?: string; message?: string;
@@ -62,7 +62,10 @@ export function settingsContent(React: typeof import('react'), controls: Control
             delivery(true), delivery(false),
             h(controls.Description, {}, 'System notifications use your operating system’s notification service, including Do Not Disturb and notification history where supported.'),
             ...visibleSettings(values ?? {} as Settings, props.platform).filter(key => key !== 'integrationEnabled' && !deliveryKeys.includes(key)).map(row)),
-        h('div', { className: controls.ActionSection },
+        h('div', {
+            className: controls.ActionSection,
+            style: controls.ActionSection ? undefined : { display: 'flex', flexWrap: 'wrap', gap: 8 },
+        },
             h(controls.Button, { disabled: props.sampleDisabled, onClick: props.onSample }, 'Send test notification'),
             h(controls.Button, { disabled: props.disabled, onClick: (event: { currentTarget: HTMLElement }) => confirm(false, event) }, 'Reset notification settings'),
             props.remove && h(controls.Button, { disabled: props.remove.disabled, onClick: (event: { currentTarget: HTMLElement }) => confirm(true, event) }, 'Remove OS notification integration')),
