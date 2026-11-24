@@ -18,8 +18,7 @@ let generation = 0;
 let active = false;
 
 /**
- * The server notification store is not a window global; it is found by webpack
- * export search. Its OnServerNotification is the real ingestion path for
+ * When Steam exports the server store, its OnServerNotification is the ingestion path for
  * eSource=2 notifications -- the one live server events take -- so a synthetic
  * rollup pushed through it exercises capture, extraction and routing exactly
  * as a real wishlist sale would. Valve's own server-type test methods are
@@ -48,14 +47,10 @@ function findServerNotificationStore(): any {
  * everything the toast path reads from it is a plain property
  * (item.body_data, rgunread, timestamp), verified against the bundle.
  */
-function injectServerNotification(type: number, body: unknown): void {
-	const store = findServerNotificationStore();
-	if (!store) {
-		throw new Error('Server notification store not found');
-	}
+function serverRollup(type: number, body: unknown) {
 	const id = Date.now() % 1_000_000_000;
 	const now = Math.floor(Date.now() / 1000);
-	const rollup = {
+	return {
 		type,
 		rollup_key: id,
 		item: {
@@ -74,8 +69,48 @@ function injectServerNotification(type: number, body: unknown): void {
 		rgread: [] as number[],
 		timestamp: now,
 	};
-	dlog(`dev-fire: OnServerNotification type=${type}`, () => `dev-fire: OnServerNotification type=${type} body=${safeJson(body)}`);
+}
+
+function injectServerNotification(store: any, rollup: ReturnType<typeof serverRollup>): void {
+	if (!store) throw new Error('Server notification store not found');
+	const { type, item } = rollup;
+	dlog(`dev-fire: OnServerNotification type=${type}`, () => `dev-fire: OnServerNotification type=${type} body=${item.body_data}`);
 	store.OnServerNotification(rollup, 0 /* New */);
+}
+
+function sendSample(rollup: ReturnType<typeof serverRollup>): void {
+    const preferences = Reflect.get(globalThis, 'settingsStore') ??
+        findModuleExport((value: any) => typeof value?.GetClientSetting === 'function' && !!value?.clientSettings);
+    const client = preferences?.clientSettings;
+    const store = findServerNotificationStore();
+    const native = Reflect.get(globalThis, 'NotificationStore');
+    if (!client) throw new Error('Steam notification settings are unavailable.');
+    if (client.disable_all_toasts) throw new Error('Steam notifications are disabled. Enable them in Notifications to send a test.');
+    if (client.disable_toasts_in_game) {
+        if (typeof native?.BIsUserInGame !== 'function') throw new Error('Steam notification context is unavailable. Try the test outside a game.');
+        if (native.BIsUserInGame()) throw new Error('Steam in-game notifications are disabled. Enable them or try the test outside a game.');
+    }
+    const disabled = 'Steam General notification toasts are disabled. Enable them in Notifications to send a test.';
+    if (typeof store?.BToastEnabled === 'function') {
+        if (store.BToastEnabled(rollup.type, rollup.item) !== true) throw new Error(disabled);
+        injectServerNotification(store, rollup);
+        return;
+    }
+
+    // Steam Beta keeps the server store private. Use the General toast target
+    // from its native notification store and the same per-type toast bit.
+    const generalToast = 31;
+    const target = native?.GetNotificationTargets?.()?.[generalToast];
+    if (target?.strTest !== 'General' || typeof native?.ProcessNotification !== 'function') {
+        throw new Error('Steam’s General notification test is unavailable on this client build.');
+    }
+    const preference = preferences.notificationPreferences?.find((entry: any) => entry.notification_type === rollup.type);
+    if (!((preference ?? rollup.item).notification_targets & 8)) throw new Error(disabled);
+    dlog('dev-fire: native General sample');
+    native.ProcessNotification({ ...target, fnTray: null, showToast: true }, {
+        notificationID: rollup.rollup_key, rtCreated: rollup.timestamp,
+        eType: generalToast, eSource: 2, data: rollup, bNewIndicator: true,
+    }, 0 /* New */);
 }
 
 /**
@@ -107,20 +142,6 @@ export async function executeDevCommand(envelope: DevEnvelope, sample = false): 
     const epoch = generation;
     assertLiveRequest(envelope, epoch, sample);
     const cmd = validateDevCommand(sample ? sampleCommand() : envelope.command);
-    if (sample && 'server' in cmd) {
-        // Steam's ProcessNotification applies global gates before BToastEnabled.
-        const preferences = findModuleExport((value: any) => typeof value?.GetClientSetting === 'function' && !!value?.clientSettings);
-        const client = preferences?.clientSettings;
-        const store = findServerNotificationStore();
-        if (!client || typeof store?.BToastEnabled !== 'function') throw new Error('Steam notification settings are unavailable. Reopen Notifications and try again.');
-        if (client.disable_all_toasts) throw new Error('Steam notifications are disabled. Enable them in Notifications to send a test.');
-        if (client.disable_toasts_in_game) {
-            const notificationStore: any = Reflect.get(globalThis, 'NotificationStore');
-            if (typeof notificationStore?.BIsUserInGame !== 'function') throw new Error('Steam notification context is unavailable. Try the test outside a game.');
-            if (notificationStore.BIsUserInGame()) throw new Error('Steam in-game notifications are disabled. Enable them or try the test outside a game.');
-        }
-        if (store.BToastEnabled(cmd.server.type, { notification_targets: 15 }) !== true) throw new Error('Steam General notification toasts are disabled. Enable them in Notifications to send a test.');
-    }
     let value: unknown = null;
     if ('focus' in cmd) { value = { appid: cmd.focus.appid, host: normalizeHostFocus(await hostMethod('GameHostFocus')(cmd.focus.appid)) }; }
     else if ('overlay' in cmd) { value = await runOverlayProbe(cmd.overlay); }
@@ -133,8 +154,11 @@ export async function executeDevCommand(envelope: DevEnvelope, sample = false): 
             value = invokeReplayHandler(cmd.replay.name, surface.focusedAppId);
             if (!value) throw new Error('Replay was refused or no matching handler exists');
         }
-    } else if ('server' in cmd) { injectServerNotification(cmd.server.type, cmd.server.body); }
-    else {
+    } else if ('server' in cmd) {
+        const rollup = serverRollup(cmd.server.type, cmd.server.body);
+        if (sample) sendSample(rollup);
+        else injectServerNotification(findServerNotificationStore(), rollup);
+    } else {
         const store: any = Reflect.get(globalThis, 'NotificationStore');
         const fn = store?.[cmd.call];
         if (typeof fn !== 'function') throw new Error(`NotificationStore.${cmd.call} is unavailable`);

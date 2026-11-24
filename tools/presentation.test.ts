@@ -17,8 +17,8 @@ const platformReply = new Promise<string>((resolve) => { resolvePlatform = resol
 
 mock.module('../frontend/millennium-diagnostics', () => ({ startMillenniumDiagnostics: () => () => {}, receiveControl: () => {} }));
 mock.module('react/jsx-runtime', () => ({ jsx: element, jsxs: element, Fragment: 'fragment' }));
-mock.module('../shared/steam-settings-controls', () => ({ steamSettingsControls: () => ({ Theme: 'theme', Section: 'section', Toggle: 'toggle', Dropdown: 'dropdown', Button: 'button', Description: 'text', ActionSection: 'native-actions' }) }));
 mock.module('react', () => ({
+    Fragment: 'fragment',
     createElement: (type: any, props: any, ...children: any[]) => ({ type, props: { ...props, children } }),
 	useState: (initial: unknown) => [typeof initial === 'object' ? settings() : initial === 'unknown' ? platformState : initial, (value: unknown) => { if (initial === 'unknown') platformState = value; }],
 	useRef: (initial: unknown) => ({ current: initial }),
@@ -32,6 +32,9 @@ mock.module('millennium', () => ({
 	DialogBodyText: 'text',
 	DialogButton: 'button',
 	ToggleField: 'toggle',
+	DropdownItem: 'dropdown',
+	ConfirmModal: 'confirm',
+	showModal: () => {},
 	usePluginConfig: (key: string) => [store[key], async (value: unknown) => set(key, value)],
 	pluginConfig: { getAll: async () => ({ ...store }), set: async (key: string, value: unknown) => set(key, value) },
 	subscribePluginConfig: (callback: (key: string, value: unknown) => void) => { settingListeners.add(callback); return () => settingListeners.delete(callback); },
@@ -172,8 +175,8 @@ test('the same popup delivers only once', async () => {
 });
 
 test('panel exposes delivery dropdowns and preserves Windows additions', () => {
-	const sections = nodes(SettingsPanel()).filter((node) => node.type === 'section' && node.props.label);
-	expect(sections.map((node) => node.props.label)).toEqual(['Steam Native Notifications']);
+	const headers = nodes(SettingsPanel()).filter((node) => node.type === 'header');
+	expect(headers.map((node) => node.props.children)).toEqual(['Steam Native Notifications']);
 	expect(toggles().map((node) => [node.props.label, node.props.checked])).toEqual([
         ['Enable Steam Native Notifications', true],
         ['Save to Notification Center only while in a game', false], ['Save to Notification Center only outside a game', false],

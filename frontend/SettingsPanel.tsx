@@ -2,15 +2,34 @@ import { preferenceDefaults, preferencePatch } from '../shared/settings-policy';
 import { sampleCommand } from '../shared/dev-command';
 import { sampleMessage } from '../shared/command-result';
 import * as React from 'react';
+import {
+    ConfirmModal, DialogBodyText, DialogButton, DialogControlsSection,
+    DialogControlsSectionHeader, DropdownItem, showModal, ToggleField,
+} from 'millennium';
 import { useSettingsActions } from '../shared/settings-actions';
 import { settingsContent } from '../shared/settings-content';
-import { steamSettingsControls } from '../shared/steam-settings-controls';
 import { DEFAULTS, settingsHost, type Settings } from './settings';
 import { loadPlatform } from './platform';
 import type { Platform } from './presentation';
 import { executeDevCommand } from './devfire';
 
 const { useEffect, useState } = React;
+
+const controls = {
+    Section: ({ label, children }: React.PropsWithChildren<{ label: string }>) => (
+        <DialogControlsSection>
+            <DialogControlsSectionHeader>{label}</DialogControlsSectionHeader>
+            {children}
+        </DialogControlsSection>
+    ),
+    Theme: React.Fragment,
+    Toggle: ToggleField,
+    Dropdown: DropdownItem,
+    Button: DialogButton,
+    Description: DialogBodyText,
+    ConfirmDialog: ConfirmModal,
+    ShowModal: showModal,
+};
 
 export function SettingsPanel() {
     const [platform, setPlatform] = useState<Platform>('unknown');
@@ -31,7 +50,7 @@ export function SettingsPanel() {
         return result.value;
     };
     const saved = (next: Settings) => { setValues(next); return 'Saved.'; };
-    return settingsContent(React, steamSettingsControls(), {
+    return settingsContent(React, controls, {
         values, platform, disabled: !ready || busy || platform === 'unknown',
         sampleDisabled: !ready || busy || !values.integrationEnabled,
         status: !ready ? 'Settings unavailable. Reopen this page to retry.' : '',

@@ -41,13 +41,3 @@ export function discoverControls(requireModule: any): Record<'Body' | 'Theme' | 
         ShowModal: component('ShowLegacyPopupModal', 'cloneElement', 'ShowModal('),
     };
 }
-
-let cached: ReturnType<typeof discoverControls> | undefined;
-export function steamSettingsControls(): ReturnType<typeof discoverControls> {
-    if (cached) return cached;
-    const chunks = (globalThis as any).webpackChunksteamui;
-    if (!Array.isArray(chunks)) throw new Error('Steam loader unavailable');
-    let requireModule: any;
-    chunks.push([[`snn-controls-${crypto.randomUUID()}`], {}, (value: any) => { requireModule = value; }]);
-    return cached = discoverControls(requireModule);
-}
