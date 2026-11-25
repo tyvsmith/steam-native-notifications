@@ -41,8 +41,9 @@ snn doctor
 ```
 
 Open **Steam Settings → Notifications → Steam Native Notifications** and select
-**Send test notification**. A healthy status alone does not prove a visible banner;
-your OS may send notifications to history when Do Not Disturb is enabled.
+**Send test notification**. On Steam Beta builds where the panel is unavailable,
+run `snn --host standalone sample` once the standalone host is ready. Check
+notification history if Do Not Disturb suppresses the banner.
 
 Setup enables Steam's local CEF debugging endpoint to load the integration.
 Keep it local: debugging access can control the logged-in Steam client.
