@@ -150,14 +150,18 @@ See [runtime and package notices](standalone-notices.md) and
 
 ## Publish a release
 
-Building and installing a tarball do not publish it. A numbered `v*` release
-builds the `.star` and Bun tarball together, checks matching versions and uploads
-both to GitHub. Release notes use reachable numbered tags and ignore the moving
-`latest` tag; the first numbered release includes the available commit history.
-A Millennium plugin store submission pins the commit of that numbered tag.
+Numbered `v*` tags build a Millennium `.star` from a bare checkout, verify its
+version and source commit, and attach it to a GitHub draft. Publish the draft
+after testing that asset. Release notes use reachable numbered tags and ignore
+the moving `latest` tag. A Millennium store submission pins the numbered tag's
+commit.
+
+Standalone preview packages continue through the rolling `latest` prerelease.
+Building and installing a tarball leaves the npm registry unchanged.
 
 The separate **Publish npm package** workflow is manual and defaults to dry run.
-Run it from the numbered release tag. It downloads that release's tarball,
+Run it from a numbered release tag that has a standalone tarball, such as
+`v0.1.0`. It downloads that release's tarball,
 checks its checksum and metadata, and recomputes source identity from the tag
 before allowing publication. Prereleases use npm's `next` tag; stable versions
 use `latest`. No compilation or lifecycle setup runs during publication.

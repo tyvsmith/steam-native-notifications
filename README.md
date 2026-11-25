@@ -4,13 +4,13 @@ Send Steam notifications to your operating system, with artwork and click action
 Choose where notifications go while playing and on the desktop. System notifications
 follow your OS settings, including Do Not Disturb and notification history where supported.
 
-**Pre-release.** Steam updates can affect either integration.
+Numbered releases ship the Millennium plugin. Standalone is a preview.
 
 ## Choose a version
 
 | Version | Use it with | Install |
 | --- | --- | --- |
-| **Standalone** | Native Linux x64 Steam, including RT3, plus experimental Windows x64, without Millennium | [Bun package](docs/install.md#standalone-linux) |
+| **Standalone preview** | Native Linux x64 Steam, including RT3, plus experimental Windows x64, without Millennium | [Bun package](docs/install.md#standalone-linux) |
 | **Millennium plugin** | A Steam client supported by [Millennium](https://steambrew.app); Linux and experimental Windows support | [`.star` plugin](docs/install.md#millennium-plugin) |
 
 RT3 means Steam's client runtime, not a game's compatibility tool. Linux needs
@@ -25,12 +25,14 @@ Millennium 3.6.3 or newer. Use only one integration at a time.
 
 The [rolling pre-release](https://github.com/tyvsmith/steam-native-notifications/releases/tag/latest)
 provides the Millennium `.star` and standalone [Bun package](docs/install.md#install)
-with a SHA-256 checksum.
+with a SHA-256 checksum for the tarball. For the numbered Millennium build, see
+the [latest stable release](https://github.com/tyvsmith/steam-native-notifications/releases/latest).
 
 ## Configure notifications
 
-- **Standalone:** Steam Settings → Notifications → Steam Native Notifications
-- **Millennium:** Steam menu → Millennium → Plugins → ▾ → Configure (Millennium 3.6.2)
+- **Standalone:** Steam Settings → Notifications → Steam Native Notifications.
+  On the newer Steam Beta, the embedded panel is unavailable. Use [CLI settings](docs/standalone-release.md#settings-and-diagnostics).
+- **Millennium:** Steam menu → Millennium → Plugins → ▾ → Configure
 
 | Context | Default | Available choices |
 | --- | --- | --- |

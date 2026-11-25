@@ -22,6 +22,9 @@ Linux support requires Steam's 64-bit client (`steamrt64` / `steamrt3c`),
 which reached the Stable channel on 2026-11-11; the 32-bit `ubuntu12_32` client
 is unsupported. The Millennium plugin requires Millennium 3.6.3 or newer.
 
+The maintainer previously confirmed that the Millennium plugin from
+[`main` at `97894cb`](https://github.com/tyvsmith/steam-native-notifications/commit/97894cb9aae998926f3e4e2c399249e72e11db0a)
+worked on both Steam Stable and Steam Beta on Linux RT3.
 On November 23, Steam Beta build `1795048523` with Millennium `3.7.0-beta.2`
 loaded the notification hook, but opening the plugin settings failed because
 Steam no longer exposed its Webpack loader. The panel opened on the same

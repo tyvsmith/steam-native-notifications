@@ -11,27 +11,36 @@ const workflows = Object.fromEntries(readdirSync(workflowDirectory)
     name.replace(/\.ya?ml$/, ''),
     Bun.YAML.parse(readFileSync(new URL(name, workflowDirectory), 'utf8')) as any,
   ]));
-const steps = Object.values(workflows).flatMap(workflow =>
-  Object.values(workflow.jobs).flatMap((job: any) => job.steps ?? []));
-
-test('CI exports the plugin and validated Bun package only', () => {
-  const uploads = steps.filter(step => step.uses?.startsWith('actions/upload-artifact@'));
+test('rolling CI exports the plugin and validated Bun package', () => {
+  const uploads = workflows.build.jobs.build.steps.filter((step: any) => step.uses?.startsWith('actions/upload-artifact@'));
   expect(uploads).toHaveLength(2);
   expect(uploads[0].with.path).toBe(`dist/${star}`);
   expect(uploads[1].with.name).toBe('standalone-bun-package');
   expect(uploads[1].with.path.trim().split('\n')).toEqual(['dist/releases/*.tgz', 'dist/releases/*.tgz.sha256']);
 });
 
-test('numbered releases include the Bun tarball with explicit notes', () => {
-  const publish = workflows.release.jobs.release.steps.find((step: any) => step.name === 'Create the GitHub release');
-  expect(publish.run).toContain('dist/releases/*.tgz dist/releases/*.tgz.sha256');
+test('numbered releases pack Millennium only and create a draft with the verified .star', () => {
+  expect(workflows.release.jobs.build.with).toEqual({ millennium_release: true });
+  expect(workflows.build.jobs.build.if).toBe('${{ !inputs.millennium_release }}');
+  const pack = workflows.build.jobs['store-pack'].steps;
+  expect(pack.some((step: any) => step.run?.includes('--release --source-commit'))).toBe(true);
+  const upload = pack.find((step: any) => step.uses?.startsWith('actions/upload-artifact@'));
+  expect(upload.if).toBe('${{ inputs.millennium_release }}');
+  expect(upload.with.path).toBe(`dist/${star}`);
+  const release = workflows.release.jobs.release.steps;
+  const downloads = release.filter((step: any) => step.uses?.startsWith('actions/download-artifact@'));
+  expect(downloads.map((step: any) => step.with.name)).toEqual([star]);
+  const publish = release.find((step: any) => step.name === 'Create the GitHub release draft');
+  expect(publish.run).toContain(`gh release create "$TAG" dist/${star}`);
+  expect(publish.run).toContain('--draft --verify-tag');
+  expect(publish.run).not.toContain('.tgz');
   expect(publish.run).toContain('--notes-file dist/release-notes.md');
   expect(publish.run).not.toContain('--generate-notes');
 });
 
 test('dry-run publication remains disabled and local package coverage remains enabled', () => {
   expect(workflows.release.on.workflow_dispatch.inputs.dry_run.default).toBe(true);
-  const publish = workflows.release.jobs.release.steps.find((step: any) => step.name === 'Create the GitHub release');
+  const publish = workflows.release.jobs.release.steps.find((step: any) => step.name === 'Create the GitHub release draft');
   expect(publish.if).toBe('${{ !inputs.dry_run }}');
   const builds = workflows.build.jobs.build.steps.map((step: any) => step.run);
   expect(builds).toContain('bun tools/build-release.ts');
