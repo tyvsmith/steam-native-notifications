@@ -41,8 +41,9 @@ snn doctor
 ```
 
 Open **Steam Settings → Notifications → Steam Native Notifications** and select
-**Send test notification**. A healthy status alone does not prove a visible banner;
-your OS may send notifications to history when Do Not Disturb is enabled.
+**Send test notification**. On Steam Beta builds where the panel is unavailable,
+run `snn --host standalone sample` once the standalone host is ready. Check
+notification history if Do Not Disturb suppresses the banner.
 
 Setup enables Steam's local CEF debugging endpoint to load the integration.
 Keep it local: debugging access can control the logged-in Steam client.
@@ -82,8 +83,9 @@ uses the built-in Windows PowerShell 5.1, not PowerShell 7.
 
 ### Install
 
-1. Download [`me.tysmith.steam-native-notifications.star`](https://github.com/tyvsmith/steam-native-notifications/releases/download/latest/me.tysmith.steam-native-notifications.star)
-   from the rolling pre-release
+1. Download `me.tysmith.steam-native-notifications.star` from the
+   [latest stable release](https://github.com/tyvsmith/steam-native-notifications/releases/latest)
+   or the [rolling pre-release](https://github.com/tyvsmith/steam-native-notifications/releases/tag/latest)
 2. Copy it, keeping that filename, into Millennium's plugins directory:
 
    | Platform | Directory |
@@ -94,7 +96,7 @@ uses the built-in Windows PowerShell 5.1, not PowerShell 7.
    Create the directory if needed
 3. Fully exit and reopen Steam, then enable **Steam Native Notifications** under
    Millennium → Plugins. Restart Steam again if enabling it does not load the panel
-4. Open **Steam menu → Millennium → Plugins → ▾ → Configure** (Millennium 3.6.2),
+4. Open **Steam menu → Millennium → Plugins → ▾ → Configure**,
    then select **Send test notification**
 
 ### Update or remove

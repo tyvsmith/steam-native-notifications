@@ -10,7 +10,7 @@ on:
         type: boolean
         default: true
 
-# Read-only by default; only the release job elevates, to publish.
+# Read-only by default. Only the release job can create a draft.
 permissions:
   contents: read
 
@@ -18,7 +18,7 @@ jobs:
   build:
     uses: ./.github/workflows/build.yml
     with:
-      upload: true
+      millennium_release: true
 
   release:
     needs: build
@@ -36,11 +36,6 @@ jobs:
         with:
           name: me.tysmith.steam-native-notifications.star
           path: dist
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: standalone-bun-package
-          path: dist/releases
 
       # The tag names the release; millennium.toml is the version the bundle
       # reports to Millennium. They must agree or users install a .star that
@@ -65,14 +60,18 @@ jobs:
           test "$tag" = "v$manifest" || { echo "tag $tag != millennium.toml version $manifest"; exit 1; }
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
-      # A tag with a semver prerelease suffix (v1.2.0-rc1) publishes as a prerelease.
-      - name: Create the GitHub release
+      - name: Create the GitHub release draft
         if: ${{ !inputs.dry_run }}
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.version.outputs.tag }}
         run: |
           case $TAG in *-*) pre=--prerelease ;; *) pre= ;; esac
-          bun tools/release-notes.ts "$TAG" > dist/release-notes.md
-          gh release create "$TAG" dist/me.tysmith.steam-native-notifications.star dist/releases/*.tgz dist/releases/*.tgz.sha256 \
-            --verify-tag --notes-file dist/release-notes.md $pre
+          {
+            printf '%s\n\n' 'Millennium plugin release. Windows support remains experimental.'
+            printf '[Install or update](https://github.com/%s/blob/%s/docs/install.md#millennium-plugin)\n\n' "$GITHUB_REPOSITORY" "$TAG"
+            printf '%s\n\n' '## Changes'
+            bun tools/release-notes.ts "$TAG"
+          } > dist/release-notes.md
+          gh release create "$TAG" dist/me.tysmith.steam-native-notifications.star \
+            --draft --verify-tag --notes-file dist/release-notes.md $pre

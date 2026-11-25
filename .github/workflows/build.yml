@@ -9,9 +9,14 @@ on:
         description: Upload the plugin and Bun package as run artifacts
         type: boolean
         default: false
+      millennium_release:
+        description: Build and upload the Millennium release asset only
+        type: boolean
+        default: false
 
 jobs:
   build:
+    if: ${{ !inputs.millennium_release }}
     runs-on: ubuntu-22.04
     # The job runs repository scripts (bun install, bun run test); keep the
     # token they can reach read-only regardless of the caller's grant.
@@ -101,5 +106,22 @@ jobs:
       - name: Install Starlight as the store does
         run: npm install -g "@steambrew/starlight@$(node -p "require('./package.json').devDependencies['@steambrew/starlight']")"
       - name: Pack the bare checkout
-        run: mkdir -p dist && starlight pack -o dist --release --source-commit "$GITHUB_SHA"
-      - run: starlight verify dist/me.tysmith.steam-native-notifications.star
+        run: |
+          mkdir -p dist
+          starlight pack -o dist --release --source-commit "$(git rev-parse HEAD)"
+      - name: Verify the release pack and its source
+        run: |
+          star=dist/me.tysmith.steam-native-notifications.star
+          starlight verify "$star"
+          starlight -i "$star" -q metadata | node -e '
+            const assert = require("node:assert/strict");
+            const metadata = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+            assert.equal(metadata.version, require("./package.json").version);
+            assert.equal(metadata.sourceCommit, process.argv[1]);
+          ' "$(git rev-parse HEAD)"
+      - if: ${{ inputs.millennium_release }}
+        uses: actions/upload-artifact@v7
+        with:
+          path: dist/me.tysmith.steam-native-notifications.star
+          archive: false
+          if-no-files-found: error

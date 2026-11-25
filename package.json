@@ -1,6 +1,6 @@
 {
   "name": "steam-native-notifications",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Mirror Steam notification toasts to the desktop notification daemon.",
   "license": "MIT",
   "author": "Ty Smith",

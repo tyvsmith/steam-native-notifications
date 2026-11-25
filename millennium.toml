@@ -1,7 +1,7 @@
 [plugin]
 id = "me.tysmith.steam-native-notifications"
 name = "Steam Native Notifications"
-version = "0.1.0"
+version = "0.2.0"
 author = "Ty Smith"
 description = "Mirrors Steam's in-client notification toasts to the desktop notification service."
 
